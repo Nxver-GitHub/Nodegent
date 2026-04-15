@@ -1,0 +1,13 @@
+import { defineSchema, defineTable } from "convex/server";
+import { v } from "convex/values";
+
+export default defineSchema({
+  users: defineTable({
+    clerkId: v.string(),
+    email: v.string(),
+    name: v.string(),
+    imageUrl: v.optional(v.string()),
+    createdAt: v.number(),
+    lastSyncedAt: v.optional(v.number()),
+  }).index("by_clerkId", ["clerkId"]),
+});
