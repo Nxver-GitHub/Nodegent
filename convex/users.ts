@@ -1,5 +1,7 @@
 import { mutation, query } from "./_generated/server";
 
+const SYNC_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
+
 export const ensureUser = mutation({
   args: {},
   handler: async (ctx) => {
@@ -13,9 +15,16 @@ export const ensureUser = mutation({
       .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
       .unique();
 
+    const now = Date.now();
+
     if (existing) {
+      // Server-side rate guard: skip writes if synced recently
+      if (existing.lastSyncedAt && now - existing.lastSyncedAt < SYNC_COOLDOWN_MS) {
+        return existing._id;
+      }
+
       // Update profile fields if they changed in Clerk
-      const updates: Record<string, string> = {};
+      const updates: Record<string, string | number> = { lastSyncedAt: now };
       if (identity.name && identity.name !== existing.name) {
         updates.name = identity.name;
       }
@@ -26,10 +35,7 @@ export const ensureUser = mutation({
         updates.imageUrl = identity.pictureUrl;
       }
 
-      if (Object.keys(updates).length > 0) {
-        await ctx.db.patch(existing._id, updates);
-      }
-
+      await ctx.db.patch(existing._id, updates);
       return existing._id;
     }
 
@@ -38,7 +44,8 @@ export const ensureUser = mutation({
       email: identity.email ?? "",
       name: identity.name ?? identity.email ?? "Student",
       imageUrl: identity.pictureUrl,
-      createdAt: Date.now(),
+      createdAt: now,
+      lastSyncedAt: now,
     });
   },
 });
