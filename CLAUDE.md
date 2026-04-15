@@ -57,6 +57,24 @@ If unsure about a user story's intent, a technology's current best practice, or 
 - Rate limiting and input validation at every external API boundary (Canvas, Google, LLM providers).
 - Agent actions must be **logged and auditable** (see US-4.1).
 
+## Build & Run Commands
+
+```bash
+npm install                # Install dependencies
+npx convex dev             # Start Convex dev server (terminal 1)
+npm run dev                # Start Next.js dev server with Turbopack (terminal 2)
+npm run build              # Production build
+npm run lint               # ESLint
+npm run test:e2e           # Run Playwright E2E tests
+npm run test:e2e:ui        # Playwright interactive UI mode
+```
+
+## Environment Setup
+
+Copy `.env.example` to `.env.local` and fill in:
+- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` / `CLERK_SECRET_KEY` from [Clerk Dashboard](https://dashboard.clerk.com)
+- `NEXT_PUBLIC_CONVEX_URL` from `npx convex dev` (auto-populated)
+
 ## Key Architecture Decisions
 
 - **Convex** owns all persistent state. The AI assistant reads campus data from Convex rather than holding credentials directly.
