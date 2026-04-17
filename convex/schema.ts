@@ -40,7 +40,8 @@ export default defineSchema({
     .index("by_userId", ["userId"])
     .index("by_courseId", ["courseId"])
     .index("by_userId_dueAt", ["userId", "dueAt"])
-    .index("by_userId_canvasId", ["userId", "canvasId"]),
+    .index("by_userId_canvasId", ["userId", "canvasId"])
+    .index("by_userId_courseId", ["userId", "courseId"]),
 
   events: defineTable({
     userId: v.id("users"),
@@ -54,5 +55,6 @@ export default defineSchema({
     lastSyncedAt: v.number(),
   })
     .index("by_userId", ["userId"])
-    .index("by_userId_startAt", ["userId", "startAt"]),
+    .index("by_userId_startAt", ["userId", "startAt"])
+    .index("by_userId_externalId", ["userId", "externalId"]),
 });

@@ -131,6 +131,85 @@ describe("assignments", () => {
     });
   });
 
+  describe("getAssignments - user isolation", () => {
+    it("does not leak another user's assignments when filtering by courseId", async () => {
+      const t = convexTest(schema);
+
+      // Seed user A with a course and assignment
+      const courseId = await seedUserAndCourse(t);
+      await t.withIdentity(IDENTITY).mutation(api.assignments.upsertAssignment, {
+        courseId: courseId as Id<"courses">,
+        canvasId: "a_user1",
+        title: "User A HW",
+      });
+
+      // Seed user B and create an assignment on the SAME course
+      await t.withIdentity(OTHER_IDENTITY).mutation(api.users.ensureUser, {});
+      await t.run(async (ctx) => {
+        const userB = await ctx.db
+          .query("users")
+          .withIndex("by_clerkId", (q) => q.eq("clerkId", OTHER_IDENTITY.subject))
+          .unique();
+        await ctx.db.insert("assignments", {
+          userId: userB!._id,
+          courseId: courseId as Id<"courses">,
+          canvasId: "a_user2",
+          title: "User B HW",
+          isCompleted: false,
+          lastSyncedAt: Date.now(),
+        });
+      });
+
+      // User A queries by courseId — must NOT see User B's assignment
+      const userAResults = await t.withIdentity(IDENTITY).query(api.assignments.getAssignments, {
+        courseId: courseId as Id<"courses">,
+      });
+      expect(userAResults).toHaveLength(1);
+      expect(userAResults[0].canvasId).toBe("a_user1");
+
+      // User B queries by courseId — must NOT see User A's assignment
+      const userBResults = await t.withIdentity(OTHER_IDENTITY).query(api.assignments.getAssignments, {
+        courseId: courseId as Id<"courses">,
+      });
+      expect(userBResults).toHaveLength(1);
+      expect(userBResults[0].canvasId).toBe("a_user2");
+    });
+
+    it("does not leak another user's assignments when no courseId filter", async () => {
+      const t = convexTest(schema);
+
+      // Seed user A
+      const courseId = await seedUserAndCourse(t);
+      await t.withIdentity(IDENTITY).mutation(api.assignments.upsertAssignment, {
+        courseId: courseId as Id<"courses">,
+        canvasId: "a_only_mine",
+        title: "My HW",
+      });
+
+      // Seed user B with an assignment
+      await t.withIdentity(OTHER_IDENTITY).mutation(api.users.ensureUser, {});
+      await t.run(async (ctx) => {
+        const userB = await ctx.db
+          .query("users")
+          .withIndex("by_clerkId", (q) => q.eq("clerkId", OTHER_IDENTITY.subject))
+          .unique();
+        await ctx.db.insert("assignments", {
+          userId: userB!._id,
+          courseId: courseId as Id<"courses">,
+          canvasId: "a_theirs",
+          title: "Their HW",
+          isCompleted: false,
+          lastSyncedAt: Date.now(),
+        });
+      });
+
+      // User A with no courseId filter — must only see own assignments
+      const results = await t.withIdentity(IDENTITY).query(api.assignments.getAssignments, {});
+      expect(results.every((a) => a.canvasId !== "a_theirs")).toBe(true);
+      expect(results.find((a) => a.canvasId === "a_only_mine")).toBeDefined();
+    });
+  });
+
   describe("markComplete", () => {
     it("throws when a different user tries to mark someone else's assignment", async () => {
       const t = convexTest(schema);

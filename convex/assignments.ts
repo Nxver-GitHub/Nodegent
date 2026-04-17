@@ -24,7 +24,9 @@ export const getAssignments = query({
     if (args.courseId) {
       return await ctx.db
         .query("assignments")
-        .withIndex("by_courseId", (q) => q.eq("courseId", args.courseId as Id<"courses">))
+        .withIndex("by_userId_courseId", (q) =>
+          q.eq("userId", user._id).eq("courseId", args.courseId as Id<"courses">)
+        )
         .collect();
     }
 

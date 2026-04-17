@@ -90,12 +90,12 @@ export const upsertEvent = mutation({
 
     // Attempt upsert by externalId if provided
     if (args.externalId) {
-      const all = await ctx.db
+      const existing = await ctx.db
         .query("events")
-        .withIndex("by_userId", (q) => q.eq("userId", user._id))
-        .collect();
-
-      const existing = all.find((e) => e.externalId === args.externalId);
+        .withIndex("by_userId_externalId", (q) =>
+          q.eq("userId", user._id).eq("externalId", args.externalId)
+        )
+        .unique();
 
       if (existing) {
         await ctx.db.patch(existing._id, {
