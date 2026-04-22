@@ -60,8 +60,12 @@ export default defineSchema({
 
   canvasCredentials: defineTable({
     userId: v.id("users"),
-    accessToken: v.string(),
-    canvasBaseUrl: v.string(),
+    // Legacy PAT field — kept optional so existing rows remain valid during migration
+    accessToken: v.optional(v.string()),
+    // JSON-serialized array of Playwright session cookies
+    canvasCookies: v.optional(v.string()),
+    // Kept optional; hardcoded to canvas.ucsc.edu in application logic
+    canvasBaseUrl: v.optional(v.string()),
     lastSyncedAt: v.optional(v.number()),
     lastSyncStatus: v.optional(v.union(v.literal("success"), v.literal("error"))),
     lastSyncError: v.optional(v.string()),

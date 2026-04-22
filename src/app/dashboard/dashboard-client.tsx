@@ -6,6 +6,7 @@ import { useMutation, useQuery, useAction } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { DashboardShell } from "./components/DashboardShell";
 import { AssignmentList } from "./components/AssignmentList";
+import { CanvasAuthViewer } from "./components/CanvasAuthViewer";
 
 export function DashboardClient() {
   const { user, isLoaded } = useUser();
@@ -37,45 +38,28 @@ export function DashboardClient() {
 
 function CanvasCard() {
   const status = useQuery(api.canvas.getCanvasStatus);
-  const saveToken = useMutation(api.canvas.saveCanvasToken);
-  const removeToken = useMutation(api.canvas.removeCanvasToken);
+  const removeCredentials = useMutation(api.canvas.removeCanvasCredentials);
   const syncCanvas = useAction(api.canvas.syncCanvas);
-
-  const [canvasUrl, setCanvasUrl] = useState("https://ucsc.instructure.com");
-  const [accessToken, setAccessToken] = useState("");
   const [isSyncing, setIsSyncing] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
-
-  const isConnected = status !== null && status !== undefined;
-
-  async function handleConnect(e: React.FormEvent) {
-    e.preventDefault();
-    setFormError(null);
-    try {
-      await saveToken({ accessToken, canvasBaseUrl: canvasUrl });
-      setAccessToken("");
-      await handleSync();
-    } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Failed to save token");
-    }
-  }
+  const [syncError, setSyncError] = useState<string | null>(null);
 
   async function handleSync() {
     setIsSyncing(true);
+    setSyncError(null);
     try {
       await syncCanvas({});
-    } catch {
-      // Error is persisted to lastSyncError in Convex — UI reads it from status
+    } catch (err) {
+      setSyncError(err instanceof Error ? err.message : "Sync failed");
     } finally {
       setIsSyncing(false);
     }
   }
 
   async function handleDisconnect() {
-    await removeToken({});
+    await removeCredentials({});
   }
 
-  // status === undefined means query is loading; null means no credentials saved
+  // Loading
   if (status === undefined) {
     return (
       <div className="rounded-lg border bg-white p-6">
@@ -84,54 +68,12 @@ function CanvasCard() {
     );
   }
 
-  if (!isConnected) {
-    return (
-      <div className="rounded-lg border bg-white p-6">
-        <h3 className="font-semibold text-gray-900">Connect Canvas</h3>
-        <p className="mt-1 text-sm text-gray-500">
-          Enter your Canvas personal access token to sync your courses and
-          assignments. Generate one in Canvas → Account → Settings → Approved
-          Integrations → New Access Token.
-        </p>
-        <form onSubmit={handleConnect} className="mt-4 space-y-3">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Canvas URL
-            </label>
-            <input
-              type="url"
-              value={canvasUrl}
-              onChange={(e) => setCanvasUrl(e.target.value)}
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="https://ucsc.instructure.com"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Access Token
-            </label>
-            <input
-              type="password"
-              value={accessToken}
-              onChange={(e) => setAccessToken(e.target.value)}
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Paste your Canvas access token"
-              required
-            />
-          </div>
-          {formError && <p className="text-sm text-red-600">{formError}</p>}
-          <button
-            type="submit"
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            Connect Canvas
-          </button>
-        </form>
-      </div>
-    );
+  // Not connected — show SSO auth viewer
+  if (!status?.isConnected) {
+    return <CanvasAuthViewer onConnected={handleSync} />;
   }
 
+  // Connected — show status and sync controls
   const lastSync = status.lastSyncedAt
     ? new Date(status.lastSyncedAt).toLocaleString()
     : "Never";
@@ -140,7 +82,7 @@ function CanvasCard() {
     <div className="rounded-lg border bg-white p-6">
       <div className="flex items-center justify-between">
         <h3 className="font-semibold text-gray-900">Canvas</h3>
-        <span className="text-sm text-green-600 font-medium">Connected</span>
+        <span className="text-sm font-medium text-green-600">Connected</span>
       </div>
       <p className="mt-1 text-sm text-gray-500">{status.canvasBaseUrl}</p>
       <p className="mt-2 text-sm text-gray-600">
@@ -148,15 +90,18 @@ function CanvasCard() {
         {status.coursesSynced !== undefined && (
           <>
             {" "}
-            · {status.coursesSynced} courses ·{" "}
-            {status.assignmentsSynced ?? 0} assignments
+            · {status.coursesSynced} courses · {status.assignmentsSynced ?? 0}{" "}
+            assignments
           </>
         )}
       </p>
-      {status.lastSyncStatus === "error" && status.lastSyncError && (
+      {status.lastSyncStatus === "error" && (status.lastSyncError ?? syncError) && (
         <p className="mt-2 text-sm text-red-600">
-          Sync error: {status.lastSyncError}
+          Sync error: {status.lastSyncError ?? syncError}
         </p>
+      )}
+      {syncError && status.lastSyncStatus !== "error" && (
+        <p className="mt-2 text-sm text-red-600">Sync error: {syncError}</p>
       )}
       <div className="mt-4 flex gap-3">
         <button
