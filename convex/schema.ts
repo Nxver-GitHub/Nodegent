@@ -57,4 +57,15 @@ export default defineSchema({
     .index("by_userId", ["userId"])
     .index("by_userId_startAt", ["userId", "startAt"])
     .index("by_userId_externalId", ["userId", "externalId"]),
+
+  canvasCredentials: defineTable({
+    userId: v.id("users"),
+    accessToken: v.string(),
+    canvasBaseUrl: v.string(),
+    lastSyncedAt: v.optional(v.number()),
+    lastSyncStatus: v.optional(v.union(v.literal("success"), v.literal("error"))),
+    lastSyncError: v.optional(v.string()),
+    coursesSynced: v.optional(v.number()),
+    assignmentsSynced: v.optional(v.number()),
+  }).index("by_userId", ["userId"]),
 });

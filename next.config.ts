@@ -18,7 +18,7 @@ const securityHeaders = [
       "img-src 'self' data: blob: https://img.clerk.com",
       "font-src 'self'",
       "worker-src blob:",
-      "connect-src 'self' https://*.convex.cloud wss://*.convex.cloud https://*.clerk.accounts.dev https://clerk.accounts.dev",
+      "connect-src 'self' https://*.convex.cloud wss://*.convex.cloud https://*.clerk.accounts.dev https://clerk.accounts.dev https://*.instructure.com",
       "frame-src 'self' https://clerk.accounts.dev https://*.clerk.accounts.dev https://challenges.cloudflare.com",
       "frame-ancestors 'none'",
     ].join("; "),
