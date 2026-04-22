@@ -1,1 +1,37 @@
 @import "tailwindcss";
+
+@layer base {
+  body {
+    font-family: var(--font-sans);
+    color: var(--color-brand-text);
+  }
+}
+
+@theme {
+  --font-sans: "IBM Plex Sans", sans-serif;
+  --color-brand-bg: #EEEFE9;
+  --color-brand-text: #4D4F46;
+  --color-brand-yellow: #EB9D2A;
+  --color-brand-amber: #CD8407;
+  --color-brand-red: #F34D52;
+  --color-brand-primary: #E1D7C2;
+}
+
+.brutal-border {
+  border: 1px solid #1D1D1D;
+  box-shadow: 2px 2px 0px 0px #1D1D1D;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+.brutal-border:active {
+  transform: translate(2px, 2px);
+  box-shadow: none;
+}
+.window-shadow {
+  box-shadow: 0 30px 60px -15px rgba(0, 0, 0, 0.3);
+}
+.desktop-bg {
+  background-color: #EEEFE9;
+  background-image: url("https://res.cloudinary.com/dmukukwp6/image/upload/carpet_light_27d74f73b5.png");
+  background-size: 200px 200px;
+  background-repeat: repeat;
+}
