@@ -41,3 +41,13 @@ yarn-error.log*
 next-env.d.ts
 .aidesigner/*
 !.aidesigner/.gitkeep
+
+# Playwright persistent browser session (Canvas SSO cookies — never commit)
+.browser-session/
+
+# Auto-generated / machine-local tooling
+.claude/
+.clerk/
+AGENTS.md
+convex/_generated/ai/
+skills-lock.json

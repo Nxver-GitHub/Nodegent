@@ -139,6 +139,52 @@ export const upsertAssignment = mutation({
   },
 });
 
+export const getDailySnapshot = query({
+  args: {},
+  handler: async (ctx) => {
+    const empty = { overdue: [], dueToday: [], dueThisWeek: [], noDueDate: [] };
+
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return empty;
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .unique();
+
+    if (!user) return empty;
+
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const todayStart = startOfToday.getTime();
+    const todayEnd = todayStart + 24 * 60 * 60 * 1000 - 1;
+    const weekEnd = todayStart + 7 * 24 * 60 * 60 * 1000;
+
+    const all = await ctx.db
+      .query("assignments")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .collect();
+
+    const incomplete = all.filter((a) => !a.isCompleted);
+
+    const byDue = (a: { dueAt?: number }, b: { dueAt?: number }) =>
+      (a.dueAt ?? 0) - (b.dueAt ?? 0);
+
+    return {
+      overdue: incomplete
+        .filter((a) => a.dueAt !== undefined && a.dueAt < todayStart)
+        .sort(byDue),
+      dueToday: incomplete
+        .filter((a) => a.dueAt !== undefined && a.dueAt >= todayStart && a.dueAt <= todayEnd)
+        .sort(byDue),
+      dueThisWeek: incomplete
+        .filter((a) => a.dueAt !== undefined && a.dueAt > todayEnd && a.dueAt <= weekEnd)
+        .sort(byDue),
+      noDueDate: incomplete.filter((a) => a.dueAt === undefined),
+    };
+  },
+});
+
 export const markComplete = mutation({
   args: {
     assignmentId: v.id("assignments"),

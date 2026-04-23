@@ -4,6 +4,13 @@ import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
 
 // ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const CANVAS_BASE_URL = "https://canvas.ucsc.edu";
+const MAX_PAGES = 20;
+
+// ---------------------------------------------------------------------------
 // Canvas API type definitions
 // ---------------------------------------------------------------------------
 
@@ -24,25 +31,50 @@ interface CanvasAssignment {
   html_url?: string | null;
 }
 
+interface PlaywrightCookie {
+  name: string;
+  value: string;
+  domain?: string;
+  path?: string;
+}
+
 // ---------------------------------------------------------------------------
-// Pagination helper — follows Canvas Link header rel="next"
+// Cookie helpers
 // ---------------------------------------------------------------------------
 
-const MAX_PAGES = 20;
+function cookiesToHeader(cookies: PlaywrightCookie[]): string {
+  return cookies.map((c) => `${c.name}=${c.value}`).join("; ");
+}
 
-async function fetchAllPages<T>(url: string, token: string): Promise<T[]> {
+// ---------------------------------------------------------------------------
+// Pagination helper — follows Canvas Link header rel="next" using Cookie auth
+// ---------------------------------------------------------------------------
+
+async function fetchAllPagesWithCookies<T>(
+  url: string,
+  cookieHeader: string
+): Promise<T[]> {
   const results: T[] = [];
   let nextUrl: string | null = url;
   let pageCount = 0;
 
   while (nextUrl && pageCount < MAX_PAGES) {
     const response: Response = await fetch(nextUrl, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: {
+        Cookie: cookieHeader,
+        Accept: "application/json",
+      },
     });
 
     if (!response.ok) {
-      if (response.status === 401) throw new Error("Invalid Canvas access token");
-      if (response.status === 403) throw new Error("Canvas access forbidden — check token permissions");
+      if (response.status === 401 || response.status === 302) {
+        throw new Error(
+          "Canvas session expired. Please reconnect Canvas in the dashboard."
+        );
+      }
+      if (response.status === 403) {
+        throw new Error("Canvas access forbidden — session may have expired");
+      }
       throw new Error(`Canvas API error: ${response.status}`);
     }
 
@@ -51,7 +83,9 @@ async function fetchAllPages<T>(url: string, token: string): Promise<T[]> {
     pageCount++;
 
     const linkHeader: string = response.headers.get("Link") ?? "";
-    const nextMatch: RegExpMatchArray | null = linkHeader.match(/<([^>]+)>;\s*rel="next"/);
+    const nextMatch: RegExpMatchArray | null = linkHeader.match(
+      /<([^>]+)>;\s*rel="next"/
+    );
     nextUrl = nextMatch ? nextMatch[1] : null;
   }
 
@@ -69,6 +103,35 @@ export const getCredentialsForAction = internalQuery({
       .query("canvasCredentials")
       .withIndex("by_userId", (q) => q.eq("userId", args.userId))
       .unique();
+  },
+});
+
+export const upsertCanvasCookies = internalMutation({
+  args: {
+    userId: v.id("users"),
+    canvasCookies: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("canvasCredentials")
+      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+      .unique();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        canvasCookies: args.canvasCookies,
+        // Clear legacy PAT and stale sync state on reconnect
+        accessToken: undefined,
+        lastSyncStatus: undefined,
+        lastSyncError: undefined,
+      });
+    } else {
+      await ctx.db.insert("canvasCredentials", {
+        userId: args.userId,
+        canvasCookies: args.canvasCookies,
+        canvasBaseUrl: CANVAS_BASE_URL,
+      });
+    }
   },
 });
 
@@ -91,13 +154,15 @@ export const updateSyncStatus = internalMutation({
       lastSyncStatus: args.status,
       lastSyncError: args.error,
       ...(args.coursesSynced !== undefined ? { coursesSynced: args.coursesSynced } : {}),
-      ...(args.assignmentsSynced !== undefined ? { assignmentsSynced: args.assignmentsSynced } : {}),
+      ...(args.assignmentsSynced !== undefined
+        ? { assignmentsSynced: args.assignmentsSynced }
+        : {}),
     });
   },
 });
 
 // ---------------------------------------------------------------------------
-// Public query — returns sync status only, never the access token
+// Public query — returns sync status only, never credentials
 // ---------------------------------------------------------------------------
 
 export const getCanvasStatus = query({
@@ -118,9 +183,10 @@ export const getCanvasStatus = query({
       .unique();
     if (!creds) return null;
 
-    // Return status fields ONLY — never return accessToken
+    // Only return status fields — NEVER return canvasCookies or accessToken
     return {
-      canvasBaseUrl: creds.canvasBaseUrl,
+      isConnected: !!creds.canvasCookies,
+      canvasBaseUrl: CANVAS_BASE_URL,
       lastSyncedAt: creds.lastSyncedAt,
       lastSyncStatus: creds.lastSyncStatus,
       lastSyncError: creds.lastSyncError,
@@ -131,27 +197,75 @@ export const getCanvasStatus = query({
 });
 
 // ---------------------------------------------------------------------------
-// saveCanvasToken — store the user's Canvas access token server-side
+// saveCanvasCookies action — stores cookie array server-side
+// Called from /api/canvas-auth/save after Playwright SSO completes
 // ---------------------------------------------------------------------------
 
-export const saveCanvasToken = mutation({
+export const saveCanvasCookies = action({
   args: {
-    accessToken: v.string(),
-    canvasBaseUrl: v.string(),
+    // JSON-serialized array of Playwright cookie objects
+    cookiesJson: v.string(),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<void> => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
 
+    // ensureUser creates the row if it doesn't exist yet (handles the race
+    // where Canvas auth completes before the dashboard useEffect fires).
+    const userId = await ctx.runMutation(api.users.ensureUser, {});
+
+    let cookies: PlaywrightCookie[];
+    try {
+      const parsed: unknown = JSON.parse(args.cookiesJson);
+      if (!Array.isArray(parsed)) throw new Error("Not an array");
+      cookies = parsed as PlaywrightCookie[];
+    } catch {
+      throw new Error("cookiesJson must be a valid JSON array");
+    }
+
+    if (cookies.length === 0) {
+      throw new Error("No Canvas session cookies were provided");
+    }
+
+    await ctx.runMutation(internal.canvas.upsertCanvasCookies, {
+      userId,
+      canvasCookies: JSON.stringify(cookies),
+    });
+  },
+});
+
+// ---------------------------------------------------------------------------
+// saveCanvasCookiesInternal — server-to-server mutation, no Clerk JWT needed
+// Called from /api/canvas-auth/save using a shared CONVEX_INTERNAL_SECRET.
+// This avoids the Clerk "convex" JWT template requirement for server-side calls.
+// ---------------------------------------------------------------------------
+
+export const saveCanvasCookiesInternal = mutation({
+  args: {
+    clerkUserId: v.string(),
+    cookiesJson: v.string(),
+    internalSecret: v.string(),
+  },
+  handler: async (ctx, args): Promise<void> => {
+    if (!process.env.CONVEX_INTERNAL_SECRET || args.internalSecret !== process.env.CONVEX_INTERNAL_SECRET) {
+      throw new Error("Unauthorized");
+    }
+
     const user = await ctx.db
       .query("users")
-      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", args.clerkUserId))
       .unique();
-    if (!user) throw new Error("User not found");
+    if (!user) throw new Error("User not found — visit the dashboard before connecting Canvas");
 
-    if (!args.accessToken.trim()) throw new Error("Access token is required");
-    const url = args.canvasBaseUrl.trim().replace(/\/$/, "");
-    if (!url.startsWith("https://")) throw new Error("Canvas URL must use HTTPS");
+    let cookies: PlaywrightCookie[];
+    try {
+      const parsed: unknown = JSON.parse(args.cookiesJson);
+      if (!Array.isArray(parsed)) throw new Error("Not an array");
+      cookies = parsed as PlaywrightCookie[];
+    } catch {
+      throw new Error("cookiesJson must be a valid JSON array");
+    }
+    if (cookies.length === 0) throw new Error("No Canvas session cookies were provided");
 
     const existing = await ctx.db
       .query("canvasCredentials")
@@ -160,27 +274,26 @@ export const saveCanvasToken = mutation({
 
     if (existing) {
       await ctx.db.patch(existing._id, {
-        accessToken: args.accessToken.trim(),
-        canvasBaseUrl: url,
+        canvasCookies: JSON.stringify(cookies),
+        accessToken: undefined,
         lastSyncStatus: undefined,
         lastSyncError: undefined,
       });
-      return existing._id;
+    } else {
+      await ctx.db.insert("canvasCredentials", {
+        userId: user._id,
+        canvasCookies: JSON.stringify(cookies),
+        canvasBaseUrl: CANVAS_BASE_URL,
+      });
     }
-
-    return await ctx.db.insert("canvasCredentials", {
-      userId: user._id,
-      accessToken: args.accessToken.trim(),
-      canvasBaseUrl: url,
-    });
   },
 });
 
 // ---------------------------------------------------------------------------
-// removeCanvasToken — delete the user's stored credentials
+// removeCanvasCredentials — delete the user's stored credentials
 // ---------------------------------------------------------------------------
 
-export const removeCanvasToken = mutation({
+export const removeCanvasCredentials = mutation({
   args: {},
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -203,7 +316,7 @@ export const removeCanvasToken = mutation({
 });
 
 // ---------------------------------------------------------------------------
-// syncCanvas action — calls Canvas API server-side, upserts into Convex
+// syncCanvas action — reads cookies, calls Canvas API, upserts into Convex
 // ---------------------------------------------------------------------------
 
 export const syncCanvas = action({
@@ -219,13 +332,25 @@ export const syncCanvas = action({
       userId: user._id,
     });
     if (!creds) throw new Error("Canvas not connected");
+    if (!creds.canvasCookies) {
+      throw new Error(
+        "Canvas credentials not found. Please disconnect and reconnect Canvas."
+      );
+    }
 
-    const { accessToken, canvasBaseUrl } = creds;
+    let cookies: PlaywrightCookie[];
+    try {
+      cookies = JSON.parse(creds.canvasCookies) as PlaywrightCookie[];
+    } catch {
+      throw new Error("Failed to read Canvas credentials. Please reconnect Canvas.");
+    }
+
+    const cookieHeader = cookiesToHeader(cookies);
 
     try {
-      const courses = await fetchAllPages<CanvasCourse>(
-        `${canvasBaseUrl}/api/v1/courses?enrollment_state=active&include[]=term&per_page=50`,
-        accessToken
+      const courses = await fetchAllPagesWithCookies<CanvasCourse>(
+        `${CANVAS_BASE_URL}/api/v1/courses?enrollment_state=active&include[]=term&per_page=50`,
+        cookieHeader
       );
 
       let coursesSynced = 0;
@@ -240,9 +365,9 @@ export const syncCanvas = action({
         });
         coursesSynced++;
 
-        const assignments = await fetchAllPages<CanvasAssignment>(
-          `${canvasBaseUrl}/api/v1/courses/${course.id}/assignments?order_by=due_at&bucket=future&per_page=50`,
-          accessToken
+        const assignments = await fetchAllPagesWithCookies<CanvasAssignment>(
+          `${CANVAS_BASE_URL}/api/v1/courses/${course.id}/assignments?order_by=due_at&bucket=future&per_page=50`,
+          cookieHeader
         );
 
         for (const assignment of assignments) {

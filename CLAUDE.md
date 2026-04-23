@@ -74,6 +74,12 @@ npm run test:e2e:ui        # Playwright interactive UI mode
 Copy `.env.example` to `.env.local` and fill in:
 - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` / `CLERK_SECRET_KEY` from [Clerk Dashboard](https://dashboard.clerk.com)
 - `NEXT_PUBLIC_CONVEX_URL` from `npx convex dev` (auto-populated)
+- `CONVEX_INTERNAL_SECRET` — generate with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`, then set the **same value** in the Convex dashboard (Settings → Environment Variables)
+
+```bash
+# Set secret in Convex deployment:
+npx convex env set CONVEX_INTERNAL_SECRET <your-generated-secret>
+```
 
 ## Key Architecture Decisions
 
@@ -81,3 +87,15 @@ Copy `.env.example` to `.env.local` and fill in:
 - **Clerk** handles auth; downstream API tokens (Canvas, Google Calendar) are stored server-side in Convex or environment secrets — never exposed to the client.
 - **LLM calls** are made server-side (Next.js Route Handlers or Convex actions) so student API keys never touch the browser.
 - Canvas/Google integrations are wrapped in audited server-side handlers; agent tool calls must be logged with timestamp, user identity, and action taken.
+
+## Canvas SSO Architecture (US-2.2 / US-2.5)
+
+Canvas login uses a headless Playwright browser running in a Node.js worker thread:
+
+1. User submits CruzID + Gold Password → `POST /api/canvas-auth/start` (stages credentials in server memory)
+2. SSE stream opens (`GET /api/canvas-auth/stream`) → worker starts, screenshots streamed to UI
+3. User can interact (e.g. approve Duo MFA) by clicking the live browser mirror
+4. On success, worker posts cookies → stored in `extractedCookies` map (server-side only)
+5. Client calls `POST /api/canvas-auth/save` → cookies written to Convex via `saveCanvasCookiesInternal` mutation
+
+**Why `CONVEX_INTERNAL_SECRET`:** Server-to-Convex calls from Next.js Route Handlers use a shared secret instead of a Clerk JWT template (which is not configured). The secret is validated inside the Convex mutation before any data is written. It must be set in both `.env.local` and the Convex dashboard.
