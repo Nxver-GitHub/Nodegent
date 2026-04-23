@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation } from "convex/react";
+import { useSearchParams } from "next/navigation";
 import { api } from "@convex/_generated/api";
 import { Id } from "@convex/_generated/dataModel";
 import { BookBookmark, GraduationCap } from "@phosphor-icons/react";
@@ -12,7 +13,9 @@ import { EmptyState } from "./EmptyState";
 const HIDDEN_COURSES_STORAGE_KEY = "nodegent.hiddenCourseIds";
 
 export function AssignmentList() {
-  const [selectedCourseId, setSelectedCourseId] = useState<Id<"courses"> | null>(null);
+  const searchParams = useSearchParams();
+  const courseParam = searchParams.get("course") as Id<"courses"> | null;
+  const [selectedCourseId, setSelectedCourseId] = useState<Id<"courses"> | null>(courseParam);
   const [hiddenCourseIds, setHiddenCourseIds] = useState<string[]>([]);
   const [hiddenPrefsLoaded, setHiddenPrefsLoaded] = useState(false);
 

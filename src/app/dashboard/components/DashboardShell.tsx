@@ -16,6 +16,7 @@ import {
   Minus,
   Square,
 } from "@phosphor-icons/react";
+import { SnapshotWidget } from "./SnapshotWidget";
 
 interface DashboardShellProps {
   children: ReactNode;
@@ -103,6 +104,7 @@ function WindowStatusBar() {
 export function DashboardShell({ children }: DashboardShellProps) {
   return (
     <div className="desktop-bg min-h-screen overflow-hidden">
+      <SnapshotWidget />
       {/* Top Navigation */}
       <nav className="fixed top-0 left-0 right-0 h-14 bg-[#EEEFE9] border-b border-gray-300 z-50 flex items-center justify-between px-6">
         <div className="flex items-center gap-8">
