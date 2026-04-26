@@ -51,3 +51,6 @@ next-env.d.ts
 AGENTS.md
 convex/_generated/ai/
 skills-lock.json
+
+# clerk configuration (can include secrets)
+/.clerk/

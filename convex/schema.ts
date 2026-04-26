@@ -11,6 +11,48 @@ export default defineSchema({
     lastSyncedAt: v.optional(v.number()),
   }).index("by_clerkId", ["clerkId"]),
 
+  chatThreads: defineTable({
+    userId: v.id("users"),
+    title: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_userId_createdAt", ["userId", "createdAt"]),
+
+  chatMessages: defineTable({
+    threadId: v.id("chatThreads"),
+    userId: v.id("users"),
+    role: v.union(v.literal("user"), v.literal("assistant")),
+    content: v.string(),
+    createdAt: v.number(),
+    contextRefs: v.optional(
+      v.array(
+        v.object({
+          type: v.union(
+            v.literal("course"),
+            v.literal("assignment"),
+            v.literal("event")
+          ),
+          id: v.string(),
+          label: v.string(),
+        })
+      )
+    ),
+    provider: v.optional(v.string()),
+    model: v.optional(v.string()),
+    latencyMs: v.optional(v.number()),
+  })
+    .index("by_threadId", ["threadId"])
+    .index("by_threadId_createdAt", ["threadId", "createdAt"])
+    .index("by_userId", ["userId"]),
+
+  chatRateLimits: defineTable({
+    userId: v.id("users"),
+    windowStart: v.number(),
+    count: v.number(),
+  }).index("by_userId", ["userId"]),
+
   courses: defineTable({
     userId: v.id("users"),
     canvasId: v.string(),

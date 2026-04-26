@@ -116,7 +116,12 @@ export function DashboardShell({ children }: DashboardShellProps) {
           </Link>
           <div className="hidden md:flex items-center gap-6 text-[13px] font-semibold text-[#4D4F46]">
             <span className="hover:text-black hover:underline underline-offset-4 decoration-gray-400 cursor-pointer">Campus Sync</span>
-            <span className="hover:text-black hover:underline underline-offset-4 decoration-gray-400 cursor-pointer">AI Features</span>
+            <Link
+              href="/chat"
+              className="hover:text-black hover:underline underline-offset-4 decoration-gray-400"
+            >
+              AI Chat
+            </Link>
             <span className="hover:text-black hover:underline underline-offset-4 decoration-gray-400 cursor-pointer">Security</span>
           </div>
         </div>
