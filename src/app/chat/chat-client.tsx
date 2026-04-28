@@ -133,7 +133,7 @@ export function ChatClient() {
           </button>
         </div>
         <p className="mt-2 text-[11px] text-gray-500">
-          Server-side LLM call. Configure `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` for real responses.
+          Nodegent's AI is powered by llama-3.3-70b-versatile from Groq. 
         </p>
       </div>
     </div>

@@ -9,8 +9,8 @@
  */
 
 import type * as assignments from "../assignments.js";
-import type * as chat from "../chat.js";
 import type * as canvas from "../canvas.js";
+import type * as chat from "../chat.js";
 import type * as courses from "../courses.js";
 import type * as events from "../events.js";
 import type * as users from "../users.js";
@@ -23,8 +23,8 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   assignments: typeof assignments;
-  chat: typeof chat;
   canvas: typeof canvas;
+  chat: typeof chat;
   courses: typeof courses;
   events: typeof events;
   users: typeof users;
