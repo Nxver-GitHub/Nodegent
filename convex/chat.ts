@@ -462,6 +462,55 @@ async function callAnthropic(args: {
   return { content, provider: "anthropic", model: args.model };
 }
 
+async function callGroq(args: {
+  apiKey: string;
+  model: string;
+  system: string;
+  messages: { role: "user" | "assistant"; content: string }[];
+  contextText: string;
+}): Promise<{ content: string; provider: string; model: string }> {
+  const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${args.apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: args.model,
+      temperature: 0.2,
+      max_tokens: 700,
+      messages: [
+        { role: "system", content: args.system },
+        {
+          role: "system",
+          content:
+            "Campus context (authoritative, read-only). Use it to answer the user:\n\n" +
+            args.contextText,
+        },
+        ...args.messages,
+      ],
+    }),
+  });
+
+  if (!response.ok) {
+    const errBody: any = await response.json().catch(() => null);
+    if (response.status === 429) {
+      throw new Error(
+        "The AI provider is temporarily rate-limited. Please wait a moment and try again."
+      );
+    }
+    const detail = errBody?.error?.message ?? `status ${response.status}`;
+    throw new Error(`Groq API error (${response.status}): ${detail}`);
+  }
+
+  const json: any = await response.json();
+  const content: string | undefined = json?.choices?.[0]?.message?.content;
+  if (!content) {
+    throw new Error("Groq API returned no message content");
+  }
+  return { content, provider: "groq", model: args.model };
+}
+
 function mockReply(message: string, stats: { courses: number; assignments: number; events: number }): string {
   const m = message.toLowerCase();
   if (m.includes("due") || m.includes("assignment")) {
@@ -535,34 +584,21 @@ export const sendMessage = action({
 
     if (process.env.NODEGENT_LLM_MODE === "mock") {
       llmResult = { content: mockReply(content, stats), provider: "mock", model: "mock" };
+    } else if (process.env.GROQ_API_KEY) {
+      llmResult = await callGroq({
+        apiKey: process.env.GROQ_API_KEY,
+        model: process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile",
+        system,
+        contextText,
+        messages: history.concat([{ role: "user", content }]),
+      });
     } else {
-      const openaiKey = process.env.OPENAI_API_KEY;
-      const anthropicKey = process.env.ANTHROPIC_API_KEY;
-
-      if (openaiKey) {
-        llmResult = await callOpenAI({
-          apiKey: openaiKey,
-          model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
-          system,
-          contextText,
-          messages: history.concat([{ role: "user", content }]),
-        });
-      } else if (anthropicKey) {
-        llmResult = await callAnthropic({
-          apiKey: anthropicKey,
-          model: process.env.ANTHROPIC_MODEL ?? "claude-3-5-sonnet-latest",
-          system,
-          contextText,
-          messages: history.concat([{ role: "user", content }]),
-        });
-      } else {
-        llmResult = {
-          content:
-            "LLM is not configured on the server. Set OPENAI_API_KEY (recommended) or ANTHROPIC_API_KEY and try again.",
-          provider: "none",
-          model: "none",
-        };
-      }
+      llmResult = {
+        content:
+          "AI provider not configured. Contact the Nodegent team to enable chat.",
+        provider: "none",
+        model: "none",
+      };
     }
 
     const latencyMs = Date.now() - start;
