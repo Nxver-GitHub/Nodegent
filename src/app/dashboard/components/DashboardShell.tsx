@@ -10,13 +10,13 @@ import {
   Student,
   ChalkboardTeacher,
   CalendarCheck,
-  BellRinging,
   Gear,
   X,
   Minus,
   Square,
 } from "@phosphor-icons/react";
 import { SnapshotWidget } from "./SnapshotWidget";
+import { NotificationBell } from "./NotificationBell";
 
 interface DashboardShellProps {
   children: ReactNode;
@@ -69,9 +69,7 @@ function WindowToolbar() {
       <button className="w-7 h-7 flex items-center justify-center hover:bg-gray-100 rounded text-gray-500">
         <CalendarCheck size={16} weight="bold" />
       </button>
-      <button className="w-7 h-7 flex items-center justify-center hover:bg-gray-100 rounded text-gray-500">
-        <BellRinging size={16} weight="bold" />
-      </button>
+      <NotificationBell />
 
       {/* Right side */}
       <div className="ml-auto flex items-center gap-2">
