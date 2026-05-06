@@ -52,7 +52,21 @@ async function gcalFetch(
     if (res.status === 403) {
       throw new Error("GOOGLE_FORBIDDEN: Insufficient Calendar permissions. Please sign out and sign back in to grant Calendar access.");
     }
-    throw new Error(`Google Calendar API error ${res.status}: ${body}`);
+    if (res.status === 404) {
+      throw new Error(`404: Calendar resource not found`);
+    }
+    if (res.status === 410) {
+      throw new Error(`410: Calendar resource no longer exists`);
+    }
+    if (res.status === 429) {
+      throw new Error("Google Calendar rate limit reached. Please try again in a few minutes.");
+    }
+    if (res.status >= 500) {
+      throw new Error("Google Calendar service temporarily unavailable. Please try again later.");
+    }
+    // Truncate body to avoid leaking verbose API internals
+    const detail = body.slice(0, 200);
+    throw new Error(`Google Calendar request failed (${res.status})${detail ? ": " + detail : ""}`);
   }
 
   return res;
@@ -95,7 +109,7 @@ export async function listCalendarEvents(
 ): Promise<GcalEvent[]> {
   const events: GcalEvent[] = [];
   let pageToken: string | undefined;
-  const MAX_PAGES = 5;
+  const MAX_PAGES = 10;
 
   for (let page = 0; page < MAX_PAGES; page++) {
     const params = new URLSearchParams({
@@ -130,6 +144,7 @@ export async function listCalendarEvents(
 /**
  * Builds a Google Calendar event from a Canvas assignment.
  * The event spans 1 hour ending at the due date.
+ * Throws if required fields are missing or invalid.
  */
 export function assignmentToGcalEvent(assignment: {
   title: string;
@@ -137,6 +152,15 @@ export function assignmentToGcalEvent(assignment: {
   dueAt: number;
   htmlUrl?: string;
 }): GcalEventInput {
+  if (!assignment.title?.trim()) {
+    throw new Error("Assignment title is required to create a Calendar event");
+  }
+  if (!Number.isFinite(assignment.dueAt) || assignment.dueAt <= 0) {
+    throw new Error(
+      `Cannot sync "${assignment.title}" — it has no valid due date yet`
+    );
+  }
+
   const endDate = new Date(assignment.dueAt);
   const startDate = new Date(assignment.dueAt - 60 * 60 * 1000); // 1 hour before due
 
