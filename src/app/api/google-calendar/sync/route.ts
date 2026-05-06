@@ -39,6 +39,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
+  // Check access toggle — calendarEnabled === false means sync is paused
+  const settings = await fetchQuery(api.users.getUserSettingsInternal, {
+    clerkUserId: userId,
+    internalSecret,
+  });
+  if (settings?.calendarEnabled === false) {
+    return NextResponse.json(
+      {
+        error: "Google Calendar sync is disabled. Enable it in your access settings.",
+        code: "CALENDAR_DISABLED",
+      },
+      { status: 403 }
+    );
+  }
+
   // Get Google OAuth token from Clerk
   const client = await clerkClient();
   const tokenResponse = await client.users.getUserOauthAccessToken(

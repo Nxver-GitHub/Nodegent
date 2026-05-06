@@ -328,6 +328,10 @@ export const syncCanvas = action({
     const user = await ctx.runQuery(api.users.getCurrentUser, {});
     if (!user) throw new Error("User not found");
 
+    if (user.canvasEnabled === false) {
+      throw new Error("Canvas sync is disabled. Enable it in your access settings.");
+    }
+
     const creds = await ctx.runQuery(internal.canvas.getCredentialsForAction, {
       userId: user._id,
     });
