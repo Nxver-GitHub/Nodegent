@@ -300,6 +300,26 @@ export const buildCampusContext = internalQuery({
     const prioritizeSchedule = shouldPrioritizeSchedule(message);
 
     const sections: string[] = [];
+
+    // Inform the AI which data sources are currently disabled so it can
+    // tell the user rather than claiming "no assignments" when access is off.
+    const accessNotices: string[] = [];
+    if (!canvasEnabled) {
+      accessNotices.push(
+        "Canvas LMS access is DISABLED by the user. Course and assignment data is not available. " +
+        "If the user asks about courses or assignments, tell them Canvas access is turned off and they can re-enable it in the Data Source Access card on their dashboard."
+      );
+    }
+    if (!calendarEnabled) {
+      accessNotices.push(
+        "Google Calendar access is DISABLED by the user. Calendar events are not available. " +
+        "If the user asks about calendar events or their schedule, tell them Google Calendar access is turned off and they can re-enable it in the Data Source Access card on their dashboard."
+      );
+    }
+    if (accessNotices.length > 0) {
+      sections.push("ACCESS RESTRICTIONS:\n" + accessNotices.map((n) => `- ${n}`).join("\n"));
+    }
+
     sections.push("COURSES:");
     sections.push(courseLines.length ? courseLines.join("\n") : "- (none)");
 
