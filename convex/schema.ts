@@ -84,12 +84,14 @@ export default defineSchema({
     htmlUrl: v.optional(v.string()),
     lastSyncedAt: v.number(),
     googleCalendarEventId: v.optional(v.string()),
+    isNew: v.optional(v.boolean()),
   })
     .index("by_userId", ["userId"])
     .index("by_courseId", ["courseId"])
     .index("by_userId_dueAt", ["userId", "dueAt"])
     .index("by_userId_canvasId", ["userId", "canvasId"])
-    .index("by_userId_courseId", ["userId", "courseId"]),
+    .index("by_userId_courseId", ["userId", "courseId"])
+    .index("by_userId_isNew", ["userId", "isNew"]),
 
   events: defineTable({
     userId: v.id("users"),

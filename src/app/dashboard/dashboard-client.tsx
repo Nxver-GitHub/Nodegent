@@ -9,6 +9,7 @@ import { AssignmentList } from "./components/AssignmentList";
 import { CanvasAuthViewer } from "./components/CanvasAuthViewer";
 import { GoogleCalendarCard } from "./components/GoogleCalendarCard";
 import { AccessToggleCard } from "./components/AccessToggleCard";
+import { NewAssignmentsBanner } from "./components/NewAssignmentsBanner";
 
 export function DashboardClient() {
   const { user, isLoaded } = useUser();
@@ -34,6 +35,7 @@ export function DashboardClient() {
     <DashboardShell>
       <CanvasCard />
       <GoogleCalendarCard />
+      <NewAssignmentsBanner />
       <AssignmentList />
       <AccessToggleCard />
     </DashboardShell>

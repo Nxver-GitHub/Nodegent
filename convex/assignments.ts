@@ -135,6 +135,7 @@ export const upsertAssignment = mutation({
       isCompleted: false,
       htmlUrl: args.htmlUrl,
       lastSyncedAt: now,
+      isNew: true,
     });
   },
 });
@@ -182,6 +183,68 @@ export const getDailySnapshot = query({
         .sort(byDue),
       noDueDate: incomplete.filter((a) => a.dueAt === undefined),
     };
+  },
+});
+
+export const getNewAssignments = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .unique();
+    if (!user) return [];
+
+    // Respect canvasEnabled toggle — no notifications if Canvas is disabled
+    if (user.canvasEnabled === false) return [];
+
+    return await ctx.db
+      .query("assignments")
+      .withIndex("by_userId_isNew", (q) => q.eq("userId", user._id).eq("isNew", true))
+      .collect();
+  },
+});
+
+export const dismissNewAssignment = mutation({
+  args: { assignmentId: v.id("assignments") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const assignment = await ctx.db.get(args.assignmentId);
+    if (!assignment) throw new Error("Assignment not found");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .unique();
+    if (!user || assignment.userId !== user._id) throw new Error("Unauthorized");
+
+    await ctx.db.patch(args.assignmentId, { isNew: false });
+  },
+});
+
+export const dismissAllNewAssignments = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .unique();
+    if (!user) throw new Error("User not found");
+
+    const newAssignments = await ctx.db
+      .query("assignments")
+      .withIndex("by_userId_isNew", (q) => q.eq("userId", user._id).eq("isNew", true))
+      .collect();
+
+    await Promise.all(newAssignments.map((a) => ctx.db.patch(a._id, { isNew: false })));
   },
 });
 
