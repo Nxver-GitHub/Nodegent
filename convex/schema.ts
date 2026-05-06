@@ -9,6 +9,9 @@ export default defineSchema({
     imageUrl: v.optional(v.string()),
     createdAt: v.number(),
     lastSyncedAt: v.optional(v.number()),
+    lastCalendarSyncAt: v.optional(v.number()),
+    lastCalendarSyncStatus: v.optional(v.union(v.literal("success"), v.literal("error"))),
+    lastCalendarSyncError: v.optional(v.string()),
   }).index("by_clerkId", ["clerkId"]),
 
   chatThreads: defineTable({
@@ -78,6 +81,7 @@ export default defineSchema({
     isCompleted: v.boolean(),
     htmlUrl: v.optional(v.string()),
     lastSyncedAt: v.number(),
+    googleCalendarEventId: v.optional(v.string()),
   })
     .index("by_userId", ["userId"])
     .index("by_courseId", ["courseId"])
@@ -94,11 +98,13 @@ export default defineSchema({
     location: v.optional(v.string()),
     eventType: v.union(v.literal("class"), v.literal("exam"), v.literal("other")),
     externalId: v.optional(v.string()),
+    source: v.optional(v.union(v.literal("canvas"), v.literal("google_calendar"), v.literal("manual"))),
     lastSyncedAt: v.number(),
   })
     .index("by_userId", ["userId"])
     .index("by_userId_startAt", ["userId", "startAt"])
-    .index("by_userId_externalId", ["userId", "externalId"]),
+    .index("by_userId_externalId", ["userId", "externalId"])
+    .index("by_userId_source", ["userId", "source"]),
 
   canvasCredentials: defineTable({
     userId: v.id("users"),

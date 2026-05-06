@@ -38,7 +38,7 @@ export function TodaySchedule({ events }: TodayScheduleProps) {
       {events.length === 0 ? (
         <div className="flex items-center gap-2 py-2 text-[12px] text-gray-400">
           <CalendarCheck size={14} />
-          <span>No events today — calendar sync coming in Sprint 3</span>
+          <span>No events today</span>
         </div>
       ) : (
         <div className="flex flex-col gap-1.5">
