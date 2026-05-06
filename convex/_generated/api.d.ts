@@ -13,6 +13,7 @@ import type * as canvas from "../canvas.js";
 import type * as chat from "../chat.js";
 import type * as courses from "../courses.js";
 import type * as events from "../events.js";
+import type * as googleCalendar from "../googleCalendar.js";
 import type * as users from "../users.js";
 
 import type {
@@ -27,6 +28,7 @@ declare const fullApi: ApiFromModules<{
   chat: typeof chat;
   courses: typeof courses;
   events: typeof events;
+  googleCalendar: typeof googleCalendar;
   users: typeof users;
 }>;
 

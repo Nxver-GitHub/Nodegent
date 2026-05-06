@@ -7,6 +7,7 @@ import { api } from "@convex/_generated/api";
 import { DashboardShell } from "./components/DashboardShell";
 import { AssignmentList } from "./components/AssignmentList";
 import { CanvasAuthViewer } from "./components/CanvasAuthViewer";
+import { GoogleCalendarCard } from "./components/GoogleCalendarCard";
 
 export function DashboardClient() {
   const { user, isLoaded } = useUser();
@@ -31,6 +32,7 @@ export function DashboardClient() {
   return (
     <DashboardShell>
       <CanvasCard />
+      <GoogleCalendarCard />
       <AssignmentList />
     </DashboardShell>
   );
