@@ -202,10 +202,17 @@ export const buildCampusContext = internalQuery({
   handler: async (ctx, args) => {
     const message = args.message.toLowerCase();
 
-    const courses = await ctx.db
-      .query("courses")
-      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
-      .take(MAX_COURSES);
+    // Read access toggles — undefined means enabled (opt-out semantics)
+    const user = await ctx.db.get(args.userId);
+    const canvasEnabled = user?.canvasEnabled !== false;
+    const calendarEnabled = user?.calendarEnabled !== false;
+
+    const courses = canvasEnabled
+      ? await ctx.db
+          .query("courses")
+          .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+          .take(MAX_COURSES)
+      : [];
 
     const courseById = new Map<string, { name: string; courseCode: string }>();
     for (const c of courses) {
@@ -214,7 +221,6 @@ export const buildCampusContext = internalQuery({
 
     const mentionedCourseIds: string[] = [];
     for (const c of courses) {
-      const haystack = `${c.name} ${c.courseCode}`.toLowerCase();
       if (message.includes(c.courseCode.toLowerCase()) || message.includes(c.name.toLowerCase())) {
         mentionedCourseIds.push(c._id);
       }
@@ -223,13 +229,15 @@ export const buildCampusContext = internalQuery({
     const windowStart = args.now - 7 * 24 * 60 * 60 * 1000;
     const windowEnd = args.now + CONTEXT_WINDOW_DAYS * 24 * 60 * 60 * 1000;
 
-    const assignments = await ctx.db
-      .query("assignments")
-      .withIndex("by_userId_dueAt", (q) =>
-        q.eq("userId", args.userId).gte("dueAt", windowStart).lte("dueAt", windowEnd)
-      )
-      .order("asc")
-      .take(MAX_ASSIGNMENTS);
+    const assignments = canvasEnabled
+      ? await ctx.db
+          .query("assignments")
+          .withIndex("by_userId_dueAt", (q) =>
+            q.eq("userId", args.userId).gte("dueAt", windowStart).lte("dueAt", windowEnd)
+          )
+          .order("asc")
+          .take(MAX_ASSIGNMENTS)
+      : [];
 
     const events = await ctx.db
       .query("events")
@@ -244,10 +252,11 @@ export const buildCampusContext = internalQuery({
         ? assignments.filter((a) => mentionedCourseIds.includes(a.courseId))
         : assignments;
 
-    const filteredEvents =
+    const filteredEvents = (
       mentionedCourseIds.length > 0
         ? events.filter((e) => !e.courseId || mentionedCourseIds.includes(e.courseId))
-        : events;
+        : events
+    ).filter((e) => calendarEnabled || e.source !== "google_calendar");
 
     const contextRefs: ContextRef[] = [];
 
@@ -527,7 +536,7 @@ export const sendMessage = action({
     threadId: v.optional(v.id("chatThreads")),
     content: v.string(),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<{ threadId: Id<"chatThreads"> }> => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
 

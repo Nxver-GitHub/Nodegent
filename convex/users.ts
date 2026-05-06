@@ -1,4 +1,5 @@
 import { mutation, query } from "./_generated/server";
+import { v } from "convex/values";
 
 const SYNC_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -62,5 +63,57 @@ export const getCurrentUser = query({
       .query("users")
       .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
       .unique();
+  },
+});
+
+export const updateAccessToggles = mutation({
+  args: {
+    canvasEnabled: v.optional(v.boolean()),
+    calendarEnabled: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .unique();
+    if (!user) throw new Error("User not found");
+
+    const patch: Partial<{ canvasEnabled: boolean; calendarEnabled: boolean }> = {};
+    if (args.canvasEnabled !== undefined) patch.canvasEnabled = args.canvasEnabled;
+    if (args.calendarEnabled !== undefined) patch.calendarEnabled = args.calendarEnabled;
+
+    if (Object.keys(patch).length > 0) {
+      await ctx.db.patch(user._id, patch);
+    }
+  },
+});
+
+export const getUserSettingsInternal = query({
+  args: {
+    clerkUserId: v.string(),
+    internalSecret: v.string(),
+  },
+  handler: async (ctx, args) => {
+    if (
+      !process.env.CONVEX_INTERNAL_SECRET ||
+      args.internalSecret !== process.env.CONVEX_INTERNAL_SECRET
+    ) {
+      throw new Error("Unauthorized");
+    }
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", args.clerkUserId))
+      .unique();
+
+    if (!user) return null;
+
+    return {
+      canvasEnabled: user.canvasEnabled,
+      calendarEnabled: user.calendarEnabled,
+    };
   },
 });

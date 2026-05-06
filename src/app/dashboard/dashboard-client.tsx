@@ -8,6 +8,7 @@ import { DashboardShell } from "./components/DashboardShell";
 import { AssignmentList } from "./components/AssignmentList";
 import { CanvasAuthViewer } from "./components/CanvasAuthViewer";
 import { GoogleCalendarCard } from "./components/GoogleCalendarCard";
+import { AccessToggleCard } from "./components/AccessToggleCard";
 
 export function DashboardClient() {
   const { user, isLoaded } = useUser();
@@ -34,6 +35,7 @@ export function DashboardClient() {
       <CanvasCard />
       <GoogleCalendarCard />
       <AssignmentList />
+      <AccessToggleCard />
     </DashboardShell>
   );
 }
