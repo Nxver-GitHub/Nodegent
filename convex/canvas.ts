@@ -235,61 +235,6 @@ export const saveCanvasCookies = action({
 });
 
 // ---------------------------------------------------------------------------
-// saveCanvasCookiesInternal — server-to-server mutation, no Clerk JWT needed
-// Called from /api/canvas-auth/save using a shared CONVEX_INTERNAL_SECRET.
-// This avoids the Clerk "convex" JWT template requirement for server-side calls.
-// ---------------------------------------------------------------------------
-
-export const saveCanvasCookiesInternal = mutation({
-  args: {
-    clerkUserId: v.string(),
-    cookiesJson: v.string(),
-    internalSecret: v.string(),
-  },
-  handler: async (ctx, args): Promise<void> => {
-    if (!process.env.CONVEX_INTERNAL_SECRET || args.internalSecret !== process.env.CONVEX_INTERNAL_SECRET) {
-      throw new Error("Unauthorized");
-    }
-
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_clerkId", (q) => q.eq("clerkId", args.clerkUserId))
-      .unique();
-    if (!user) throw new Error("User not found — visit the dashboard before connecting Canvas");
-
-    let cookies: PlaywrightCookie[];
-    try {
-      const parsed: unknown = JSON.parse(args.cookiesJson);
-      if (!Array.isArray(parsed)) throw new Error("Not an array");
-      cookies = parsed as PlaywrightCookie[];
-    } catch {
-      throw new Error("cookiesJson must be a valid JSON array");
-    }
-    if (cookies.length === 0) throw new Error("No Canvas session cookies were provided");
-
-    const existing = await ctx.db
-      .query("canvasCredentials")
-      .withIndex("by_userId", (q) => q.eq("userId", user._id))
-      .unique();
-
-    if (existing) {
-      await ctx.db.patch(existing._id, {
-        canvasCookies: JSON.stringify(cookies),
-        accessToken: undefined,
-        lastSyncStatus: undefined,
-        lastSyncError: undefined,
-      });
-    } else {
-      await ctx.db.insert("canvasCredentials", {
-        userId: user._id,
-        canvasCookies: JSON.stringify(cookies),
-        canvasBaseUrl: CANVAS_BASE_URL,
-      });
-    }
-  },
-});
-
-// ---------------------------------------------------------------------------
 // removeCanvasCredentials — delete the user's stored credentials
 // ---------------------------------------------------------------------------
 

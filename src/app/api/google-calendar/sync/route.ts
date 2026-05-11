@@ -7,7 +7,7 @@
  * Auth:
  *  - Requires Clerk auth (user must be signed in)
  *  - Gets the Google OAuth token from Clerk (Calendar scopes requested at sign-in)
- *  - Communicates with Convex via CONVEX_INTERNAL_SECRET
+ *  - Communicates with Convex via Clerk session token (Convex integration enabled in Clerk dashboard)
  *
  * No Google Calendar tokens are stored — Clerk manages OAuth token lifecycle.
  */
@@ -26,24 +26,18 @@ import {
 export async function POST(request: NextRequest): Promise<NextResponse> {
   void request;
 
-  const { userId } = await auth();
+  const { userId, getToken } = await auth();
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const internalSecret = process.env.CONVEX_INTERNAL_SECRET;
-  if (!internalSecret) {
-    return NextResponse.json(
-      { error: "Server misconfiguration: CONVEX_INTERNAL_SECRET not set" },
-      { status: 500 }
-    );
+  const token = await getToken();
+  if (!token) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   // Check access toggle — calendarEnabled === false means sync is paused
-  const settings = await fetchQuery(api.users.getUserSettingsInternal, {
-    clerkUserId: userId,
-    internalSecret,
-  });
+  const settings = await fetchQuery(api.users.getUserSettings, {}, { token });
   if (settings?.calendarEnabled === false) {
     return NextResponse.json(
       {
@@ -82,8 +76,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // PUSH: Canvas assignments → Google Calendar
     // -------------------------------------------------------------------------
     const assignments = await fetchQuery(
-      api.googleCalendar.getAssignmentsForPushInternal,
-      { clerkUserId: userId, internalSecret }
+      api.googleCalendar.getAssignmentsForSync,
+      {},
+      { token }
     );
 
     for (const assignment of assignments) {
@@ -103,24 +98,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             if (msg.includes("404") || msg.includes("410")) {
               // Event was deleted from Google Calendar — recreate it
               const created = await createCalendarEvent(googleToken, gcalEvent);
-              await fetchMutation(api.googleCalendar.patchAssignmentGcalEventId, {
-                clerkUserId: userId,
-                internalSecret,
-                assignmentId: assignment._id,
-                gcalEventId: created.id,
-              });
+              await fetchMutation(
+                api.googleCalendar.patchAssignmentGcalEventId,
+                { assignmentId: assignment._id, gcalEventId: created.id },
+                { token }
+              );
             } else {
               throw err;
             }
           }
         } else {
           const created = await createCalendarEvent(googleToken, gcalEvent);
-          await fetchMutation(api.googleCalendar.patchAssignmentGcalEventId, {
-            clerkUserId: userId,
-            internalSecret,
-            assignmentId: assignment._id,
-            gcalEventId: created.id,
-          });
+          await fetchMutation(
+            api.googleCalendar.patchAssignmentGcalEventId,
+            { assignmentId: assignment._id, gcalEventId: created.id },
+            { token }
+          );
         }
         eventsPushed++;
       } catch (err) {
@@ -142,32 +135,59 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const gcalEvents = await listCalendarEvents(googleToken, timeMin, timeMax);
 
+    // Track which externalIds were synced so we can remove stale ones after
+    const syncedExternalIds: string[] = [];
+
     for (const event of gcalEvents) {
-      if (!event.id || !event.start?.dateTime) continue;
+      if (!event.id) continue;
 
-      const startAt = new Date(event.start.dateTime).getTime();
-      const endAt = event.end?.dateTime
-        ? new Date(event.end.dateTime).getTime()
-        : undefined;
+      // Support both timed events (dateTime) and all-day events (date)
+      let startAt: number;
+      if (event.start?.dateTime) {
+        startAt = new Date(event.start.dateTime).getTime();
+      } else if (event.start?.date) {
+        startAt = new Date(event.start.date + "T00:00:00").getTime();
+      } else {
+        continue;
+      }
 
-      await fetchMutation(api.googleCalendar.upsertGcalEventInternal, {
-        clerkUserId: userId,
-        internalSecret,
-        externalId: `gcal:${event.id}`,
-        title: event.summary ?? "Untitled event",
-        startAt,
-        endAt,
-        location: event.location,
-      });
+      let endAt: number | undefined;
+      if (event.end?.dateTime) {
+        endAt = new Date(event.end.dateTime).getTime();
+      } else if (event.end?.date) {
+        endAt = new Date(event.end.date + "T00:00:00").getTime();
+      }
+
+      const externalId = `gcal:${event.id}`;
+      syncedExternalIds.push(externalId);
+
+      await fetchMutation(
+        api.googleCalendar.upsertGcalEvent,
+        {
+          externalId,
+          title: event.summary ?? "Untitled event",
+          startAt,
+          endAt,
+          location: event.location,
+        },
+        { token }
+      );
       eventsPulled++;
     }
 
+    // Remove events that were deleted from Google Calendar since the last sync
+    await fetchMutation(
+      api.googleCalendar.removeStaleGcalEvents,
+      { keepExternalIds: syncedExternalIds },
+      { token }
+    );
+
     // Update sync status
-    await fetchMutation(api.googleCalendar.updateCalendarSyncStatusInternal, {
-      clerkUserId: userId,
-      internalSecret,
-      status: "success",
-    });
+    await fetchMutation(
+      api.googleCalendar.updateCalendarSyncStatus,
+      { status: "success" },
+      { token }
+    );
 
     return NextResponse.json({
       ok: true,
@@ -179,13 +199,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const message = err instanceof Error ? err.message : "Sync failed";
 
     await fetchMutation(
-      api.googleCalendar.updateCalendarSyncStatusInternal,
-      {
-        clerkUserId: userId,
-        internalSecret,
-        status: "error",
-        error: message,
-      }
+      api.googleCalendar.updateCalendarSyncStatus,
+      { status: "error", error: message },
+      { token }
     ).catch(() => {
       // Don't swallow the original error if status update fails
     });
