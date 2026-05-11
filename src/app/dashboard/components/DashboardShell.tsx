@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { UserButton } from "@clerk/nextjs";
 import {
@@ -17,6 +17,7 @@ import {
 } from "@phosphor-icons/react";
 import { SnapshotWidget } from "./SnapshotWidget";
 import { NotificationBell } from "./NotificationBell";
+import { CalendarPanel } from "./calendar/CalendarPanel";
 
 interface DashboardShellProps {
   children: ReactNode;
@@ -41,21 +42,34 @@ function WindowTitleBar() {
   );
 }
 
-function WindowToolbar() {
+interface WindowToolbarProps {
+  calendarOpen: boolean;
+  onCalendarToggle: () => void;
+  onHome: () => void;
+}
+
+function WindowToolbar({ calendarOpen, onCalendarToggle, onHome }: WindowToolbarProps) {
   return (
     <div className="h-12 border-b border-gray-200 bg-white flex items-center px-4 gap-2 flex-shrink-0">
       {/* Nav arrows */}
-      <button className="w-7 h-7 flex items-center justify-center hover:bg-gray-100 rounded text-gray-400">
+      <button
+        onClick={onHome}
+        className="w-7 h-7 flex items-center justify-center hover:bg-gray-100 rounded text-gray-400"
+        aria-label="Back"
+      >
         <ArrowLeft size={14} weight="bold" />
       </button>
-      <button className="w-7 h-7 flex items-center justify-center hover:bg-gray-100 rounded text-gray-400">
+      <button className="w-7 h-7 flex items-center justify-center hover:bg-gray-100 rounded text-gray-400 opacity-40 cursor-default">
         <ArrowRight size={14} weight="bold" />
       </button>
 
       <div className="w-px h-4 bg-gray-200 mx-1" />
 
       {/* My Dashboard button */}
-      <button className="flex items-center gap-1.5 px-2.5 py-1 border border-gray-300 rounded-sm hover:bg-gray-50 text-[13px]">
+      <button
+        onClick={onHome}
+        className="flex items-center gap-1.5 px-2.5 py-1 border border-gray-300 rounded-sm hover:bg-gray-50 text-[13px]"
+      >
         <Student size={14} weight="bold" className="text-[#CD8407]" />
         <span className="font-bold text-gray-800">My Dashboard</span>
       </button>
@@ -66,7 +80,17 @@ function WindowToolbar() {
       <button className="w-7 h-7 flex items-center justify-center hover:bg-gray-100 rounded text-gray-500">
         <ChalkboardTeacher size={16} weight="bold" />
       </button>
-      <button className="w-7 h-7 flex items-center justify-center hover:bg-gray-100 rounded text-gray-500">
+      <button
+        onClick={onCalendarToggle}
+        className={[
+          "w-7 h-7 flex items-center justify-center rounded transition-colors",
+          calendarOpen
+            ? "bg-[#FFF3DC] text-[#CD8407]"
+            : "hover:bg-gray-100 text-gray-500",
+        ].join(" ")}
+        aria-label="Toggle calendar"
+        aria-pressed={calendarOpen}
+      >
         <CalendarCheck size={16} weight="bold" />
       </button>
       <NotificationBell />
@@ -100,6 +124,8 @@ function WindowStatusBar() {
 }
 
 export function DashboardShell({ children }: DashboardShellProps) {
+  const [calendarOpen, setCalendarOpen] = useState(false);
+
   return (
     <div className="desktop-bg min-h-screen overflow-hidden">
       <SnapshotWidget />
@@ -131,7 +157,13 @@ export function DashboardShell({ children }: DashboardShellProps) {
         {/* OS Window */}
         <div className="window-shadow bg-white rounded-lg border border-gray-300 w-full max-w-3xl flex flex-col overflow-hidden relative">
           <WindowTitleBar />
-          <WindowToolbar />
+          <WindowToolbar
+            calendarOpen={calendarOpen}
+            onCalendarToggle={() => setCalendarOpen((prev) => !prev)}
+            onHome={() => setCalendarOpen(false)}
+          />
+          {/* Calendar panel — slides in below toolbar */}
+          {calendarOpen && <CalendarPanel />}
           {/* Scrollable content */}
           <div className="flex-1 overflow-y-auto p-6 min-h-[400px]">
             {children}

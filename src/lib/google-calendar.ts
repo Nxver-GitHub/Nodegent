@@ -100,7 +100,7 @@ export async function updateCalendarEvent(
 /**
  * Fetches all events from the user's primary calendar within the given window.
  * Handles pagination automatically (up to 500 events).
- * Skips all-day events (no dateTime) since they don't have a meaningful time.
+ * Includes both timed events (dateTime) and all-day events (date).
  */
 export async function listCalendarEvents(
   token: string,
@@ -128,8 +128,8 @@ export async function listCalendarEvents(
     const data = (await res.json()) as GcalEventsListResponse;
 
     for (const event of data.items ?? []) {
-      // Skip events without a dateTime (all-day events)
-      if (event.start?.dateTime) {
+      // Include timed events (dateTime) and all-day events (date)
+      if (event.start?.dateTime || event.start?.date) {
         events.push(event);
       }
     }

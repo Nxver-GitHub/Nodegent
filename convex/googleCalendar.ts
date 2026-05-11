@@ -1,15 +1,5 @@
-import { internalMutation, mutation, query } from "./_generated/server";
+import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-
-// ---------------------------------------------------------------------------
-// Auth helper — validates CONVEX_INTERNAL_SECRET for server-to-server calls
-// ---------------------------------------------------------------------------
-
-function validateInternalSecret(secret: string): void {
-  if (!process.env.CONVEX_INTERNAL_SECRET || secret !== process.env.CONVEX_INTERNAL_SECRET) {
-    throw new Error("Unauthorized");
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Public query — returns calendar sync status to the UI, never credentials
@@ -30,27 +20,28 @@ export const getCalendarSyncStatus = query({
     return {
       lastCalendarSyncAt: user.lastCalendarSyncAt,
       lastCalendarSyncStatus: user.lastCalendarSyncStatus,
-      lastCalendarSyncError: user.lastCalendarSyncError,
+      // Map stored "" (written on success to clear a prior error) back to undefined
+      lastCalendarSyncError: user.lastCalendarSyncError || undefined,
     };
   },
 });
 
 // ---------------------------------------------------------------------------
-// getAssignmentsForPushInternal — returns assignments with due dates for push
-// Called from the /api/google-calendar/sync route handler
+// getAssignmentsForSync — returns assignments with due dates for push to GCal
+// Called from the /api/google-calendar/sync route handler via fetchQuery.
+// Must be a public query (not internalQuery) so it can be called with a
+// Clerk session token from a Next.js route handler.
 // ---------------------------------------------------------------------------
 
-export const getAssignmentsForPushInternal = query({
-  args: {
-    clerkUserId: v.string(),
-    internalSecret: v.string(),
-  },
-  handler: async (ctx, args) => {
-    validateInternalSecret(args.internalSecret);
+export const getAssignmentsForSync = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_clerkId", (q) => q.eq("clerkId", args.clerkUserId))
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
       .unique();
     if (!user) return [];
 
@@ -88,18 +79,17 @@ export const getAssignmentsForPushInternal = query({
 
 export const patchAssignmentGcalEventId = mutation({
   args: {
-    clerkUserId: v.string(),
-    internalSecret: v.string(),
     assignmentId: v.id("assignments"),
     gcalEventId: v.string(),
   },
   handler: async (ctx, args) => {
-    validateInternalSecret(args.internalSecret);
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
 
     // Verify the assignment belongs to the requesting user
     const user = await ctx.db
       .query("users")
-      .withIndex("by_clerkId", (q) => q.eq("clerkId", args.clerkUserId))
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
       .unique();
     if (!user) throw new Error("User not found");
 
@@ -113,14 +103,13 @@ export const patchAssignmentGcalEventId = mutation({
 });
 
 // ---------------------------------------------------------------------------
-// upsertGcalEventInternal — upserts a Google Calendar event into the events
-// table with source: "google_calendar"
+// upsertGcalEvent — upserts a Google Calendar event into the events table
+// with source: "google_calendar"
+// Must be a public mutation so it can be called from the sync route handler.
 // ---------------------------------------------------------------------------
 
-export const upsertGcalEventInternal = mutation({
+export const upsertGcalEvent = mutation({
   args: {
-    clerkUserId: v.string(),
-    internalSecret: v.string(),
     externalId: v.string(),
     title: v.string(),
     startAt: v.number(),
@@ -128,11 +117,12 @@ export const upsertGcalEventInternal = mutation({
     location: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    validateInternalSecret(args.internalSecret);
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_clerkId", (q) => q.eq("clerkId", args.clerkUserId))
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
       .unique();
     if (!user) throw new Error("User not found");
 
@@ -171,48 +161,62 @@ export const upsertGcalEventInternal = mutation({
 });
 
 // ---------------------------------------------------------------------------
-// updateCalendarSyncStatusInternal — records sync outcome on the user row
+// updateCalendarSyncStatus — records sync outcome on the user row.
+// Must be a public mutation so it can be called from the sync route handler.
+// On success, explicitly writes "" to lastCalendarSyncError to clear any
+// prior error (Convex db.patch silently omits undefined values, so passing
+// undefined would leave a stale error string in place).
 // ---------------------------------------------------------------------------
 
-export const updateCalendarSyncStatusInternal = mutation({
+export const updateCalendarSyncStatus = mutation({
   args: {
-    clerkUserId: v.string(),
-    internalSecret: v.string(),
     status: v.union(v.literal("success"), v.literal("error")),
     error: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    validateInternalSecret(args.internalSecret);
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_clerkId", (q) => q.eq("clerkId", args.clerkUserId))
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
       .unique();
     if (!user) throw new Error("User not found");
 
     await ctx.db.patch(user._id, {
       lastCalendarSyncAt: Date.now(),
       lastCalendarSyncStatus: args.status,
-      lastCalendarSyncError: args.error,
+      // Explicitly write "" on success to clear any prior error string.
+      lastCalendarSyncError: args.status === "success" ? "" : args.error,
     });
   },
 });
 
 // ---------------------------------------------------------------------------
-// removeStaleGcalEvents — deletes pulled Google Calendar events older than
-// the sync window so stale data doesn't accumulate
+// removeStaleGcalEvents — deletes pulled Google Calendar events that were
+// not present in the most recent sync window, preventing stale data from
+// accumulating when the user deletes events from Google Calendar.
+// Must be a public mutation so it can be called from the sync route handler.
 // ---------------------------------------------------------------------------
 
-export const removeStaleGcalEventsInternal = internalMutation({
+export const removeStaleGcalEvents = mutation({
   args: {
-    userId: v.id("users"),
     keepExternalIds: v.array(v.string()),
   },
   handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .unique();
+    if (!user) throw new Error("User not found");
+
     const existing = await ctx.db
       .query("events")
       .withIndex("by_userId_source", (q) =>
-        q.eq("userId", args.userId).eq("source", "google_calendar")
+        q.eq("userId", user._id).eq("source", "google_calendar")
       )
       .collect();
 

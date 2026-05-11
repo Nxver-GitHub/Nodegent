@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { api } from "../_generated/api";
 import schema from "../schema";
 
-const SECRET = "test-internal-secret";
 const IDENTITY = {
   subject: "clerk_gcal_1",
   email: "gcal@ucsc.edu",
@@ -12,7 +11,7 @@ const IDENTITY = {
 
 describe("googleCalendar (US-3.2)", () => {
   beforeEach(() => {
-    process.env.CONVEX_INTERNAL_SECRET = SECRET;
+    delete process.env.CONVEX_INTERNAL_SECRET;
   });
 
   // -------------------------------------------------------------------------
@@ -38,31 +37,28 @@ describe("googleCalendar (US-3.2)", () => {
   });
 
   // -------------------------------------------------------------------------
-  // updateCalendarSyncStatusInternal
+  // updateCalendarSyncStatus
   // -------------------------------------------------------------------------
 
-  it("updateCalendarSyncStatusInternal rejects wrong secret", async () => {
+  it("updateCalendarSyncStatus rejects unauthenticated calls", async () => {
     const t = convexTest(schema);
-    await t.withIdentity(IDENTITY).mutation(api.users.ensureUser, {});
     await expect(
-      t.mutation(api.googleCalendar.updateCalendarSyncStatusInternal, {
-        clerkUserId: IDENTITY.subject,
-        internalSecret: "wrong-secret",
+      t.mutation(api.googleCalendar.updateCalendarSyncStatus, {
         status: "success",
       })
-    ).rejects.toThrow("Unauthorized");
+    ).rejects.toThrow("Not authenticated");
   });
 
-  it("updateCalendarSyncStatusInternal records a success sync", async () => {
+  it("updateCalendarSyncStatus records a success sync", async () => {
     const t = convexTest(schema);
     await t.withIdentity(IDENTITY).mutation(api.users.ensureUser, {});
 
     const before = Date.now();
-    await t.mutation(api.googleCalendar.updateCalendarSyncStatusInternal, {
-      clerkUserId: IDENTITY.subject,
-      internalSecret: SECRET,
-      status: "success",
-    });
+    await t
+      .withIdentity(IDENTITY)
+      .mutation(api.googleCalendar.updateCalendarSyncStatus, {
+        status: "success",
+      });
 
     const status = await t
       .withIdentity(IDENTITY)
@@ -72,16 +68,16 @@ describe("googleCalendar (US-3.2)", () => {
     expect(status?.lastCalendarSyncError).toBeUndefined();
   });
 
-  it("updateCalendarSyncStatusInternal records an error sync with message", async () => {
+  it("updateCalendarSyncStatus records an error sync with message", async () => {
     const t = convexTest(schema);
     await t.withIdentity(IDENTITY).mutation(api.users.ensureUser, {});
 
-    await t.mutation(api.googleCalendar.updateCalendarSyncStatusInternal, {
-      clerkUserId: IDENTITY.subject,
-      internalSecret: SECRET,
-      status: "error",
-      error: "GOOGLE_AUTH_EXPIRED: token expired",
-    });
+    await t
+      .withIdentity(IDENTITY)
+      .mutation(api.googleCalendar.updateCalendarSyncStatus, {
+        status: "error",
+        error: "GOOGLE_AUTH_EXPIRED: token expired",
+      });
 
     const status = await t
       .withIdentity(IDENTITY)
@@ -90,59 +86,58 @@ describe("googleCalendar (US-3.2)", () => {
     expect(status?.lastCalendarSyncError).toBe("GOOGLE_AUTH_EXPIRED: token expired");
   });
 
-  it("updateCalendarSyncStatusInternal overwrites a previous error with success", async () => {
+  it("updateCalendarSyncStatus clears the error message when overwriting with success", async () => {
     const t = convexTest(schema);
     await t.withIdentity(IDENTITY).mutation(api.users.ensureUser, {});
 
-    await t.mutation(api.googleCalendar.updateCalendarSyncStatusInternal, {
-      clerkUserId: IDENTITY.subject,
-      internalSecret: SECRET,
-      status: "error",
-      error: "some transient failure",
-    });
-    await t.mutation(api.googleCalendar.updateCalendarSyncStatusInternal, {
-      clerkUserId: IDENTITY.subject,
-      internalSecret: SECRET,
-      status: "success",
-    });
+    await t
+      .withIdentity(IDENTITY)
+      .mutation(api.googleCalendar.updateCalendarSyncStatus, {
+        status: "error",
+        error: "some transient failure",
+      });
+    await t
+      .withIdentity(IDENTITY)
+      .mutation(api.googleCalendar.updateCalendarSyncStatus, {
+        status: "success",
+      });
 
     const status = await t
       .withIdentity(IDENTITY)
       .query(api.googleCalendar.getCalendarSyncStatus, {});
     expect(status?.lastCalendarSyncStatus).toBe("success");
+    // Error must be cleared — not left as a stale string from the prior error sync
+    expect(status?.lastCalendarSyncError).toBeUndefined();
   });
 
   // -------------------------------------------------------------------------
-  // upsertGcalEventInternal
+  // upsertGcalEvent
   // -------------------------------------------------------------------------
 
-  it("upsertGcalEventInternal rejects wrong secret", async () => {
+  it("upsertGcalEvent rejects unauthenticated calls", async () => {
     const t = convexTest(schema);
-    await t.withIdentity(IDENTITY).mutation(api.users.ensureUser, {});
     await expect(
-      t.mutation(api.googleCalendar.upsertGcalEventInternal, {
-        clerkUserId: IDENTITY.subject,
-        internalSecret: "bad",
+      t.mutation(api.googleCalendar.upsertGcalEvent, {
         externalId: "gcal:abc",
         title: "Team standup",
         startAt: Date.now(),
       })
-    ).rejects.toThrow("Unauthorized");
+    ).rejects.toThrow("Not authenticated");
   });
 
-  it("upsertGcalEventInternal creates a new Google Calendar event", async () => {
+  it("upsertGcalEvent creates a new Google Calendar event", async () => {
     const t = convexTest(schema);
     await t.withIdentity(IDENTITY).mutation(api.users.ensureUser, {});
 
     const startAt = Date.now();
-    await t.mutation(api.googleCalendar.upsertGcalEventInternal, {
-      clerkUserId: IDENTITY.subject,
-      internalSecret: SECRET,
-      externalId: "gcal:evt_001",
-      title: "Office hours",
-      startAt,
-      endAt: startAt + 3_600_000,
-    });
+    await t
+      .withIdentity(IDENTITY)
+      .mutation(api.googleCalendar.upsertGcalEvent, {
+        externalId: "gcal:evt_001",
+        title: "Office hours",
+        startAt,
+        endAt: startAt + 3_600_000,
+      });
 
     const events = await t.run(async (ctx) =>
       ctx.db
@@ -157,21 +152,17 @@ describe("googleCalendar (US-3.2)", () => {
   });
 
   // -------------------------------------------------------------------------
-  // getAssignmentsForPushInternal
+  // getAssignmentsForSync
   // -------------------------------------------------------------------------
 
-  it("getAssignmentsForPushInternal rejects wrong secret", async () => {
+  it("getAssignmentsForSync rejects unauthenticated calls", async () => {
     const t = convexTest(schema);
-    await t.withIdentity(IDENTITY).mutation(api.users.ensureUser, {});
     await expect(
-      t.query(api.googleCalendar.getAssignmentsForPushInternal, {
-        clerkUserId: IDENTITY.subject,
-        internalSecret: "bad",
-      })
-    ).rejects.toThrow("Unauthorized");
+      t.query(api.googleCalendar.getAssignmentsForSync, {})
+    ).rejects.toThrow("Not authenticated");
   });
 
-  it("getAssignmentsForPushInternal returns only incomplete assignments that have a dueAt", async () => {
+  it("getAssignmentsForSync returns only incomplete assignments that have a dueAt", async () => {
     const t = convexTest(schema);
     const userId = await t
       .withIdentity(IDENTITY)
@@ -221,23 +212,157 @@ describe("googleCalendar (US-3.2)", () => {
       });
     });
 
-    const assignments = await t.query(
-      api.googleCalendar.getAssignmentsForPushInternal,
-      { clerkUserId: IDENTITY.subject, internalSecret: SECRET }
-    );
+    const assignments = await t
+      .withIdentity(IDENTITY)
+      .query(api.googleCalendar.getAssignmentsForSync, {});
 
     expect(assignments).toHaveLength(1);
     expect(assignments[0].title).toBe("Sprint 3 Deliverable");
     expect(assignments[0].dueAt).toBeGreaterThan(now);
   });
 
-  it("getAssignmentsForPushInternal returns empty array for user with no assignments", async () => {
+  it("getAssignmentsForSync returns empty array for user with no assignments", async () => {
     const t = convexTest(schema);
     await t.withIdentity(IDENTITY).mutation(api.users.ensureUser, {});
-    const assignments = await t.query(
-      api.googleCalendar.getAssignmentsForPushInternal,
-      { clerkUserId: IDENTITY.subject, internalSecret: SECRET }
-    );
+    const assignments = await t
+      .withIdentity(IDENTITY)
+      .query(api.googleCalendar.getAssignmentsForSync, {});
     expect(assignments).toHaveLength(0);
+  });
+
+  // -------------------------------------------------------------------------
+  // removeStaleGcalEvents
+  // -------------------------------------------------------------------------
+
+  describe("removeStaleGcalEvents", () => {
+    it("rejects unauthenticated calls", async () => {
+      const t = convexTest(schema);
+      await expect(
+        t.mutation(api.googleCalendar.removeStaleGcalEvents, { keepExternalIds: [] })
+      ).rejects.toThrow("Not authenticated");
+    });
+
+    it("deletes google_calendar events not in keepExternalIds", async () => {
+      const t = convexTest(schema);
+      const userId = await t.withIdentity(IDENTITY).mutation(api.users.ensureUser, {});
+      const now = Date.now();
+
+      await t.run(async (ctx) => {
+        await ctx.db.insert("events", {
+          userId,
+          title: "Keep me",
+          startAt: now,
+          eventType: "other",
+          externalId: "gcal:keep",
+          source: "google_calendar",
+          lastSyncedAt: now,
+        });
+        await ctx.db.insert("events", {
+          userId,
+          title: "Delete me",
+          startAt: now,
+          eventType: "other",
+          externalId: "gcal:stale",
+          source: "google_calendar",
+          lastSyncedAt: now,
+        });
+      });
+
+      await t
+        .withIdentity(IDENTITY)
+        .mutation(api.googleCalendar.removeStaleGcalEvents, {
+          keepExternalIds: ["gcal:keep"],
+        });
+
+      const remaining = await t.run(async (ctx) =>
+        ctx.db
+          .query("events")
+          .filter((q) => q.eq(q.field("source"), "google_calendar"))
+          .collect()
+      );
+      expect(remaining).toHaveLength(1);
+      expect(remaining[0].externalId).toBe("gcal:keep");
+    });
+
+    it("deletes all google_calendar events when keepExternalIds is empty", async () => {
+      const t = convexTest(schema);
+      const userId = await t.withIdentity(IDENTITY).mutation(api.users.ensureUser, {});
+      const now = Date.now();
+
+      await t.run(async (ctx) => {
+        await ctx.db.insert("events", {
+          userId,
+          title: "Event A",
+          startAt: now,
+          eventType: "other",
+          externalId: "gcal:a",
+          source: "google_calendar",
+          lastSyncedAt: now,
+        });
+        await ctx.db.insert("events", {
+          userId,
+          title: "Event B",
+          startAt: now,
+          eventType: "other",
+          externalId: "gcal:b",
+          source: "google_calendar",
+          lastSyncedAt: now,
+        });
+      });
+
+      await t
+        .withIdentity(IDENTITY)
+        .mutation(api.googleCalendar.removeStaleGcalEvents, {
+          keepExternalIds: [],
+        });
+
+      const remaining = await t.run(async (ctx) =>
+        ctx.db
+          .query("events")
+          .filter((q) => q.eq(q.field("source"), "google_calendar"))
+          .collect()
+      );
+      expect(remaining).toHaveLength(0);
+    });
+
+    it("does not affect events from other sources", async () => {
+      const t = convexTest(schema);
+      const userId = await t.withIdentity(IDENTITY).mutation(api.users.ensureUser, {});
+      const now = Date.now();
+
+      await t.run(async (ctx) => {
+        // Non-gcal event — should survive
+        await ctx.db.insert("events", {
+          userId,
+          title: "Canvas deadline",
+          startAt: now,
+          eventType: "other",
+          source: "canvas",
+          lastSyncedAt: now,
+        });
+        // GCal event — will be removed
+        await ctx.db.insert("events", {
+          userId,
+          title: "GCal event",
+          startAt: now,
+          eventType: "other",
+          externalId: "gcal:gone",
+          source: "google_calendar",
+          lastSyncedAt: now,
+        });
+      });
+
+      await t
+        .withIdentity(IDENTITY)
+        .mutation(api.googleCalendar.removeStaleGcalEvents, {
+          keepExternalIds: [],
+        });
+
+      const remaining = await t.run(async (ctx) =>
+        ctx.db.query("events").collect()
+      );
+      expect(remaining).toHaveLength(1);
+      expect(remaining[0].source).toBe("canvas");
+    });
   });
 });

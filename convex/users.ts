@@ -91,22 +91,15 @@ export const updateAccessToggles = mutation({
   },
 });
 
-export const getUserSettingsInternal = query({
-  args: {
-    clerkUserId: v.string(),
-    internalSecret: v.string(),
-  },
-  handler: async (ctx, args) => {
-    if (
-      !process.env.CONVEX_INTERNAL_SECRET ||
-      args.internalSecret !== process.env.CONVEX_INTERNAL_SECRET
-    ) {
-      throw new Error("Unauthorized");
-    }
+export const getUserSettings = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_clerkId", (q) => q.eq("clerkId", args.clerkUserId))
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
       .unique();
 
     if (!user) return null;

@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { api } from "../_generated/api";
 import schema from "../schema";
 
-const SECRET = "test-internal-secret";
 const IDENTITY = {
   subject: "clerk_toggle_1",
   email: "toggle@ucsc.edu",
@@ -19,9 +18,6 @@ async function seedUser(t: ReturnType<typeof convexTest>) {
 // ---------------------------------------------------------------------------
 
 describe("updateAccessToggles (US-3.4)", () => {
-  beforeEach(() => {
-    process.env.CONVEX_INTERNAL_SECRET = SECRET;
-  });
 
   it("throws when unauthenticated", async () => {
     const t = convexTest(schema);
@@ -80,32 +76,22 @@ describe("updateAccessToggles (US-3.4)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// getUserSettingsInternal
+// getUserSettings
 // ---------------------------------------------------------------------------
 
-describe("getUserSettingsInternal (US-3.4)", () => {
-  beforeEach(() => {
-    process.env.CONVEX_INTERNAL_SECRET = SECRET;
+describe("getUserSettings (US-3.4)", () => {
+  it("returns null when unauthenticated", async () => {
+    const t = convexTest(schema);
+    const result = await t.query(api.users.getUserSettings, {});
+    expect(result).toBeNull();
   });
 
-  it("throws on wrong secret", async () => {
+  it("returns null for user not yet in DB", async () => {
     const t = convexTest(schema);
-    await seedUser(t);
-
-    await expect(
-      t.query(api.users.getUserSettingsInternal, {
-        clerkUserId: IDENTITY.subject,
-        internalSecret: "wrong",
-      })
-    ).rejects.toThrow("Unauthorized");
-  });
-
-  it("returns null for unknown user", async () => {
-    const t = convexTest(schema);
-    const result = await t.query(api.users.getUserSettingsInternal, {
-      clerkUserId: "nonexistent",
-      internalSecret: SECRET,
-    });
+    // withIdentity but without ensureUser — user row doesn't exist yet
+    const result = await t
+      .withIdentity(IDENTITY)
+      .query(api.users.getUserSettings, {});
     expect(result).toBeNull();
   });
 
@@ -117,10 +103,9 @@ describe("getUserSettingsInternal (US-3.4)", () => {
       .withIdentity(IDENTITY)
       .mutation(api.users.updateAccessToggles, { calendarEnabled: false });
 
-    const settings = await t.query(api.users.getUserSettingsInternal, {
-      clerkUserId: IDENTITY.subject,
-      internalSecret: SECRET,
-    });
+    const settings = await t
+      .withIdentity(IDENTITY)
+      .query(api.users.getUserSettings, {});
 
     expect(settings?.calendarEnabled).toBe(false);
     // canvasEnabled was never set — should be undefined (enabled by default)
@@ -135,7 +120,6 @@ describe("getUserSettingsInternal (US-3.4)", () => {
 describe("buildCampusContext access toggles (US-3.4)", () => {
   beforeEach(() => {
     process.env.NODEGENT_LLM_MODE = "mock";
-    process.env.CONVEX_INTERNAL_SECRET = SECRET;
   });
 
   it("excludes Canvas courses and assignments from AI context when canvasEnabled is false", async () => {
