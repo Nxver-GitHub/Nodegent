@@ -13,7 +13,6 @@ import {
   X,
   ClockCounterClockwise,
   CaretDown,
-  CaretRight,
 } from "@phosphor-icons/react";
 
 type AuditAction =
@@ -74,7 +73,9 @@ function actionLabel(action: AuditAction, details?: string): string {
       if (details) {
         try {
           const d = JSON.parse(details) as Record<string, boolean>;
-          const parts = Object.entries(d).map(([k, v]) => `${k === "canvasEnabled" ? "Canvas" : "Calendar"} ${v ? "enabled" : "disabled"}`);
+          const parts = Object.entries(d).map(([k, v]) =>
+            `${k === "canvasEnabled" ? "Canvas" : "Calendar"} ${v ? "enabled" : "disabled"}`
+          );
           return parts.join(", ");
         } catch { /* fall through */ }
       }
@@ -100,26 +101,119 @@ function ActionIcon({ action, status }: { action: AuditAction; status: "success"
   }
 }
 
-const REF_TYPE_COLOR: Record<string, string> = {
+const REF_COLOR: Record<string, string> = {
   course: "bg-blue-50 text-blue-700 border-blue-200",
   assignment: "bg-amber-50 text-amber-700 border-amber-200",
   event: "bg-purple-50 text-purple-700 border-purple-200",
 };
 
-function ContextRefs({ refs }: { refs: ContextRef[] }) {
-  if (refs.length === 0) return null;
+function RefGroup({ label, refs }: { label: string; refs: ContextRef[] }) {
   return (
-    <div className="mt-1.5 flex flex-wrap gap-1">
-      {refs.map((ref) => (
-        <span
-          key={`${ref.type}-${ref.id}`}
-          className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border ${REF_TYPE_COLOR[ref.type] ?? "bg-gray-50 text-gray-600 border-gray-200"}`}
-        >
-          {ref.label}
-        </span>
-      ))}
+    <div>
+      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">{label}</p>
+      <div className="flex flex-wrap gap-1">
+        {refs.map((ref) => (
+          <span
+            key={`${ref.type}-${ref.id}`}
+            className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border ${REF_COLOR[ref.type] ?? "bg-gray-50 text-gray-600 border-gray-200"}`}
+          >
+            {ref.label}
+          </span>
+        ))}
+      </div>
     </div>
   );
+}
+
+function EntryDetails({ action, status, details }: { action: AuditAction; status: "success" | "error"; details?: string }) {
+  let parsed: Record<string, unknown> = {};
+  if (details) {
+    try { parsed = JSON.parse(details) as Record<string, unknown>; } catch { /* ignore */ }
+  }
+
+  if (status === "error") {
+    const err = parsed.error as string | undefined;
+    return (
+      <div className="mt-2 text-[11px] text-red-600 bg-red-50 border border-red-100 rounded px-2.5 py-1.5">
+        {err ?? "An error occurred"}
+      </div>
+    );
+  }
+
+  switch (action) {
+    case "canvas_sync": {
+      const courses = (parsed.coursesSynced as number) ?? 0;
+      const assignments = (parsed.assignmentsSynced as number) ?? 0;
+      return (
+        <div className="mt-2 text-[11px] text-gray-500 bg-gray-50 border border-gray-100 rounded px-2.5 py-1.5 leading-relaxed">
+          Accessed{" "}
+          <span className="font-semibold text-gray-700">{courses} courses</span> and{" "}
+          <span className="font-semibold text-gray-700">{assignments} assignments</span>{" "}
+          from Canvas LMS
+        </div>
+      );
+    }
+    case "calendar_sync": {
+      const pushed = (parsed.eventsPushed as number) ?? 0;
+      const pulled = (parsed.eventsPulled as number) ?? 0;
+      return (
+        <div className="mt-2 text-[11px] text-gray-500 bg-gray-50 border border-gray-100 rounded px-2.5 py-1.5 leading-relaxed">
+          <span className="font-semibold text-gray-700">{pushed} assignment deadlines</span> written to Google Calendar —{" "}
+          <span className="font-semibold text-gray-700">{pulled} events</span> read back
+        </div>
+      );
+    }
+    case "ai_chat": {
+      const refs = parsed.contextRefs as ContextRef[] | undefined;
+      if (!refs || refs.length === 0) {
+        return (
+          <div className="mt-2 text-[11px] text-gray-400 italic">
+            No campus data was referenced for this response.
+          </div>
+        );
+      }
+      const courses = refs.filter((r) => r.type === "course");
+      const assignments = refs.filter((r) => r.type === "assignment");
+      const events = refs.filter((r) => r.type === "event");
+      return (
+        <div className="mt-2 flex flex-col gap-2">
+          <p className="text-[10px] text-gray-400">Context Nodegent used to answer:</p>
+          {courses.length > 0 && <RefGroup label="Courses" refs={courses} />}
+          {assignments.length > 0 && <RefGroup label="Assignments" refs={assignments} />}
+          {events.length > 0 && <RefGroup label="Events" refs={events} />}
+        </div>
+      );
+    }
+    case "access_toggle": {
+      const toggles = Object.entries(parsed).filter(([k]) => k !== "contextRefs");
+      return (
+        <div className="mt-2 text-[11px] text-gray-500 bg-gray-50 border border-gray-100 rounded px-2.5 py-1.5 flex flex-col gap-0.5">
+          {toggles.map(([k, v]) => (
+            <div key={k}>
+              <span className="font-semibold text-gray-700">
+                {k === "canvasEnabled" ? "Canvas LMS" : "Google Calendar"}
+              </span>{" "}
+              was {v ? "enabled" : "disabled"}
+            </div>
+          ))}
+        </div>
+      );
+    }
+    case "canvas_connected":
+      return (
+        <div className="mt-2 text-[11px] text-gray-400 bg-gray-50 border border-gray-100 rounded px-2.5 py-1.5">
+          Canvas session cookies saved securely — Nodegent can now sync your courses and assignments.
+        </div>
+      );
+    case "canvas_disconnected":
+      return (
+        <div className="mt-2 text-[11px] text-gray-400 bg-gray-50 border border-gray-100 rounded px-2.5 py-1.5">
+          Canvas credentials removed — Nodegent no longer has access to your Canvas account.
+        </div>
+      );
+    default:
+      return null;
+  }
 }
 
 interface LogEntry {
@@ -133,20 +227,11 @@ interface LogEntry {
 function LogEntryRow({ entry }: { entry: LogEntry }) {
   const [expanded, setExpanded] = useState(false);
 
-  const contextRefs: ContextRef[] = (() => {
-    if (!entry.details) return [];
-    try {
-      const d = JSON.parse(entry.details) as { contextRefs?: ContextRef[] };
-      return Array.isArray(d.contextRefs) ? d.contextRefs : [];
-    } catch {
-      return [];
-    }
-  })();
-
-  const hasContext = contextRefs.length > 0;
-
   return (
-    <li className="py-2.5 border-b border-gray-50 last:border-b-0">
+    <li
+      className="py-2.5 border-b border-gray-50 last:border-b-0 cursor-pointer -mx-4 px-4 hover:bg-gray-50 rounded transition-colors"
+      onClick={() => setExpanded((v) => !v)}
+    >
       <div className="flex items-start gap-2.5">
         <div className="mt-0.5 flex-shrink-0">
           <ActionIcon action={entry.action as AuditAction} status={entry.status} />
@@ -155,20 +240,22 @@ function LogEntryRow({ entry }: { entry: LogEntry }) {
           <p className={`text-[12px] font-medium leading-snug ${entry.status === "error" ? "text-red-600" : "text-gray-800"}`}>
             {actionLabel(entry.action as AuditAction, entry.details)}
           </p>
-          {hasContext && (
-            <button
-              onClick={() => setExpanded((v) => !v)}
-              className="mt-1 flex items-center gap-0.5 text-[10px] text-gray-400 hover:text-gray-600 transition-colors"
-            >
-              {expanded ? <CaretDown size={9} weight="bold" /> : <CaretRight size={9} weight="bold" />}
-              {expanded ? "Hide context" : `${contextRefs.length} context item${contextRefs.length > 1 ? "s" : ""} used`}
-            </button>
+          {expanded && (
+            <EntryDetails
+              action={entry.action as AuditAction}
+              status={entry.status}
+              details={entry.details}
+            />
           )}
-          {expanded && <ContextRefs refs={contextRefs} />}
         </div>
-        <span className="text-[10px] text-gray-400 flex-shrink-0 mt-0.5">
-          {formatRelative(entry.timestamp)}
-        </span>
+        <div className="flex items-center gap-1.5 flex-shrink-0 mt-0.5">
+          <span className="text-[10px] text-gray-400">{formatRelative(entry.timestamp)}</span>
+          <CaretDown
+            size={9}
+            weight="bold"
+            className={`text-gray-300 transition-transform duration-200 ${expanded ? "rotate-180" : ""}`}
+          />
+        </div>
       </div>
     </li>
   );
@@ -180,7 +267,7 @@ export function ActivityLogPanel() {
 
   return (
     <>
-      {/* Floating toggle button — sits left of the "Today" button */}
+      {/* Floating toggle button */}
       <button
         onClick={() => setOpen(true)}
         aria-label="Open activity log"
@@ -226,7 +313,7 @@ export function ActivityLogPanel() {
         {/* Description */}
         <div className="px-4 py-2.5 border-b border-gray-50 flex-shrink-0">
           <p className="text-[11px] text-gray-400">
-            Every action Nodegent has taken on your behalf — transparent and auditable.
+            Every action Nodegent has taken on your behalf — transparent and auditable. Click any entry to see the data accessed.
           </p>
         </div>
 
