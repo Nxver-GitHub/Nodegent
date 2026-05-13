@@ -172,15 +172,17 @@ function EntryDetails({ action, status, details }: { action: AuditAction; status
           </div>
         );
       }
-      const courses = refs.filter((r) => r.type === "course");
-      const assignments = refs.filter((r) => r.type === "assignment");
-      const events = refs.filter((r) => r.type === "event");
       return (
-        <div className="mt-2 flex flex-col gap-2">
-          <p className="text-[10px] text-gray-400">Context Nodegent used to answer:</p>
-          {courses.length > 0 && <RefGroup label="Courses" refs={courses} />}
-          {assignments.length > 0 && <RefGroup label="Assignments" refs={assignments} />}
-          {events.length > 0 && <RefGroup label="Events" refs={events} />}
+        <div className="mt-2">
+          <p className="text-xs text-gray-600 font-medium mb-1">Context used ({refs.length})</p>
+          <ul className="list-disc pl-5 text-xs text-gray-700 space-y-1">
+            {refs.slice(0, 20).map((r) => (
+              <li key={`${r.type}:${r.id}`}>{r.label}</li>
+            ))}
+            {refs.length > 20 && (
+              <li className="text-gray-400">…and {refs.length - 20} more</li>
+            )}
+          </ul>
         </div>
       );
     }
