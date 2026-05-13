@@ -10,6 +10,7 @@ import { CanvasAuthViewer } from "./components/CanvasAuthViewer";
 import { GoogleCalendarCard } from "./components/GoogleCalendarCard";
 import { AccessToggleCard } from "./components/AccessToggleCard";
 import { NewAssignmentsBanner } from "./components/NewAssignmentsBanner";
+import { ConfirmDialog } from "./components/ConfirmDialog";
 
 export function DashboardClient() {
   const { user, isLoaded } = useUser();
@@ -44,10 +45,12 @@ export function DashboardClient() {
 
 function CanvasCard() {
   const status = useQuery(api.canvas.getCanvasStatus);
-  const removeCredentials = useMutation(api.canvas.removeCanvasCredentials);
+  const revokeAccess = useMutation(api.canvas.revokeCanvasAccess);
   const syncCanvas = useAction(api.canvas.syncCanvas);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [showRevokeConfirm, setShowRevokeConfirm] = useState(false);
+  const [isRevoking, setIsRevoking] = useState(false);
 
   async function handleSync() {
     setIsSyncing(true);
@@ -61,8 +64,14 @@ function CanvasCard() {
     }
   }
 
-  async function handleDisconnect() {
-    await removeCredentials({});
+  async function handleRevokeConfirm() {
+    setIsRevoking(true);
+    try {
+      await revokeAccess({});
+    } finally {
+      setIsRevoking(false);
+      setShowRevokeConfirm(false);
+    }
   }
 
   // Loading
@@ -118,12 +127,21 @@ function CanvasCard() {
           {isSyncing ? "Syncing..." : "Sync Now"}
         </button>
         <button
-          onClick={handleDisconnect}
-          className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500"
+          onClick={() => setShowRevokeConfirm(true)}
+          className="rounded-md border border-red-300 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500"
         >
-          Disconnect
+          Revoke Access
         </button>
       </div>
+      <ConfirmDialog
+        open={showRevokeConfirm}
+        title="Revoke Canvas access?"
+        message="This will permanently delete all your synced Canvas courses and assignments from Nodegent. Your data on Canvas itself is not affected. This cannot be undone."
+        confirmLabel="Revoke Access"
+        isLoading={isRevoking}
+        onConfirm={handleRevokeConfirm}
+        onCancel={() => setShowRevokeConfirm(false)}
+      />
     </div>
   );
 }
