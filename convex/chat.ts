@@ -649,7 +649,7 @@ export const sendMessage = action({
         userId,
         action: "ai_chat",
         status: "success",
-        details: JSON.stringify({ preview: content.slice(0, 80), provider: llmResult.provider }),
+        details: JSON.stringify({ preview: content.slice(0, 80), provider: llmResult.provider, contextRefs: contextRefs.slice(0, 60) }),
       });
     } catch {
       // log failure must not break chat response
