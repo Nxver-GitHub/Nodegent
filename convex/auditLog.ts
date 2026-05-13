@@ -55,6 +55,28 @@ export const logCalendarSync = mutation({
   },
 });
 
+// Mutation — deletes all audit log entries for the authenticated user
+export const clearAuditLog = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .unique();
+    if (!user) throw new Error("User not found");
+
+    const entries = await ctx.db
+      .query("auditLog")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .collect();
+
+    await Promise.all(entries.map((e) => ctx.db.delete(e._id)));
+  },
+});
+
 // Query — returns the 50 most recent audit events for the authenticated user
 export const getAuditLog = query({
   args: {},

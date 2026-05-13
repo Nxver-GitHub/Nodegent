@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import {
   ArrowsClockwise,
@@ -13,6 +13,7 @@ import {
   X,
   ClockCounterClockwise,
   CaretDown,
+  Trash,
 } from "@phosphor-icons/react";
 
 type AuditAction =
@@ -101,26 +102,88 @@ function ActionIcon({ action, status }: { action: AuditAction; status: "success"
   }
 }
 
-const REF_COLOR: Record<string, string> = {
-  course: "bg-blue-50 text-blue-700 border-blue-200",
-  assignment: "bg-amber-50 text-amber-700 border-amber-200",
-  event: "bg-purple-50 text-purple-700 border-purple-200",
-};
+// Groups assignment refs by their course code prefix ("CSE-160-01 — name" -> "CSE-160-01")
+function groupAssignmentsByCourse(assignments: ContextRef[]): Map<string, ContextRef[]> {
+  const map = new Map<string, ContextRef[]>();
+  for (const ref of assignments) {
+    const sepIdx = ref.label.indexOf(" — ");
+    const key = sepIdx >= 0 ? ref.label.slice(0, sepIdx) : "Other";
+    const group = map.get(key) ?? [];
+    group.push(ref);
+    map.set(key, group);
+  }
+  return map;
+}
 
-function RefGroup({ label, refs }: { label: string; refs: ContextRef[] }) {
+function stripCoursePrefix(label: string): string {
+  const sepIdx = label.indexOf(" — ");
+  return sepIdx >= 0 ? label.slice(sepIdx + 3) : label;
+}
+
+function ContextSection({ refs }: { refs: ContextRef[] }) {
+  const courses = refs.filter((r) => r.type === "course");
+  const assignments = refs.filter((r) => r.type === "assignment");
+  const events = refs.filter((r) => r.type === "event");
+  const assignmentsByCoursee = groupAssignmentsByCourse(assignments);
+
   return (
-    <div>
-      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">{label}</p>
-      <div className="flex flex-wrap gap-1">
-        {refs.map((ref) => (
-          <span
-            key={`${ref.type}-${ref.id}`}
-            className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border ${REF_COLOR[ref.type] ?? "bg-gray-50 text-gray-600 border-gray-200"}`}
-          >
-            {ref.label}
-          </span>
-        ))}
-      </div>
+    <div className="mt-2 flex flex-col gap-1" onClick={(e) => e.stopPropagation()}>
+      <p className="text-xs text-gray-600 font-medium">Context used ({refs.length})</p>
+
+      {/* Courses */}
+      {courses.length > 0 && (
+        <details className="group">
+          <summary className="flex items-center gap-1 cursor-pointer list-none text-[11px] font-semibold text-gray-600 hover:text-gray-800 py-0.5 select-none">
+            <CaretDown size={9} weight="bold" className="transition-transform group-open:rotate-0 -rotate-90" />
+            Courses ({courses.length})
+          </summary>
+          <ul className="mt-1 ml-3 list-disc pl-3 text-[11px] text-gray-700 space-y-0.5">
+            {courses.map((r) => (
+              <li key={`${r.type}:${r.id}`}>{r.label}</li>
+            ))}
+          </ul>
+        </details>
+      )}
+
+      {/* Assignments grouped by course */}
+      {assignments.length > 0 && (
+        <details className="group">
+          <summary className="flex items-center gap-1 cursor-pointer list-none text-[11px] font-semibold text-gray-600 hover:text-gray-800 py-0.5 select-none">
+            <CaretDown size={9} weight="bold" className="transition-transform group-open:rotate-0 -rotate-90" />
+            Assignments ({assignments.length})
+          </summary>
+          <div className="mt-1 ml-3 flex flex-col gap-1">
+            {Array.from(assignmentsByCoursee.entries()).map(([courseCode, items]) => (
+              <details key={courseCode} className="group/sub">
+                <summary className="flex items-center gap-1 cursor-pointer list-none text-[11px] font-medium text-gray-500 hover:text-gray-700 py-0.5 select-none">
+                  <CaretDown size={8} weight="bold" className="transition-transform group-open/sub:rotate-0 -rotate-90" />
+                  {courseCode} ({items.length})
+                </summary>
+                <ul className="mt-0.5 ml-3 list-disc pl-3 text-[11px] text-gray-700 space-y-0.5">
+                  {items.map((r) => (
+                    <li key={`${r.type}:${r.id}`}>{stripCoursePrefix(r.label)}</li>
+                  ))}
+                </ul>
+              </details>
+            ))}
+          </div>
+        </details>
+      )}
+
+      {/* Events */}
+      {events.length > 0 && (
+        <details className="group">
+          <summary className="flex items-center gap-1 cursor-pointer list-none text-[11px] font-semibold text-gray-600 hover:text-gray-800 py-0.5 select-none">
+            <CaretDown size={9} weight="bold" className="transition-transform group-open:rotate-0 -rotate-90" />
+            Events ({events.length})
+          </summary>
+          <ul className="mt-1 ml-3 list-disc pl-3 text-[11px] text-gray-700 space-y-0.5">
+            {events.map((r) => (
+              <li key={`${r.type}:${r.id}`}>{r.label}</li>
+            ))}
+          </ul>
+        </details>
+      )}
     </div>
   );
 }
@@ -172,19 +235,7 @@ function EntryDetails({ action, status, details }: { action: AuditAction; status
           </div>
         );
       }
-      return (
-        <div className="mt-2">
-          <p className="text-xs text-gray-600 font-medium mb-1">Context used ({refs.length})</p>
-          <ul className="list-disc pl-5 text-xs text-gray-700 space-y-1">
-            {refs.slice(0, 20).map((r) => (
-              <li key={`${r.type}:${r.id}`}>{r.label}</li>
-            ))}
-            {refs.length > 20 && (
-              <li className="text-gray-400">…and {refs.length - 20} more</li>
-            )}
-          </ul>
-        </div>
-      );
+      return <ContextSection refs={refs} />;
     }
     case "access_toggle": {
       const toggles = Object.entries(parsed).filter(([k]) => k !== "contextRefs");
@@ -263,6 +314,53 @@ function LogEntryRow({ entry }: { entry: LogEntry }) {
   );
 }
 
+function ClearLogButton() {
+  const clearLog = useMutation(api.auditLog.clearAuditLog);
+  const [confirming, setConfirming] = useState(false);
+  const [clearing, setClearing] = useState(false);
+
+  async function handleClear() {
+    setClearing(true);
+    try {
+      await clearLog({});
+    } finally {
+      setClearing(false);
+      setConfirming(false);
+    }
+  }
+
+  if (confirming) {
+    return (
+      <div className="flex items-center gap-2">
+        <span className="text-[11px] text-gray-500">Clear all entries?</span>
+        <button
+          onClick={handleClear}
+          disabled={clearing}
+          className="text-[11px] font-semibold text-red-600 hover:text-red-700 disabled:opacity-50"
+        >
+          {clearing ? "Clearing…" : "Yes, clear"}
+        </button>
+        <button
+          onClick={() => setConfirming(false)}
+          className="text-[11px] text-gray-400 hover:text-gray-600"
+        >
+          Cancel
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      onClick={() => setConfirming(true)}
+      className="flex items-center gap-1.5 text-[11px] text-gray-400 hover:text-red-500 transition-colors"
+    >
+      <Trash size={12} weight="bold" />
+      Clear log
+    </button>
+  );
+}
+
 export function ActivityLogPanel() {
   const [open, setOpen] = useState(false);
   const log = useQuery(api.auditLog.getAuditLog);
@@ -337,6 +435,13 @@ export function ActivityLogPanel() {
             </ul>
           )}
         </div>
+
+        {/* Footer: clear button */}
+        {log && log.length > 0 && (
+          <div className="flex-shrink-0 px-4 py-3 border-t border-gray-100">
+            <ClearLogButton />
+          </div>
+        )}
       </aside>
     </>
   );
