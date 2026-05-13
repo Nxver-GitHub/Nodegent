@@ -231,6 +231,12 @@ export const saveCanvasCookies = action({
       userId,
       canvasCookies: JSON.stringify(cookies),
     });
+
+    await ctx.runMutation(internal.auditLog.logAction, {
+      userId,
+      action: "canvas_connected",
+      status: "success",
+    });
   },
 });
 
@@ -256,6 +262,12 @@ export const removeCanvasCredentials = mutation({
       .unique();
     if (creds) {
       await ctx.db.delete(creds._id);
+      await ctx.db.insert("auditLog", {
+        userId: user._id,
+        action: "canvas_disconnected",
+        status: "success",
+        timestamp: Date.now(),
+      });
     }
   },
 });
@@ -392,6 +404,13 @@ export const syncCanvas = action({
         assignmentsSynced,
       });
 
+      await ctx.runMutation(internal.auditLog.logAction, {
+        userId: user._id,
+        action: "canvas_sync",
+        status: "success",
+        details: JSON.stringify({ coursesSynced, assignmentsSynced }),
+      });
+
       return { coursesSynced, assignmentsSynced };
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown sync error";
@@ -399,6 +418,12 @@ export const syncCanvas = action({
         userId: user._id,
         status: "error",
         error: message,
+      });
+      await ctx.runMutation(internal.auditLog.logAction, {
+        userId: user._id,
+        action: "canvas_sync",
+        status: "error",
+        details: JSON.stringify({ error: message }),
       });
       throw err;
     }

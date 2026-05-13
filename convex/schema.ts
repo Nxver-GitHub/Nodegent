@@ -124,4 +124,21 @@ export default defineSchema({
     coursesSynced: v.optional(v.number()),
     assignmentsSynced: v.optional(v.number()),
   }).index("by_userId", ["userId"]),
+  auditLog: defineTable({
+    userId: v.id("users"),
+    action: v.union(
+      v.literal("canvas_sync"),
+      v.literal("calendar_sync"),
+      v.literal("ai_chat"),
+      v.literal("access_toggle"),
+      v.literal("canvas_connected"),
+      v.literal("canvas_disconnected"),
+    ),
+    status: v.union(v.literal("success"), v.literal("error")),
+    details: v.optional(v.string()),
+    timestamp: v.number(),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_userId_timestamp", ["userId", "timestamp"]),
+
 });

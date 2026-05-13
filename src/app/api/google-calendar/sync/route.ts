@@ -189,6 +189,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       { token }
     );
 
+    try {
+      await fetchMutation(api.auditLog.logCalendarSync, { status: "success", details: JSON.stringify({ eventsPushed, eventsPulled }) }, { token });
+    } catch { /* log failure must not break sync */ }
+
     return NextResponse.json({
       ok: true,
       eventsPushed,

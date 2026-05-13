@@ -644,6 +644,17 @@ export const sendMessage = action({
       latencyMs,
     });
 
+    try {
+      await ctx.runMutation(internal.auditLog.logAction, {
+        userId,
+        action: "ai_chat",
+        status: "success",
+        details: JSON.stringify({ preview: content.slice(0, 80), provider: llmResult.provider }),
+      });
+    } catch {
+      // log failure must not break chat response
+    }
+
     return { threadId };
   },
 });

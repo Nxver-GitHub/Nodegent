@@ -11,6 +11,7 @@ import { GoogleCalendarCard } from "./components/GoogleCalendarCard";
 import { AccessToggleCard } from "./components/AccessToggleCard";
 import { NewAssignmentsBanner } from "./components/NewAssignmentsBanner";
 import { ConfirmDialog } from "./components/ConfirmDialog";
+import { ActivityLogCard } from "./components/ActivityLogCard";
 
 export function DashboardClient() {
   const { user, isLoaded } = useUser();
@@ -39,6 +40,7 @@ export function DashboardClient() {
       <NewAssignmentsBanner />
       <AssignmentList />
       <AccessToggleCard />
+      <ActivityLogCard />
     </DashboardShell>
   );
 }
