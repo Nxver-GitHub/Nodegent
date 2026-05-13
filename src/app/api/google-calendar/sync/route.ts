@@ -50,17 +50,30 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   // Get Google OAuth token from Clerk
   const client = await clerkClient();
-  const tokenResponse = await client.users.getUserOauthAccessToken(
-    userId,
-    "oauth_google"
-  );
-  const googleToken = tokenResponse.data?.[0]?.token;
+  let googleToken: string | undefined;
+  try {
+    const tokenResponse = await client.users.getUserOauthAccessToken(
+      userId,
+      "google"
+    );
+    googleToken = tokenResponse.data?.[0]?.token;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return NextResponse.json(
+      {
+        error: msg.includes("oauth_token_retrieval_error") || msg.includes("Token retrieval failed")
+          ? "Google Calendar token expired. Please sign out and sign back in with Google to re-grant Calendar access."
+          : "Failed to retrieve Google OAuth token.",
+        code: "NO_GOOGLE_TOKEN",
+      },
+      { status: 403 }
+    );
+  }
 
   if (!googleToken) {
     return NextResponse.json(
       {
-        error:
-          "Google Calendar access not granted. Please sign out and sign back in to enable Calendar sync.",
+        error: "Google Calendar access not granted. Please sign out and sign back in to enable Calendar sync.",
         code: "NO_GOOGLE_TOKEN",
       },
       { status: 403 }
