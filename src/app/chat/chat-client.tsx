@@ -5,17 +5,194 @@ import { useUser } from "@clerk/nextjs";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
+import { CaretDown, Trash } from "@phosphor-icons/react";
+
+type ContextRef = { type: "course" | "assignment" | "event"; id: string; label: string };
 
 type ChatMessage = {
   _id: string;
   role: "user" | "assistant";
   content: string;
   createdAt: number;
-  contextRefs?: { type: "course" | "assignment" | "event"; id: string; label: string }[];
+  contextRefs?: ContextRef[];
   provider?: string;
   model?: string;
   latencyMs?: number;
 };
+
+// ---- Context grouping helpers (shared logic with ActivityLogPanel) ----
+
+function groupAssignmentsByCourse(assignments: ContextRef[]): Map<string, ContextRef[]> {
+  const map = new Map<string, ContextRef[]>();
+  for (const ref of assignments) {
+    const sepIdx = ref.label.indexOf(" — ");
+    const key = sepIdx >= 0 ? ref.label.slice(0, sepIdx) : "Other";
+    const group = map.get(key) ?? [];
+    group.push(ref);
+    map.set(key, group);
+  }
+  return map;
+}
+
+function stripCoursePrefix(label: string): string {
+  const sepIdx = label.indexOf(" — ");
+  return sepIdx >= 0 ? label.slice(sepIdx + 3) : label;
+}
+
+function ContextUsed({ refs }: { refs: ContextRef[] }) {
+  const courses = refs.filter((r) => r.type === "course");
+  const assignments = refs.filter((r) => r.type === "assignment");
+  const events = refs.filter((r) => r.type === "event");
+  const byCoursee = groupAssignmentsByCourse(assignments);
+
+  return (
+    <details className="mt-2">
+      <summary className="flex items-center gap-1 cursor-pointer list-none text-xs text-gray-600 select-none">
+        <CaretDown size={9} weight="bold" className="transition-transform [[open]_&]:rotate-0 -rotate-90" />
+        Context used ({refs.length})
+      </summary>
+
+      <div className="mt-1.5 flex flex-col gap-1 pl-1">
+        {/* Courses */}
+        {courses.length > 0 && (
+          <details className="group">
+            <summary className="flex items-center gap-1 cursor-pointer list-none text-[11px] font-semibold text-gray-600 hover:text-gray-800 py-0.5 select-none">
+              <CaretDown size={8} weight="bold" className="transition-transform group-open:rotate-0 -rotate-90" />
+              Courses ({courses.length})
+            </summary>
+            <ul className="mt-0.5 ml-3 list-disc pl-3 text-[11px] text-gray-700 space-y-0.5">
+              {courses.map((r) => (
+                <li key={`${r.type}:${r.id}`}>{r.label}</li>
+              ))}
+            </ul>
+          </details>
+        )}
+
+        {/* Assignments grouped by course */}
+        {assignments.length > 0 && (
+          <details className="group">
+            <summary className="flex items-center gap-1 cursor-pointer list-none text-[11px] font-semibold text-gray-600 hover:text-gray-800 py-0.5 select-none">
+              <CaretDown size={8} weight="bold" className="transition-transform group-open:rotate-0 -rotate-90" />
+              Assignments ({assignments.length})
+            </summary>
+            <div className="mt-0.5 ml-3 flex flex-col gap-0.5">
+              {Array.from(byCoursee.entries()).map(([courseCode, items]) => (
+                <details key={courseCode} className="group/sub">
+                  <summary className="flex items-center gap-1 cursor-pointer list-none text-[11px] font-medium text-gray-500 hover:text-gray-700 py-0.5 select-none">
+                    <CaretDown size={7} weight="bold" className="transition-transform group-open/sub:rotate-0 -rotate-90" />
+                    {courseCode} ({items.length})
+                  </summary>
+                  <ul className="mt-0.5 ml-3 list-disc pl-3 text-[11px] text-gray-700 space-y-0.5">
+                    {items.map((r) => (
+                      <li key={`${r.type}:${r.id}`}>{stripCoursePrefix(r.label)}</li>
+                    ))}
+                  </ul>
+                </details>
+              ))}
+            </div>
+          </details>
+        )}
+
+        {/* Events */}
+        {events.length > 0 && (
+          <details className="group">
+            <summary className="flex items-center gap-1 cursor-pointer list-none text-[11px] font-semibold text-gray-600 hover:text-gray-800 py-0.5 select-none">
+              <CaretDown size={8} weight="bold" className="transition-transform group-open:rotate-0 -rotate-90" />
+              Events ({events.length})
+            </summary>
+            <ul className="mt-0.5 ml-3 list-disc pl-3 text-[11px] text-gray-700 space-y-0.5">
+              {events.map((r) => (
+                <li key={`${r.type}:${r.id}`}>{r.label}</li>
+              ))}
+            </ul>
+          </details>
+        )}
+
+        {/* Provider / latency metadata */}
+      </div>
+    </details>
+  );
+}
+
+// ---- Message bubble ----
+
+function MessageBubble({ message }: { message: ChatMessage }) {
+  const isUser = message.role === "user";
+  return (
+    <div className={isUser ? "flex justify-end" : "flex justify-start"}>
+      <div
+        className={[
+          "max-w-[80%] rounded-lg px-3 py-2 text-sm whitespace-pre-wrap",
+          isUser ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-900",
+        ].join(" ")}
+      >
+        <div>{message.content}</div>
+        {!isUser && message.contextRefs && message.contextRefs.length > 0 && (
+          <ContextUsed refs={message.contextRefs} />
+        )}
+        {!isUser && message.provider && (
+          <div className="mt-1 text-[11px] text-gray-500">
+            {message.provider}
+            {message.model ? ` · ${message.model}` : ""}
+            {message.latencyMs ? ` · ${message.latencyMs}ms` : ""}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---- Clear conversation button ----
+
+function ClearConversationButton({ threadId }: { threadId: Id<"chatThreads"> }) {
+  const clearThread = useMutation(api.chat.clearThread);
+  const [confirming, setConfirming] = useState(false);
+  const [clearing, setClearing] = useState(false);
+
+  async function handleClear() {
+    setClearing(true);
+    try {
+      await clearThread({ threadId });
+    } finally {
+      setClearing(false);
+      setConfirming(false);
+    }
+  }
+
+  if (confirming) {
+    return (
+      <div className="flex items-center gap-2">
+        <span className="text-[11px] text-gray-500">Clear conversation?</span>
+        <button
+          onClick={handleClear}
+          disabled={clearing}
+          className="text-[11px] font-semibold text-red-600 hover:text-red-700 disabled:opacity-50"
+        >
+          {clearing ? "Clearing…" : "Yes, clear"}
+        </button>
+        <button
+          onClick={() => setConfirming(false)}
+          className="text-[11px] text-gray-400 hover:text-gray-600"
+        >
+          Cancel
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      onClick={() => setConfirming(true)}
+      className="flex items-center gap-1.5 text-[11px] text-gray-400 hover:text-red-500 transition-colors"
+      title="Clear conversation history"
+    >
+      <Trash size={12} weight="bold" />
+      Clear
+    </button>
+  );
+}
+
+// ---- Main chat client ----
 
 export function ChatClient() {
   const { user, isLoaded } = useUser();
@@ -74,11 +251,18 @@ export function ChatClient() {
 
   return (
     <div className="flex h-[520px] flex-col rounded-lg border bg-white">
-      <div className="border-b px-4 py-3">
-        <h2 className="text-sm font-semibold text-gray-900">Campus-Aware AI Chat</h2>
-        <p className="mt-0.5 text-xs text-gray-500">
-          Ask about what’s due, your schedule, or course workload. (Read-only)
-        </p>
+      <div className="border-b px-4 py-3 flex items-start justify-between">
+        <div>
+          <h2 className="text-sm font-semibold text-gray-900">Campus-Aware AI Chat</h2>
+          <p className="mt-0.5 text-xs text-gray-500">
+            Ask about what's due, your schedule, or course workload. (Read-only)
+          </p>
+        </div>
+        {threadId && ordered.length > 0 && (
+          <div className="flex-shrink-0 ml-4 mt-0.5">
+            <ClearConversationButton threadId={threadId} />
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
@@ -96,7 +280,7 @@ export function ChatClient() {
 
         {threadId && ordered.length === 0 && (
           <div className="rounded-md border bg-gray-50 px-3 py-2 text-sm text-gray-700">
-            Try: “What’s due this week?” or “What’s my schedule today?”
+            Try: "What's due this week?" or "What's my schedule today?"
           </div>
         )}
 
@@ -120,7 +304,7 @@ export function ChatClient() {
                 void onSend();
               }
             }}
-            placeholder="Ask: what’s due this week?"
+            placeholder="Ask: what's due this week?"
             className="flex-1 rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             disabled={!threadId || isSending}
           />
@@ -133,46 +317,8 @@ export function ChatClient() {
           </button>
         </div>
         <p className="mt-2 text-[11px] text-gray-500">
-          Nodegent's AI is powered by llama-3.3-70b-versatile from Groq. 
+          Nodegent's AI is powered by llama-3.3-70b-versatile from Groq.
         </p>
-      </div>
-    </div>
-  );
-}
-
-function MessageBubble({ message }: { message: ChatMessage }) {
-  const isUser = message.role === "user";
-  return (
-    <div className={isUser ? "flex justify-end" : "flex justify-start"}>
-      <div
-        className={[
-          "max-w-[80%] rounded-lg px-3 py-2 text-sm whitespace-pre-wrap",
-          isUser ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-900",
-        ].join(" ")}
-      >
-        <div>{message.content}</div>
-        {!isUser && message.contextRefs && message.contextRefs.length > 0 && (
-          <details className="mt-2">
-            <summary className="cursor-pointer text-xs text-gray-600">
-              Context used ({message.contextRefs.length})
-            </summary>
-            <ul className="mt-2 list-disc pl-5 text-xs text-gray-700 space-y-1">
-              {message.contextRefs.slice(0, 20).map((r) => (
-                <li key={`${r.type}:${r.id}`}>{r.label}</li>
-              ))}
-              {message.contextRefs.length > 20 && (
-                <li>…and {message.contextRefs.length - 20} more</li>
-              )}
-            </ul>
-            {message.provider && (
-              <div className="mt-2 text-[11px] text-gray-500">
-                {message.provider}
-                {message.model ? ` · ${message.model}` : ""}
-                {message.latencyMs ? ` · ${message.latencyMs}ms` : ""}
-              </div>
-            )}
-          </details>
-        )}
       </div>
     </div>
   );

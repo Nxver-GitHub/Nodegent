@@ -380,6 +380,30 @@ export const ensureDefaultThread = mutation({
   },
 });
 
+export const clearThread = mutation({
+  args: { threadId: v.id("chatThreads") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .unique();
+    if (!user) throw new Error("User not initialized");
+
+    const thread = await ctx.db.get(args.threadId);
+    if (!thread || thread.userId !== user._id) throw new Error("Thread not found");
+
+    const messages = await ctx.db
+      .query("chatMessages")
+      .withIndex("by_threadId", (q) => q.eq("threadId", args.threadId))
+      .collect();
+
+    await Promise.all(messages.map((m) => ctx.db.delete(m._id)));
+  },
+});
+
 export const listMessages = query({
   args: { threadId: v.id("chatThreads") },
   handler: async (ctx, args) => {
