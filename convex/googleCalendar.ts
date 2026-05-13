@@ -193,6 +193,53 @@ export const updateCalendarSyncStatus = mutation({
 });
 
 // ---------------------------------------------------------------------------
+// revokeCalendarAccess — permanently delete all synced GCal data
+// US-4.2: instant access revocation
+// ---------------------------------------------------------------------------
+
+export const revokeCalendarAccess = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .unique();
+    if (!user) throw new Error("User not found");
+
+    // Delete all google_calendar-sourced events
+    const gcalEvents = await ctx.db
+      .query("events")
+      .withIndex("by_userId_source", (q) =>
+        q.eq("userId", user._id).eq("source", "google_calendar")
+      )
+      .collect();
+    await Promise.all(gcalEvents.map((e) => ctx.db.delete(e._id)));
+
+    // Clear googleCalendarEventId from all assignments (orphaned GCal event refs)
+    const assignments = await ctx.db
+      .query("assignments")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .collect();
+    const assignmentsWithGcal = assignments.filter((a) => a.googleCalendarEventId);
+    await Promise.all(
+      assignmentsWithGcal.map((a) =>
+        ctx.db.patch(a._id, { googleCalendarEventId: undefined })
+      )
+    );
+
+    // Clear calendar sync status from the user row
+    await ctx.db.patch(user._id, {
+      lastCalendarSyncAt: undefined,
+      lastCalendarSyncStatus: undefined,
+      lastCalendarSyncError: undefined,
+    });
+  },
+});
+
+// ---------------------------------------------------------------------------
 // removeStaleGcalEvents — deletes pulled Google Calendar events that were
 // not present in the most recent sync window, preventing stale data from
 // accumulating when the user deletes events from Google Calendar.

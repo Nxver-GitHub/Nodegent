@@ -235,7 +235,7 @@ export const saveCanvasCookies = action({
 });
 
 // ---------------------------------------------------------------------------
-// removeCanvasCredentials — delete the user's stored credentials
+// removeCanvasCredentials — delete the user's stored credentials only
 // ---------------------------------------------------------------------------
 
 export const removeCanvasCredentials = mutation({
@@ -250,6 +250,57 @@ export const removeCanvasCredentials = mutation({
       .unique();
     if (!user) throw new Error("User not found");
 
+    const creds = await ctx.db
+      .query("canvasCredentials")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .unique();
+    if (creds) {
+      await ctx.db.delete(creds._id);
+    }
+  },
+});
+
+// ---------------------------------------------------------------------------
+// revokeCanvasAccess — permanently delete credentials AND all synced data
+// US-4.2: instant access revocation
+// ---------------------------------------------------------------------------
+
+export const revokeCanvasAccess = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .unique();
+    if (!user) throw new Error("User not found");
+
+    // Delete assignments first (they reference courses via courseId)
+    const assignments = await ctx.db
+      .query("assignments")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .collect();
+    await Promise.all(assignments.map((a) => ctx.db.delete(a._id)));
+
+    // Delete all courses
+    const courses = await ctx.db
+      .query("courses")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .collect();
+    await Promise.all(courses.map((c) => ctx.db.delete(c._id)));
+
+    // Delete any canvas-sourced events
+    const canvasEvents = await ctx.db
+      .query("events")
+      .withIndex("by_userId_source", (q) =>
+        q.eq("userId", user._id).eq("source", "canvas")
+      )
+      .collect();
+    await Promise.all(canvasEvents.map((e) => ctx.db.delete(e._id)));
+
+    // Delete credentials last
     const creds = await ctx.db
       .query("canvasCredentials")
       .withIndex("by_userId", (q) => q.eq("userId", user._id))
