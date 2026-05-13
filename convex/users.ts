@@ -87,6 +87,13 @@ export const updateAccessToggles = mutation({
 
     if (Object.keys(patch).length > 0) {
       await ctx.db.patch(user._id, patch);
+      await ctx.db.insert("auditLog", {
+        userId: user._id,
+        action: "access_toggle",
+        status: "success",
+        details: JSON.stringify(patch),
+        timestamp: Date.now(),
+      });
     }
   },
 });
