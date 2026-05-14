@@ -38,7 +38,7 @@ export function NotificationBell() {
   }, [open]);
 
   return (
-    <div ref={dropdownRef} className="relative">
+    <div id="tour-notification-bell" ref={dropdownRef} className="relative">
       {/* Bell button with badge */}
       <button
         onClick={() => setOpen((prev) => !prev)}
