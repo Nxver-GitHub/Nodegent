@@ -14,6 +14,7 @@ export default defineSchema({
     lastCalendarSyncError: v.optional(v.string()),
     canvasEnabled: v.optional(v.boolean()),
     calendarEnabled: v.optional(v.boolean()),
+    onboardingCompleted: v.optional(v.boolean()),
   }).index("by_clerkId", ["clerkId"]),
 
   chatThreads: defineTable({
