@@ -11,11 +11,20 @@ import { GoogleCalendarCard } from "./components/GoogleCalendarCard";
 import { AccessToggleCard } from "./components/AccessToggleCard";
 import { NewAssignmentsBanner } from "./components/NewAssignmentsBanner";
 import { ConfirmDialog } from "./components/ConfirmDialog";
+import { OnboardingTour } from "./components/OnboardingTour";
 
 export function DashboardClient() {
   const { user, isLoaded } = useUser();
   const ensureUser = useMutation(api.users.ensureUser);
+  const markOnboardingComplete = useMutation(api.users.markOnboardingComplete);
+  const currentUser = useQuery(api.users.getCurrentUser);
   const hasSynced = useRef(false);
+
+  // Fast-path: hide tour immediately for returning users without waiting for Convex
+  const [showTour, setShowTour] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return sessionStorage.getItem("nodegent_onboarding_done") !== "true";
+  });
 
   useEffect(() => {
     if (isLoaded && user && !hasSynced.current) {
@@ -23,6 +32,29 @@ export function DashboardClient() {
       ensureUser();
     }
   }, [isLoaded, user, ensureUser]);
+
+  // Sync with Convex: once confirmed complete, cache locally
+  useEffect(() => {
+    if (currentUser?.onboardingCompleted) {
+      sessionStorage.setItem("nodegent_onboarding_done", "true");
+      setShowTour(false);
+    }
+  }, [currentUser?.onboardingCompleted]);
+
+  async function handleTourComplete() {
+    sessionStorage.setItem("nodegent_onboarding_done", "true");
+    setShowTour(false);
+    try {
+      await markOnboardingComplete();
+    } catch {
+      // Non-critical — tour is already hidden locally
+    }
+  }
+
+  function handleRestartTour() {
+    sessionStorage.removeItem("nodegent_onboarding_done");
+    setShowTour(true);
+  }
 
   if (!isLoaded) {
     return (
@@ -33,13 +65,18 @@ export function DashboardClient() {
   }
 
   return (
-    <DashboardShell>
-      <CanvasCard />
-      <GoogleCalendarCard />
-      <NewAssignmentsBanner />
-      <AssignmentList />
-      <AccessToggleCard />
-    </DashboardShell>
+    <>
+      <DashboardShell onRestartTour={handleRestartTour}>
+        <CanvasCard />
+        <GoogleCalendarCard />
+        <NewAssignmentsBanner />
+        <AssignmentList />
+        <AccessToggleCard />
+      </DashboardShell>
+      {showTour && currentUser !== undefined && (
+        <OnboardingTour onComplete={handleTourComplete} />
+      )}
+    </>
   );
 }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { UserButton } from "@clerk/nextjs";
 import {
@@ -14,6 +14,7 @@ import {
   X,
   Minus,
   Square,
+  Compass,
 } from "@phosphor-icons/react";
 import { SnapshotWidget } from "./SnapshotWidget";
 import { ActivityLogPanel } from "./ActivityLogPanel";
@@ -22,6 +23,7 @@ import { CalendarPanel } from "./calendar/CalendarPanel";
 
 interface DashboardShellProps {
   children: ReactNode;
+  onRestartTour?: () => void;
 }
 
 function WindowTitleBar() {
@@ -47,9 +49,39 @@ interface WindowToolbarProps {
   calendarOpen: boolean;
   onCalendarToggle: () => void;
   onHome: () => void;
+  onRestartTour: () => void;
 }
 
-function WindowToolbar({ calendarOpen, onCalendarToggle, onHome }: WindowToolbarProps) {
+function SettingsPopover({ onRestartTour, onClose }: { onRestartTour: () => void; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [onClose]);
+
+  return (
+    <div
+      ref={ref}
+      className="absolute right-0 top-full mt-2 w-52 rounded-lg border border-gray-200 bg-white shadow-lg z-50 py-1"
+    >
+      <button
+        onClick={() => { onRestartTour(); onClose(); }}
+        className="w-full flex items-center gap-2.5 px-4 py-2.5 text-[13px] text-gray-700 hover:bg-gray-50 transition-colors text-left"
+      >
+        <Compass size={15} className="text-blue-500 flex-shrink-0" />
+        Restart onboarding tour
+      </button>
+    </div>
+  );
+}
+
+function WindowToolbar({ calendarOpen, onCalendarToggle, onHome, onRestartTour }: WindowToolbarProps) {
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
   return (
     <div className="h-12 border-b border-gray-200 bg-white flex items-center px-4 gap-2 flex-shrink-0">
       {/* Nav arrows */}
@@ -68,6 +100,7 @@ function WindowToolbar({ calendarOpen, onCalendarToggle, onHome }: WindowToolbar
 
       {/* My Dashboard button */}
       <button
+        id="tour-my-dashboard"
         onClick={onHome}
         className="flex items-center gap-1.5 px-2.5 py-1 border border-gray-300 rounded-sm hover:bg-gray-50 text-[13px]"
       >
@@ -98,10 +131,25 @@ function WindowToolbar({ calendarOpen, onCalendarToggle, onHome }: WindowToolbar
 
       {/* Right side */}
       <div className="ml-auto flex items-center gap-2">
-        <button className="w-7 h-7 flex items-center justify-center hover:bg-gray-100 rounded text-gray-500">
-          <Gear size={16} weight="bold" />
-        </button>
-        <button className="brutal-border bg-[#3B82F6] text-white px-3 py-1 rounded-sm text-[12px] font-bold whitespace-nowrap">
+        <div className="relative">
+          <button
+            onClick={() => setSettingsOpen((prev) => !prev)}
+            className={`w-7 h-7 flex items-center justify-center rounded transition-colors ${
+              settingsOpen ? "bg-gray-100 text-gray-800" : "hover:bg-gray-100 text-gray-500"
+            }`}
+            aria-label="Settings"
+            aria-expanded={settingsOpen}
+          >
+            <Gear size={16} weight="bold" />
+          </button>
+          {settingsOpen && (
+            <SettingsPopover
+              onRestartTour={onRestartTour}
+              onClose={() => setSettingsOpen(false)}
+            />
+          )}
+        </div>
+        <button id="tour-connect-lms" className="brutal-border bg-[#3B82F6] text-white px-3 py-1 rounded-sm text-[12px] font-bold whitespace-nowrap">
           Connect LMS
         </button>
       </div>
@@ -124,7 +172,7 @@ function WindowStatusBar() {
   );
 }
 
-export function DashboardShell({ children }: DashboardShellProps) {
+export function DashboardShell({ children, onRestartTour }: DashboardShellProps) {
   const [calendarOpen, setCalendarOpen] = useState(false);
 
   return (
@@ -141,14 +189,15 @@ export function DashboardShell({ children }: DashboardShellProps) {
             <span className="font-extrabold tracking-tight text-lg text-gray-900">Nodegent</span>
           </Link>
           <div className="hidden md:flex items-center gap-6 text-[13px] font-semibold text-[#4D4F46]">
-            <span className="hover:text-black hover:underline underline-offset-4 decoration-gray-400 cursor-pointer">Campus Sync</span>
+            <span id="tour-campus-sync" className="hover:text-black hover:underline underline-offset-4 decoration-gray-400 cursor-pointer">Campus Sync</span>
             <Link
+              id="tour-ai-chat"
               href="/chat"
               className="hover:text-black hover:underline underline-offset-4 decoration-gray-400"
             >
               AI Chat
             </Link>
-            <span className="hover:text-black hover:underline underline-offset-4 decoration-gray-400 cursor-pointer">Security</span>
+            <span id="tour-security" className="hover:text-black hover:underline underline-offset-4 decoration-gray-400 cursor-pointer">Security</span>
           </div>
         </div>
         <UserButton />
@@ -163,6 +212,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
             calendarOpen={calendarOpen}
             onCalendarToggle={() => setCalendarOpen((prev) => !prev)}
             onHome={() => setCalendarOpen(false)}
+            onRestartTour={onRestartTour ?? (() => {})}
           />
           {/* Calendar panel — slides in below toolbar */}
           {calendarOpen && <CalendarPanel />}
