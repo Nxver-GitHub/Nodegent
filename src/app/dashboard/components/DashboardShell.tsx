@@ -20,6 +20,7 @@ import { SnapshotWidget } from "./SnapshotWidget";
 import { ActivityLogPanel } from "./ActivityLogPanel";
 import { NotificationBell } from "./NotificationBell";
 import { CalendarPanel } from "./calendar/CalendarPanel";
+import { SecurityPanel } from "./security/SecurityPanel";
 
 interface DashboardShellProps {
   children: ReactNode;
@@ -174,6 +175,7 @@ function WindowStatusBar() {
 
 export function DashboardShell({ children, onRestartTour }: DashboardShellProps) {
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [securityOpen, setSecurityOpen] = useState(false);
 
   return (
     <div className="desktop-bg min-h-screen overflow-hidden">
@@ -197,7 +199,17 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
             >
               AI Chat
             </Link>
-            <span id="tour-security" className="hover:text-black hover:underline underline-offset-4 decoration-gray-400 cursor-pointer">Security</span>
+            <button
+              id="tour-security"
+              type="button"
+              onClick={() => setSecurityOpen(true)}
+              className={[
+                "hover:text-black hover:underline underline-offset-4 decoration-gray-400",
+                securityOpen ? "text-black underline" : "",
+              ].join(" ")}
+            >
+              Security
+            </button>
           </div>
         </div>
         <UserButton />
@@ -211,14 +223,21 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
           <WindowToolbar
             calendarOpen={calendarOpen}
             onCalendarToggle={() => setCalendarOpen((prev) => !prev)}
-            onHome={() => setCalendarOpen(false)}
+            onHome={() => {
+              setCalendarOpen(false);
+              setSecurityOpen(false);
+            }}
             onRestartTour={onRestartTour ?? (() => {})}
           />
           {/* Calendar panel — slides in below toolbar */}
           {calendarOpen && <CalendarPanel />}
           {/* Scrollable content */}
           <div className="flex-1 overflow-y-auto p-6 min-h-[400px]">
-            {children}
+            {securityOpen ? (
+              <SecurityPanel onClose={() => setSecurityOpen(false)} />
+            ) : (
+              children
+            )}
           </div>
           <WindowStatusBar />
         </div>

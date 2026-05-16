@@ -1,9 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
-import { ConfirmDialog } from "./ConfirmDialog";
 
 interface SyncResult {
   eventsPushed?: number;
@@ -15,22 +14,8 @@ interface SyncResult {
 
 export function GoogleCalendarCard() {
   const status = useQuery(api.googleCalendar.getCalendarSyncStatus);
-  const revokeAccess = useMutation(api.googleCalendar.revokeCalendarAccess);
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastResult, setLastResult] = useState<SyncResult | null>(null);
-  const [showRevokeConfirm, setShowRevokeConfirm] = useState(false);
-  const [isRevoking, setIsRevoking] = useState(false);
-
-  async function handleRevokeConfirm() {
-    setIsRevoking(true);
-    try {
-      await revokeAccess({});
-      setLastResult(null);
-    } finally {
-      setIsRevoking(false);
-      setShowRevokeConfirm(false);
-    }
-  }
 
   async function handleSync() {
     setIsSyncing(true);
@@ -124,24 +109,7 @@ export function GoogleCalendarCard() {
         >
           {isSyncing ? "Syncing..." : "Sync Calendar"}
         </button>
-        {lastSync && (
-          <button
-            onClick={() => setShowRevokeConfirm(true)}
-            className="rounded-md border border-red-300 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500"
-          >
-            Revoke Access
-          </button>
-        )}
       </div>
-      <ConfirmDialog
-        open={showRevokeConfirm}
-        title="Revoke Google Calendar access?"
-        message="This will permanently delete all synced Google Calendar events from Nodegent. Your events on Google Calendar are not affected. This cannot be undone."
-        confirmLabel="Revoke Access"
-        isLoading={isRevoking}
-        onConfirm={handleRevokeConfirm}
-        onCancel={() => setShowRevokeConfirm(false)}
-      />
     </div>
   );
 }
