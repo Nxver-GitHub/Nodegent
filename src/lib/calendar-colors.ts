@@ -14,13 +14,16 @@ const COURSE_PALETTE = [
   "#F97316", // orange
 ];
 
-export const GCAL_COLOR = "#4285F4"; // Google blue for Google Calendar events
+export const GCAL_COLOR = "#84CC16"; // Lime — chosen to never overlap with any course palette color
 
-export function buildCourseColorMap(courseIds: string[]): Map<string, string> {
+export function buildCourseColorMap(
+  courseIds: string[],
+  overrides: Record<string, string> = {}
+): Map<string, string> {
   const sorted = [...courseIds].sort();
   const map = new Map<string, string>();
   sorted.forEach((id, i) => {
-    map.set(id, COURSE_PALETTE[i % COURSE_PALETTE.length]);
+    map.set(id, overrides[id] ?? COURSE_PALETTE[i % COURSE_PALETTE.length]);
   });
   return map;
 }

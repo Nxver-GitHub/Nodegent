@@ -1,7 +1,7 @@
 "use client";
 
 import { BookOpen, CalendarBlank, MapPin, ArrowSquareOut } from "@phosphor-icons/react";
-import { buildCourseColorMap } from "@/lib/calendar-colors";
+import { buildCourseColorMap, GCAL_COLOR } from "@/lib/calendar-colors";
 import { isSameDay } from "@/lib/calendar-utils";
 import type { Doc } from "@convex/_generated/dataModel";
 
@@ -10,6 +10,7 @@ interface DayDetailProps {
   assignments: Doc<"assignments">[];
   events: Doc<"events">[];
   courses: Doc<"courses">[];
+  colorOverrides?: Record<string, string>;
 }
 
 const MONTH_NAMES = [
@@ -27,9 +28,9 @@ function formatTime(ts: number): string {
   return `${hour}:${min} ${ampm}`;
 }
 
-export function DayDetail({ selectedDay, assignments, events, courses }: DayDetailProps) {
+export function DayDetail({ selectedDay, assignments, events, courses, colorOverrides = {} }: DayDetailProps) {
   const courseMap = new Map(courses.map((c) => [c._id, c]));
-  const courseColorMap = buildCourseColorMap(courses.map((c) => c._id));
+  const courseColorMap = buildCourseColorMap(courses.map((c) => c._id), colorOverrides);
 
   const dayAssignments = assignments.filter(
     (a) => a.dueAt && isSameDay(new Date(a.dueAt), selectedDay)
@@ -117,7 +118,8 @@ export function DayDetail({ selectedDay, assignments, events, courses }: DayDeta
             >
               <div className="flex items-start gap-2">
                 <span
-                  className="mt-0.5 w-2 h-2 rounded-full flex-shrink-0 bg-[#4285F4]"
+                  className="mt-0.5 w-2 h-2 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: GCAL_COLOR }}
                 />
                 <div className="flex-1 min-w-0">
                   <p className="text-[11px] font-bold text-gray-800 leading-tight truncate">
