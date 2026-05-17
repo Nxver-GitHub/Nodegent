@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { Lock } from "@phosphor-icons/react";
-import { AccessToggleCard } from "../AccessToggleCard";
 import { ConfirmDialog } from "../ConfirmDialog";
 
 export function SecurityPanel({ onClose }: { onClose: () => void }) {
@@ -24,8 +23,6 @@ export function SecurityPanel({ onClose }: { onClose: () => void }) {
           Back to dashboard
         </button>
       </div>
-
-      <AccessToggleCard />
 
       <div className="rounded-lg border bg-white p-6">
         <div className="flex items-center gap-2 mb-1">

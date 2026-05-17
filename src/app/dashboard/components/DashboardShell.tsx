@@ -21,6 +21,21 @@ import { ActivityLogPanel } from "./ActivityLogPanel";
 import { NotificationBell } from "./NotificationBell";
 import { CalendarPanel } from "./calendar/CalendarPanel";
 import { SecurityPanel } from "./security/SecurityPanel";
+import { CampusSyncPanel } from "./campus-sync/CampusSyncPanel";
+import { CoursesPanel } from "./courses/CoursesPanel";
+import { type ReactNode as RN } from "react";
+
+function Tooltip({ label, children }: { label: string; children: RN }) {
+  return (
+    <div className="relative group">
+      {children}
+      <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 rounded bg-gray-800 px-2 py-1 text-[11px] text-white whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-50">
+        {label}
+        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
+      </div>
+    </div>
+  );
+}
 
 interface DashboardShellProps {
   children: ReactNode;
@@ -49,7 +64,10 @@ function WindowTitleBar() {
 interface WindowToolbarProps {
   calendarOpen: boolean;
   onCalendarToggle: () => void;
+  onBack: () => void;
   onHome: () => void;
+  onCampusSync: () => void;
+  onCourses: () => void;
   onRestartTour: () => void;
 }
 
@@ -80,19 +98,21 @@ function SettingsPopover({ onRestartTour, onClose }: { onRestartTour: () => void
   );
 }
 
-function WindowToolbar({ calendarOpen, onCalendarToggle, onHome, onRestartTour }: WindowToolbarProps) {
+function WindowToolbar({ calendarOpen, onCalendarToggle, onBack, onHome, onCampusSync, onCourses, onRestartTour }: WindowToolbarProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
     <div className="h-12 border-b border-gray-200 bg-white flex items-center px-4 gap-2 flex-shrink-0">
       {/* Nav arrows */}
-      <button
-        onClick={onHome}
-        className="w-7 h-7 flex items-center justify-center hover:bg-gray-100 rounded text-gray-400"
-        aria-label="Back"
-      >
-        <ArrowLeft size={14} weight="bold" />
-      </button>
+      <Tooltip label="Back">
+        <button
+          onClick={onBack}
+          className="w-7 h-7 flex items-center justify-center hover:bg-gray-100 rounded text-gray-400"
+          aria-label="Back"
+        >
+          <ArrowLeft size={14} weight="bold" />
+        </button>
+      </Tooltip>
       <button className="w-7 h-7 flex items-center justify-center hover:bg-gray-100 rounded text-gray-400 opacity-40 cursor-default">
         <ArrowRight size={14} weight="bold" />
       </button>
@@ -100,49 +120,62 @@ function WindowToolbar({ calendarOpen, onCalendarToggle, onHome, onRestartTour }
       <div className="w-px h-4 bg-gray-200 mx-1" />
 
       {/* My Dashboard button */}
-      <button
+      <Link
         id="tour-my-dashboard"
+        href="/dashboard"
         onClick={onHome}
         className="flex items-center gap-1.5 px-2.5 py-1 border border-gray-300 rounded-sm hover:bg-gray-50 text-[13px]"
       >
         <Student size={14} weight="bold" className="text-[#CD8407]" />
         <span className="font-bold text-gray-800">My Dashboard</span>
-      </button>
+      </Link>
 
       <div className="w-px h-4 bg-gray-200 mx-1" />
 
       {/* Toolbar icon buttons */}
-      <button className="w-7 h-7 flex items-center justify-center hover:bg-gray-100 rounded text-gray-500">
-        <ChalkboardTeacher size={16} weight="bold" />
-      </button>
-      <button
-        onClick={onCalendarToggle}
-        className={[
-          "w-7 h-7 flex items-center justify-center rounded transition-colors",
-          calendarOpen
-            ? "bg-[#FFF3DC] text-[#CD8407]"
-            : "hover:bg-gray-100 text-gray-500",
-        ].join(" ")}
-        aria-label="Toggle calendar"
-        aria-pressed={calendarOpen}
-      >
-        <CalendarCheck size={16} weight="bold" />
-      </button>
-      <NotificationBell />
+      <Tooltip label="My Courses">
+        <button
+          onClick={onCourses}
+          className="w-7 h-7 flex items-center justify-center hover:bg-gray-100 rounded text-gray-500"
+          aria-label="My Courses"
+        >
+          <ChalkboardTeacher size={16} weight="bold" />
+        </button>
+      </Tooltip>
+      <Tooltip label="Calendar">
+        <button
+          onClick={onCalendarToggle}
+          className={[
+            "w-7 h-7 flex items-center justify-center rounded transition-colors",
+            calendarOpen
+              ? "bg-[#FFF3DC] text-[#CD8407]"
+              : "hover:bg-gray-100 text-gray-500",
+          ].join(" ")}
+          aria-label="Toggle calendar"
+          aria-pressed={calendarOpen}
+        >
+          <CalendarCheck size={16} weight="bold" />
+        </button>
+      </Tooltip>
+      <Tooltip label="Notifications">
+        <NotificationBell />
+      </Tooltip>
 
       {/* Right side */}
       <div className="ml-auto flex items-center gap-2">
         <div className="relative">
-          <button
-            onClick={() => setSettingsOpen((prev) => !prev)}
-            className={`w-7 h-7 flex items-center justify-center rounded transition-colors ${
-              settingsOpen ? "bg-gray-100 text-gray-800" : "hover:bg-gray-100 text-gray-500"
-            }`}
-            aria-label="Settings"
-            aria-expanded={settingsOpen}
-          >
-            <Gear size={16} weight="bold" />
-          </button>
+          <Tooltip label="Settings">
+            <button
+              onClick={() => setSettingsOpen((prev) => !prev)}
+              className={`w-7 h-7 flex items-center justify-center rounded transition-colors ${
+                settingsOpen ? "bg-gray-100 text-gray-800" : "hover:bg-gray-100 text-gray-500"
+              }`}
+              aria-label="Settings"
+              aria-expanded={settingsOpen}
+            >
+              <Gear size={16} weight="bold" />
+            </button>
+          </Tooltip>
           {settingsOpen && (
             <SettingsPopover
               onRestartTour={onRestartTour}
@@ -150,7 +183,7 @@ function WindowToolbar({ calendarOpen, onCalendarToggle, onHome, onRestartTour }
             />
           )}
         </div>
-        <button id="tour-connect-lms" className="brutal-border bg-[#3B82F6] text-white px-3 py-1 rounded-sm text-[12px] font-bold whitespace-nowrap">
+        <button id="tour-connect-lms" onClick={onCampusSync} className="brutal-border bg-[#3B82F6] text-white px-3 py-1 rounded-sm text-[12px] font-bold whitespace-nowrap">
           Connect LMS
         </button>
       </div>
@@ -176,6 +209,46 @@ function WindowStatusBar() {
 export function DashboardShell({ children, onRestartTour }: DashboardShellProps) {
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [securityOpen, setSecurityOpen] = useState(false);
+  const [campusSyncOpen, setCampusSyncOpen] = useState(false);
+  const [coursesOpen, setCoursesOpen] = useState(false);
+
+  function openCourses() {
+    setCoursesOpen(true);
+    setSecurityOpen(false);
+    setCampusSyncOpen(false);
+    setCalendarOpen(false);
+  }
+
+  function openCampusSync() {
+    setCampusSyncOpen(true);
+    setCoursesOpen(false);
+    setSecurityOpen(false);
+    setCalendarOpen(false);
+  }
+
+  function openSecurity() {
+    setSecurityOpen(true);
+    setCampusSyncOpen(false);
+    setCoursesOpen(false);
+    setCalendarOpen(false);
+  }
+
+  function goHome() {
+    setSecurityOpen(false);
+    setCampusSyncOpen(false);
+    setCoursesOpen(false);
+    setCalendarOpen(false);
+  }
+
+  function handleBack() {
+    if (calendarOpen && (coursesOpen || campusSyncOpen || securityOpen)) {
+      setCalendarOpen(false);
+    } else {
+      goHome();
+    }
+  }
+
+  const isDashboard = !securityOpen && !campusSyncOpen && !coursesOpen;
 
   return (
     <div className="desktop-bg min-h-screen overflow-hidden">
@@ -191,7 +264,27 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
             <span className="font-extrabold tracking-tight text-lg text-gray-900">Nodegent</span>
           </Link>
           <div className="hidden md:flex items-center gap-6 text-[13px] font-semibold text-[#4D4F46]">
-            <span id="tour-campus-sync" className="hover:text-black hover:underline underline-offset-4 decoration-gray-400 cursor-pointer">Campus Sync</span>
+            <Link
+              href="/dashboard"
+              onClick={goHome}
+              className={[
+                "hover:text-black hover:underline underline-offset-4 decoration-gray-400",
+                isDashboard ? "text-black underline" : "",
+              ].join(" ")}
+            >
+              Dashboard
+            </Link>
+            <button
+              id="tour-campus-sync"
+              type="button"
+              onClick={openCampusSync}
+              className={[
+                "hover:text-black hover:underline underline-offset-4 decoration-gray-400",
+                campusSyncOpen ? "text-black underline" : "",
+              ].join(" ")}
+            >
+              Campus Sync
+            </button>
             <Link
               id="tour-ai-chat"
               href="/chat"
@@ -202,7 +295,7 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
             <button
               id="tour-security"
               type="button"
-              onClick={() => setSecurityOpen(true)}
+              onClick={openSecurity}
               className={[
                 "hover:text-black hover:underline underline-offset-4 decoration-gray-400",
                 securityOpen ? "text-black underline" : "",
@@ -223,18 +316,22 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
           <WindowToolbar
             calendarOpen={calendarOpen}
             onCalendarToggle={() => setCalendarOpen((prev) => !prev)}
-            onHome={() => {
-              setCalendarOpen(false);
-              setSecurityOpen(false);
-            }}
+            onBack={handleBack}
+            onHome={goHome}
+            onCampusSync={openCampusSync}
+            onCourses={openCourses}
             onRestartTour={onRestartTour ?? (() => {})}
           />
           {/* Calendar panel — slides in below toolbar */}
           {calendarOpen && <CalendarPanel />}
-          {/* Scrollable content */}
-          <div className="flex-1 overflow-y-auto p-6 min-h-[400px]">
-            {securityOpen ? (
+          {/* Scrollable content — suppressed whenever the calendar is open */}
+          <div className={`flex-1 overflow-y-auto p-6 ${calendarOpen ? "" : "min-h-[400px]"}`}>
+            {calendarOpen ? null : securityOpen ? (
               <SecurityPanel onClose={() => setSecurityOpen(false)} />
+            ) : campusSyncOpen ? (
+              <CampusSyncPanel onClose={() => setCampusSyncOpen(false)} />
+            ) : coursesOpen ? (
+              <CoursesPanel onClose={() => setCoursesOpen(false)} />
             ) : (
               children
             )}

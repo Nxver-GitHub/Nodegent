@@ -11,6 +11,7 @@ interface CalendarViewProps {
   assignments: Doc<"assignments">[];
   events: Doc<"events">[];
   courses: Doc<"courses">[];
+  colorOverrides?: Record<string, string>;
   onMonthChange: (dir: -1 | 1) => void;
   onDaySelect: (day: Date) => void;
 }
@@ -27,6 +28,7 @@ export function CalendarView({
   assignments,
   events,
   courses,
+  colorOverrides = {},
   onMonthChange,
   onDaySelect,
 }: CalendarViewProps) {
@@ -34,8 +36,8 @@ export function CalendarView({
   const year = currentMonth.getFullYear();
   const month = currentMonth.getMonth();
 
-  // Build course color map
-  const courseColorMap = buildCourseColorMap(courses.map((c) => c._id));
+  // Build course color map (applies any user-set overrides)
+  const courseColorMap = buildCourseColorMap(courses.map((c) => c._id), colorOverrides);
 
   // Build a map of day-of-month → indicators
   const firstDay = new Date(year, month, 1).getDay(); // 0-6

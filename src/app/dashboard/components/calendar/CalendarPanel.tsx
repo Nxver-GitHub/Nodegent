@@ -5,6 +5,8 @@ import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { CalendarView } from "./CalendarView";
 import { DayDetail } from "./DayDetail";
+import { useHiddenCourses } from "../../hooks/useHiddenCourses";
+import { useCourseColors } from "../../hooks/useCourseColors";
 
 export function CalendarPanel() {
   const [currentMonth, setCurrentMonth] = useState(() => {
@@ -13,7 +15,6 @@ export function CalendarPanel() {
   });
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
 
-  // Month range for events query (include a 7-day buffer on both sides)
   const { startAt, endAt } = useMemo(() => {
     const start = new Date(currentMonth);
     start.setDate(start.getDate() - 7);
@@ -21,9 +22,16 @@ export function CalendarPanel() {
     return { startAt: start.getTime(), endAt: end.getTime() };
   }, [currentMonth]);
 
-  const assignments = useQuery(api.assignments.getAssignments, {}) ?? [];
-  const events = useQuery(api.events.getEvents, { startAt, endAt }) ?? [];
-  const courses = useQuery(api.courses.getCourses, {}) ?? [];
+  const { hiddenCourseIdSet } = useHiddenCourses();
+  const { colorOverrides } = useCourseColors();
+
+  const allAssignments = useQuery(api.assignments.getAssignments, {}) ?? [];
+  const allEvents = useQuery(api.events.getEvents, { startAt, endAt }) ?? [];
+  const allCourses = useQuery(api.courses.getCourses, {}) ?? [];
+
+  const assignments = allAssignments.filter((a) => !hiddenCourseIdSet.has(a.courseId));
+  const courses = allCourses.filter((c) => !hiddenCourseIdSet.has(c._id));
+  const events = allEvents.filter((e) => !e.courseId || !hiddenCourseIdSet.has(e.courseId));
 
   function handleMonthChange(dir: -1 | 1) {
     setCurrentMonth((prev) => {
@@ -37,7 +45,6 @@ export function CalendarPanel() {
   return (
     <div className="border-b border-gray-200 bg-[#FAFAF8]">
       <div className="flex gap-0 divide-x divide-gray-200">
-        {/* Left: calendar grid */}
         <div className="flex-1 p-4 min-w-0">
           <CalendarView
             currentMonth={currentMonth}
@@ -45,12 +52,11 @@ export function CalendarPanel() {
             assignments={assignments}
             events={events}
             courses={courses}
+            colorOverrides={colorOverrides}
             onMonthChange={handleMonthChange}
             onDaySelect={setSelectedDay}
           />
         </div>
-
-        {/* Right: day detail */}
         <div className="w-52 flex-shrink-0 p-4 bg-white">
           {selectedDay ? (
             <DayDetail
@@ -58,6 +64,7 @@ export function CalendarPanel() {
               assignments={assignments}
               events={events}
               courses={courses}
+              colorOverrides={colorOverrides}
             />
           ) : (
             <div className="h-full flex flex-col items-center justify-center text-center py-8">
