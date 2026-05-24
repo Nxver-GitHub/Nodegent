@@ -1,6 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
+import { recomputeCourseSummary } from "./courses";
 
 export const getAssignments = query({
   args: {
@@ -56,16 +57,17 @@ export const getUpcomingAssignments = query({
 
     const now = Date.now();
 
-    // Fetch all incomplete assignments for the user, then filter/sort in memory.
-    // Convex does not support compound inequality + equality filters on composite indexes,
-    // so we pull by userId and filter dueAt on the application side.
-    const all = await ctx.db
+    // Read only incomplete assignments via the dedicated index. Completed ones
+    // (often the majority by end of term) never enter the bandwidth tally.
+    const incomplete = await ctx.db
       .query("assignments")
-      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .withIndex("by_userId_isCompleted", (q) =>
+        q.eq("userId", user._id).eq("isCompleted", false)
+      )
       .collect();
 
-    return all
-      .filter((a) => !a.isCompleted && (a.dueAt === undefined || a.dueAt >= now))
+    return incomplete
+      .filter((a) => a.dueAt === undefined || a.dueAt >= now)
       .sort((a, b) => {
         // Undated assignments sort to the end
         const aDate = a.dueAt ?? Number.MAX_SAFE_INTEGER;
@@ -120,10 +122,11 @@ export const upsertAssignment = mutation({
         htmlUrl: args.htmlUrl,
         lastSyncedAt: now,
       });
+      await recomputeCourseSummary(ctx, args.courseId);
       return existing._id;
     }
 
-    return await ctx.db.insert("assignments", {
+    const inserted = await ctx.db.insert("assignments", {
       userId: user._id,
       courseId: args.courseId,
       canvasId: args.canvasId,
@@ -137,6 +140,8 @@ export const upsertAssignment = mutation({
       lastSyncedAt: now,
       isNew: true,
     });
+    await recomputeCourseSummary(ctx, args.courseId);
+    return inserted;
   },
 });
 
@@ -161,12 +166,14 @@ export const getDailySnapshot = query({
     const todayEnd = todayStart + 24 * 60 * 60 * 1000 - 1;
     const weekEnd = todayStart + 7 * 24 * 60 * 60 * 1000;
 
-    const all = await ctx.db
+    // Read only incomplete assignments — completed ones don't appear in any
+    // snapshot bucket, so excluding them at the index level saves the read.
+    const incomplete = await ctx.db
       .query("assignments")
-      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .withIndex("by_userId_isCompleted", (q) =>
+        q.eq("userId", user._id).eq("isCompleted", false)
+      )
       .collect();
-
-    const incomplete = all.filter((a) => !a.isCompleted);
 
     const byDue = (a: { dueAt?: number }, b: { dueAt?: number }) =>
       (a.dueAt ?? 0) - (b.dueAt ?? 0);
@@ -274,5 +281,6 @@ export const markComplete = mutation({
     }
 
     await ctx.db.patch(args.assignmentId, { isCompleted: args.isCompleted });
+    await recomputeCourseSummary(ctx, assignment.courseId);
   },
 });

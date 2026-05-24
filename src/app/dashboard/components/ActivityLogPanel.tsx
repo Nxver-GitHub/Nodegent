@@ -363,7 +363,9 @@ function ClearLogButton() {
 
 export function ActivityLogPanel() {
   const [open, setOpen] = useState(false);
-  const log = useQuery(api.auditLog.getAuditLog);
+  // Skip the query while the panel is hidden — it re-runs reactively on every
+  // assignment/canvas/calendar write and burns Convex bandwidth otherwise.
+  const log = useQuery(api.auditLog.getAuditLog, open ? {} : "skip");
 
   return (
     <>
