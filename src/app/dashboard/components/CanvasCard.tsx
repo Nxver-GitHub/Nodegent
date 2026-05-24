@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useQuery, useAction } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { CanvasAuthViewer } from "./CanvasAuthViewer";
@@ -8,9 +9,21 @@ import { CanvasAuthViewer } from "./CanvasAuthViewer";
 export function CanvasCard() {
   const status = useQuery(api.canvas.getCanvasStatus);
   const syncCanvas = useAction(api.canvas.syncCanvas);
+  const searchParams = useSearchParams();
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [isReconnecting, setIsReconnecting] = useState(false);
+
+  // Auto-open the SSO viewer when the snapshot widget (or anyone else) links
+  // here with ?reconnect=canvas and the server still considers us expired.
+  useEffect(() => {
+    if (
+      searchParams.get("reconnect") === "canvas" &&
+      status?.needsReconnect === true
+    ) {
+      setIsReconnecting(true);
+    }
+  }, [searchParams, status?.needsReconnect]);
 
   async function handleSync() {
     setIsSyncing(true);
@@ -43,7 +56,7 @@ export function CanvasCard() {
   const needsReconnect = status.needsReconnect === true;
 
   return (
-    <div className="rounded-lg border bg-white p-6">
+    <div id="canvas-card" className="rounded-lg border bg-white p-6 scroll-mt-6">
       <div className="flex items-center justify-between">
         <h3 className="font-semibold text-gray-900">Canvas</h3>
         <span
@@ -72,16 +85,16 @@ export function CanvasCard() {
       {syncError && status.lastSyncStatus !== "error" && (
         <p className="mt-2 text-sm text-red-600">Sync error: {syncError}</p>
       )}
-      <div className="mt-4 flex gap-3">
-        {needsReconnect && !isReconnecting ? (
-          <button
-            onClick={() => setIsReconnecting(true)}
-            className="rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-500"
-          >
-            Reconnect Canvas
-          </button>
-        ) : (
-          !isReconnecting && (
+      {!isReconnecting && (
+        <div className="mt-4 flex gap-3">
+          {needsReconnect ? (
+            <button
+              onClick={() => setIsReconnecting(true)}
+              className="rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-500"
+            >
+              Reconnect Canvas
+            </button>
+          ) : (
             <button
               onClick={handleSync}
               disabled={isSyncing}
@@ -89,9 +102,9 @@ export function CanvasCard() {
             >
               {isSyncing ? "Syncing..." : "Sync Now"}
             </button>
-          )
-        )}
-      </div>
+          )}
+        </div>
+      )}
       {isReconnecting && (
         <div className="mt-4">
           <CanvasAuthViewer

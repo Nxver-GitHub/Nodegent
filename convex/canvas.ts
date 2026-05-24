@@ -46,6 +46,18 @@ function cookiesToHeader(cookies: PlaywrightCookie[]): string {
   return cookies.map((c) => `${c.name}=${c.value}`).join("; ");
 }
 
+/**
+ * Thrown when Canvas indicates the stored cookies are no longer valid (401/403).
+ * The catch in `syncCanvas` uses `instanceof` instead of string matching so the
+ * detection doesn't silently break if a human edits the user-facing message.
+ */
+class CanvasSessionExpiredError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CanvasSessionExpiredError";
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Pagination helper — follows Canvas Link header rel="next" using Cookie auth
 // ---------------------------------------------------------------------------
@@ -68,12 +80,14 @@ async function fetchAllPagesWithCookies<T>(
 
     if (!response.ok) {
       if (response.status === 401 || response.status === 302) {
-        throw new Error(
+        throw new CanvasSessionExpiredError(
           "Canvas session expired. Please reconnect Canvas in the dashboard."
         );
       }
       if (response.status === 403) {
-        throw new Error("Canvas access forbidden — session may have expired");
+        throw new CanvasSessionExpiredError(
+          "Canvas access forbidden — session may have expired"
+        );
       }
       throw new Error(`Canvas API error: ${response.status}`);
     }
@@ -426,11 +440,9 @@ export const syncCanvas = action({
       return { coursesSynced, assignmentsSynced };
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown sync error";
-      // Distinguish "user needs to reauth" from generic Canvas API failures so
-      // the UI can surface a Reconnect affordance instead of a dead-end error.
-      const needsReconnect =
-        message.includes("session expired") ||
-        message.includes("session may have expired");
+      // Use a typed sentinel instead of substring matching so user-visible
+      // copy can change without silently breaking the Reconnect affordance.
+      const needsReconnect = err instanceof CanvasSessionExpiredError;
       await ctx.runMutation(internal.canvas.updateSyncStatus, {
         userId: user._id,
         status: "error",

@@ -47,7 +47,10 @@ export function SyncStatusBar({ status, onSync, isSyncing }: SyncStatusBarProps)
         <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-amber-400" />
         <span className="flex-1 font-mono text-amber-700">Canvas session expired</span>
         <Link
-          href="/dashboard"
+          // Hash + query — CanvasCard reads `?reconnect=canvas` on mount and
+          // auto-opens the SSO viewer, and the hash scrolls it into view even
+          // when the user is already on /dashboard.
+          href="/dashboard?reconnect=canvas#canvas-card"
           className="flex items-center gap-1 text-[#CD8407] hover:underline font-medium"
           title="Reconnect Canvas"
         >
