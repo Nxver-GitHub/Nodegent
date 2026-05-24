@@ -68,6 +68,10 @@ export default defineSchema({
     instructorName: v.optional(v.string()),
     syllabusUrl: v.optional(v.string()),
     lastSyncedAt: v.number(),
+    // Denormalized summary fields kept in sync by assignment mutations.
+    // Lets getCourseSummaries read N course rows instead of N*M assignment rows.
+    pendingCount: v.optional(v.number()),
+    nextDueAt: v.optional(v.number()),
   })
     .index("by_userId", ["userId"])
     .index("by_userId_canvasId", ["userId", "canvasId"]),
@@ -92,7 +96,8 @@ export default defineSchema({
     .index("by_userId_dueAt", ["userId", "dueAt"])
     .index("by_userId_canvasId", ["userId", "canvasId"])
     .index("by_userId_courseId", ["userId", "courseId"])
-    .index("by_userId_isNew", ["userId", "isNew"]),
+    .index("by_userId_isNew", ["userId", "isNew"])
+    .index("by_userId_isCompleted", ["userId", "isCompleted"]),
 
   events: defineTable({
     userId: v.id("users"),

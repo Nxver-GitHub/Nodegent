@@ -14,11 +14,14 @@ export function SnapshotWidget() {
   const [open, setOpen] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
 
+  // Gate heavy reactive queries on `open` to avoid running them while the
+  // panel is hidden behind a CSS transform. `currentUser` is left ungated
+  // because it's also subscribed by parent components and Convex dedupes it.
   const currentUser = useQuery(api.users.getCurrentUser);
-  const snapshot = useQuery(api.assignments.getDailySnapshot);
-  const todayEvents = useQuery(api.events.getTodayEvents);
-  const courseSummaries = useQuery(api.courses.getCourseSummaries);
-  const canvasStatus = useQuery(api.canvas.getCanvasStatus);
+  const snapshot = useQuery(api.assignments.getDailySnapshot, open ? {} : "skip");
+  const todayEvents = useQuery(api.events.getTodayEvents, open ? {} : "skip");
+  const courseSummaries = useQuery(api.courses.getCourseSummaries, open ? {} : "skip");
+  const canvasStatus = useQuery(api.canvas.getCanvasStatus, open ? {} : "skip");
   const syncCanvas = useAction(api.canvas.syncCanvas);
 
   const courseMap = new Map(

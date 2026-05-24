@@ -392,9 +392,17 @@ export const syncCanvas = action({
             pointsPossible: assignment.points_possible ?? undefined,
             submissionType: assignment.submission_types?.join(",") ?? undefined,
             htmlUrl: assignment.html_url ?? undefined,
+            skipRecompute: true,
           });
           assignmentsSynced++;
         }
+
+        // Recompute the denormalized course summary once after the per-course
+        // batch instead of on every assignment write — keeps sync at O(M)
+        // reads per course instead of O(M^2).
+        await ctx.runMutation(api.courses.recomputeCourseSummaryPublic, {
+          courseId,
+        });
       }
 
       await ctx.runMutation(internal.canvas.updateSyncStatus, {
