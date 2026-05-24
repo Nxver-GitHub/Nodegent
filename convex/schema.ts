@@ -129,6 +129,9 @@ export default defineSchema({
     lastSyncError: v.optional(v.string()),
     coursesSynced: v.optional(v.number()),
     assignmentsSynced: v.optional(v.number()),
+    // Set true by syncCanvas when Canvas returns 401/403, cleared by
+    // upsertCanvasCookies on a successful reconnect.
+    needsReconnect: v.optional(v.boolean()),
   }).index("by_userId", ["userId"]),
   auditLog: defineTable({
     userId: v.id("users"),

@@ -1,6 +1,6 @@
 import { convexTest } from "convex-test";
-import { describe, expect, it } from "vitest";
-import { api } from "../_generated/api";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { api, internal } from "../_generated/api";
 import schema from "../schema";
 
 const IDENTITY = { subject: "clerk_1", email: "test@ucsc.edu", name: "Test Student" };
@@ -157,6 +157,114 @@ describe("canvas", () => {
         .withIdentity(IDENTITY)
         .query(api.canvas.getCanvasStatus, {});
       expect(status?.isConnected).toBe(true);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // needsReconnect lifecycle
+  // ---------------------------------------------------------------------------
+
+  describe("needsReconnect", () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it("defaults to false in getCanvasStatus when never set", async () => {
+      const t = convexTest(schema);
+      await seedCredentials(t);
+      const status = await t
+        .withIdentity(IDENTITY)
+        .query(api.canvas.getCanvasStatus, {});
+      expect(status?.needsReconnect).toBe(false);
+    });
+
+    it("syncCanvas sets needsReconnect: true on Canvas 401", async () => {
+      const t = convexTest(schema);
+      await seedCredentials(t);
+
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () =>
+          new Response("Unauthorized", { status: 401 })
+        )
+      );
+
+      await expect(
+        t.withIdentity(IDENTITY).action(api.canvas.syncCanvas, {})
+      ).rejects.toThrow(/session expired/i);
+
+      const status = await t
+        .withIdentity(IDENTITY)
+        .query(api.canvas.getCanvasStatus, {});
+      expect(status?.needsReconnect).toBe(true);
+      expect(status?.lastSyncStatus).toBe("error");
+    });
+
+    it("syncCanvas leaves needsReconnect: false on a non-auth Canvas failure", async () => {
+      const t = convexTest(schema);
+      await seedCredentials(t);
+
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () =>
+          new Response("Internal Server Error", { status: 500 })
+        )
+      );
+
+      await expect(
+        t.withIdentity(IDENTITY).action(api.canvas.syncCanvas, {})
+      ).rejects.toThrow();
+
+      const status = await t
+        .withIdentity(IDENTITY)
+        .query(api.canvas.getCanvasStatus, {});
+      expect(status?.needsReconnect).toBe(false);
+      expect(status?.lastSyncStatus).toBe("error");
+    });
+
+    it("upsertCanvasCookies clears needsReconnect on reconnect", async () => {
+      const t = convexTest(schema);
+      await seedCredentials(t);
+
+      // Simulate an expired session by setting the flag directly
+      await t.run(async (ctx) => {
+        const creds = await ctx.db
+          .query("canvasCredentials")
+          .filter((q) => q.neq(q.field("canvasCookies"), undefined))
+          .first();
+        if (!creds) throw new Error("creds not seeded");
+        await ctx.db.patch(creds._id, {
+          needsReconnect: true,
+          lastSyncStatus: "error",
+          lastSyncError: "Canvas session expired",
+        });
+      });
+
+      const beforeStatus = await t
+        .withIdentity(IDENTITY)
+        .query(api.canvas.getCanvasStatus, {});
+      expect(beforeStatus?.needsReconnect).toBe(true);
+
+      // Run the reconnect path
+      const userId = await t.run(async (ctx) => {
+        const user = await ctx.db
+          .query("users")
+          .filter((q) => q.eq(q.field("clerkId"), "clerk_1"))
+          .first();
+        if (!user) throw new Error("user not seeded");
+        return user._id;
+      });
+      await t.mutation(internal.canvas.upsertCanvasCookies, {
+        userId,
+        canvasCookies: JSON.stringify([{ name: "canvas_session", value: "fresh" }]),
+      });
+
+      const afterStatus = await t
+        .withIdentity(IDENTITY)
+        .query(api.canvas.getCanvasStatus, {});
+      expect(afterStatus?.needsReconnect).toBe(false);
+      expect(afterStatus?.lastSyncStatus).toBeUndefined();
+      expect(afterStatus?.lastSyncError).toBeUndefined();
     });
   });
 });

@@ -7,6 +7,7 @@ interface SyncStatus {
   isConnected: boolean;
   lastSyncedAt?: number;
   lastSyncStatus?: "success" | "error";
+  needsReconnect?: boolean;
 }
 
 interface SyncStatusBarProps {
@@ -35,6 +36,26 @@ export function SyncStatusBar({ status, onSync, isSyncing }: SyncStatusBarProps)
         <span>Canvas not connected —</span>
         <Link href="/dashboard" className="text-[#CD8407] hover:underline font-medium">
           connect
+        </Link>
+      </div>
+    );
+  }
+
+  if (status.needsReconnect) {
+    return (
+      <div className="flex items-center gap-2 text-[11px] text-gray-400">
+        <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-amber-400" />
+        <span className="flex-1 font-mono text-amber-700">Canvas session expired</span>
+        <Link
+          // Hash + query — CanvasCard reads `?reconnect=canvas` on mount and
+          // auto-opens the SSO viewer, and the hash scrolls it into view even
+          // when the user is already on /dashboard.
+          href="/dashboard?reconnect=canvas#canvas-card"
+          className="flex items-center gap-1 text-[#CD8407] hover:underline font-medium"
+          title="Reconnect Canvas"
+        >
+          <PlugsConnected size={12} />
+          <span>Reconnect</span>
         </Link>
       </div>
     );
