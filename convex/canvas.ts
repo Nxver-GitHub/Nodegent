@@ -124,6 +124,7 @@ export const upsertCanvasCookies = internalMutation({
         accessToken: undefined,
         lastSyncStatus: undefined,
         lastSyncError: undefined,
+        needsReconnect: undefined,
       });
     } else {
       await ctx.db.insert("canvasCredentials", {
@@ -142,6 +143,7 @@ export const updateSyncStatus = internalMutation({
     coursesSynced: v.optional(v.number()),
     assignmentsSynced: v.optional(v.number()),
     error: v.optional(v.string()),
+    needsReconnect: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const creds = await ctx.db
@@ -153,6 +155,7 @@ export const updateSyncStatus = internalMutation({
       lastSyncedAt: Date.now(),
       lastSyncStatus: args.status,
       lastSyncError: args.error,
+      needsReconnect: args.needsReconnect,
       ...(args.coursesSynced !== undefined ? { coursesSynced: args.coursesSynced } : {}),
       ...(args.assignmentsSynced !== undefined
         ? { assignmentsSynced: args.assignmentsSynced }
@@ -192,6 +195,7 @@ export const getCanvasStatus = query({
       lastSyncError: creds.lastSyncError,
       coursesSynced: creds.coursesSynced,
       assignmentsSynced: creds.assignmentsSynced,
+      needsReconnect: creds.needsReconnect ?? false,
     };
   },
 });
@@ -422,10 +426,16 @@ export const syncCanvas = action({
       return { coursesSynced, assignmentsSynced };
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown sync error";
+      // Distinguish "user needs to reauth" from generic Canvas API failures so
+      // the UI can surface a Reconnect affordance instead of a dead-end error.
+      const needsReconnect =
+        message.includes("session expired") ||
+        message.includes("session may have expired");
       await ctx.runMutation(internal.canvas.updateSyncStatus, {
         userId: user._id,
         status: "error",
         error: message,
+        needsReconnect,
       });
       await ctx.runMutation(internal.auditLog.logAction, {
         userId: user._id,

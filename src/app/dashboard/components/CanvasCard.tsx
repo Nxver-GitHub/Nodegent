@@ -10,6 +10,7 @@ export function CanvasCard() {
   const syncCanvas = useAction(api.canvas.syncCanvas);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [isReconnecting, setIsReconnecting] = useState(false);
 
   async function handleSync() {
     setIsSyncing(true);
@@ -39,11 +40,19 @@ export function CanvasCard() {
     ? new Date(status.lastSyncedAt).toLocaleString()
     : "Never";
 
+  const needsReconnect = status.needsReconnect === true;
+
   return (
     <div className="rounded-lg border bg-white p-6">
       <div className="flex items-center justify-between">
         <h3 className="font-semibold text-gray-900">Canvas</h3>
-        <span className="text-sm font-medium text-green-600">Connected</span>
+        <span
+          className={`text-sm font-medium ${
+            needsReconnect ? "text-amber-600" : "text-green-600"
+          }`}
+        >
+          {needsReconnect ? "Session expired" : "Connected"}
+        </span>
       </div>
       <p className="mt-1 text-sm text-gray-500">{status.canvasBaseUrl}</p>
       <p className="mt-2 text-sm text-gray-600">
@@ -64,14 +73,35 @@ export function CanvasCard() {
         <p className="mt-2 text-sm text-red-600">Sync error: {syncError}</p>
       )}
       <div className="mt-4 flex gap-3">
-        <button
-          onClick={handleSync}
-          disabled={isSyncing}
-          className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          {isSyncing ? "Syncing..." : "Sync Now"}
-        </button>
+        {needsReconnect && !isReconnecting ? (
+          <button
+            onClick={() => setIsReconnecting(true)}
+            className="rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-500"
+          >
+            Reconnect Canvas
+          </button>
+        ) : (
+          !isReconnecting && (
+            <button
+              onClick={handleSync}
+              disabled={isSyncing}
+              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {isSyncing ? "Syncing..." : "Sync Now"}
+            </button>
+          )
+        )}
       </div>
+      {isReconnecting && (
+        <div className="mt-4">
+          <CanvasAuthViewer
+            onConnected={() => {
+              setIsReconnecting(false);
+              void handleSync();
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }
