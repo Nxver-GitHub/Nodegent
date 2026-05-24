@@ -210,6 +210,111 @@ describe("assignments", () => {
     });
   });
 
+  describe("course summary denormalization", () => {
+    it("updates pendingCount and nextDueAt on upsert and markComplete", async () => {
+      const t = convexTest(schema);
+      const courseId = await seedUserAndCourse(t);
+      const now = Date.now();
+
+      await t.withIdentity(IDENTITY).mutation(api.assignments.upsertAssignment, {
+        courseId: courseId as Id<"courses">,
+        canvasId: "a_sum_1",
+        title: "First",
+        dueAt: now + 2 * 86400000,
+      });
+      await t.withIdentity(IDENTITY).mutation(api.assignments.upsertAssignment, {
+        courseId: courseId as Id<"courses">,
+        canvasId: "a_sum_2",
+        title: "Second",
+        dueAt: now + 86400000,
+      });
+      await t.withIdentity(IDENTITY).mutation(api.assignments.upsertAssignment, {
+        courseId: courseId as Id<"courses">,
+        canvasId: "a_sum_3",
+        title: "Third",
+        dueAt: now + 3 * 86400000,
+      });
+
+      const [summaryBefore] = await t
+        .withIdentity(IDENTITY)
+        .query(api.courses.getCourseSummaries, {});
+      expect(summaryBefore.pendingCount).toBe(3);
+      expect(summaryBefore.nextDueAt).toBe(now + 86400000);
+
+      const all = await t.withIdentity(IDENTITY).query(api.assignments.getAssignments, {});
+      const earliest = all.find((a) => a.canvasId === "a_sum_2")!;
+      await t.withIdentity(IDENTITY).mutation(api.assignments.markComplete, {
+        assignmentId: earliest._id,
+        isCompleted: true,
+      });
+
+      const [summaryAfter] = await t
+        .withIdentity(IDENTITY)
+        .query(api.courses.getCourseSummaries, {});
+      expect(summaryAfter.pendingCount).toBe(2);
+      expect(summaryAfter.nextDueAt).toBe(now + 2 * 86400000);
+    });
+
+    it("skipRecompute leaves the summary stale until recomputeCourseSummaryPublic runs", async () => {
+      const t = convexTest(schema);
+      const courseId = await seedUserAndCourse(t);
+
+      await t.withIdentity(IDENTITY).mutation(api.assignments.upsertAssignment, {
+        courseId: courseId as Id<"courses">,
+        canvasId: "a_skip",
+        title: "Skipped",
+        dueAt: Date.now() + 86400000,
+        skipRecompute: true,
+      });
+
+      const [stale] = await t
+        .withIdentity(IDENTITY)
+        .query(api.courses.getCourseSummaries, {});
+      expect(stale.pendingCount).toBe(0);
+      expect(stale.nextDueAt).toBeUndefined();
+
+      await t
+        .withIdentity(IDENTITY)
+        .mutation(api.courses.recomputeCourseSummaryPublic, {
+          courseId: courseId as Id<"courses">,
+        });
+
+      const [fresh] = await t
+        .withIdentity(IDENTITY)
+        .query(api.courses.getCourseSummaries, {});
+      expect(fresh.pendingCount).toBe(1);
+      expect(fresh.nextDueAt).toBeDefined();
+    });
+
+    it("rejects upsertAssignment with another user's courseId", async () => {
+      const t = convexTest(schema);
+      const userACourse = await seedUserAndCourse(t);
+
+      await t.withIdentity(OTHER_IDENTITY).mutation(api.users.ensureUser, {});
+
+      await expect(
+        t.withIdentity(OTHER_IDENTITY).mutation(api.assignments.upsertAssignment, {
+          courseId: userACourse as Id<"courses">,
+          canvasId: "a_cross_user",
+          title: "Hijack attempt",
+        })
+      ).rejects.toThrow("Unauthorized");
+    });
+
+    it("rejects recomputeCourseSummaryPublic with another user's courseId", async () => {
+      const t = convexTest(schema);
+      const userACourse = await seedUserAndCourse(t);
+
+      await t.withIdentity(OTHER_IDENTITY).mutation(api.users.ensureUser, {});
+
+      await expect(
+        t.withIdentity(OTHER_IDENTITY).mutation(api.courses.recomputeCourseSummaryPublic, {
+          courseId: userACourse as Id<"courses">,
+        })
+      ).rejects.toThrow("Unauthorized");
+    });
+  });
+
   describe("markComplete", () => {
     it("throws when a different user tries to mark someone else's assignment", async () => {
       const t = convexTest(schema);

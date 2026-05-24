@@ -154,6 +154,30 @@ export const upsertCourse = mutation({
   },
 });
 
+// Public wrapper for callers that batch assignment writes with
+// `skipRecompute: true` and need to refresh the summary once at the end.
+// Enforces ownership before delegating to the helper.
+export const recomputeCourseSummaryPublic = mutation({
+  args: { courseId: v.id("courses") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .unique();
+    if (!user) throw new Error("User not found");
+
+    const course = await ctx.db.get(args.courseId);
+    if (!course || course.userId !== user._id) {
+      throw new Error("Unauthorized");
+    }
+
+    await recomputeCourseSummary(ctx, args.courseId);
+  },
+});
+
 // One-shot backfill for the new denormalized summary fields. Run once after
 // deploying the schema change; safe to re-run (idempotent).
 export const backfillCourseSummaries = internalMutation({

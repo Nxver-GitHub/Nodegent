@@ -77,6 +77,15 @@ export const getUpcomingAssignments = query({
   },
 });
 
+/**
+ * Upsert an assignment row.
+ *
+ * `skipRecompute` lets bulk callers (e.g. `syncCanvas`) defer the course
+ * summary update until after a batch of writes completes — call
+ * `api.courses.recomputeCourseSummaryPublic` once per affected course at the
+ * end of the batch. Default is to recompute on every write so single-shot
+ * callers stay correct without extra ceremony.
+ */
 export const upsertAssignment = mutation({
   args: {
     courseId: v.id("courses"),
@@ -87,6 +96,7 @@ export const upsertAssignment = mutation({
     pointsPossible: v.optional(v.number()),
     submissionType: v.optional(v.string()),
     htmlUrl: v.optional(v.string()),
+    skipRecompute: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -101,6 +111,11 @@ export const upsertAssignment = mutation({
 
     if (!user) {
       throw new Error("User not found");
+    }
+
+    const course = await ctx.db.get(args.courseId);
+    if (!course || course.userId !== user._id) {
+      throw new Error("Unauthorized");
     }
 
     const now = Date.now();
@@ -122,7 +137,9 @@ export const upsertAssignment = mutation({
         htmlUrl: args.htmlUrl,
         lastSyncedAt: now,
       });
-      await recomputeCourseSummary(ctx, args.courseId);
+      if (!args.skipRecompute) {
+        await recomputeCourseSummary(ctx, args.courseId);
+      }
       return existing._id;
     }
 
@@ -140,7 +157,9 @@ export const upsertAssignment = mutation({
       lastSyncedAt: now,
       isNew: true,
     });
-    await recomputeCourseSummary(ctx, args.courseId);
+    if (!args.skipRecompute) {
+      await recomputeCourseSummary(ctx, args.courseId);
+    }
     return inserted;
   },
 });
