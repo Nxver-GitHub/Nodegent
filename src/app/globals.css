@@ -5,6 +5,9 @@
     font-family: var(--font-sans);
     color: var(--color-brand-text);
   }
+  html {
+    scroll-behavior: smooth;
+  }
 }
 
 @theme {
@@ -20,11 +23,20 @@
 .brutal-border {
   border: 1px solid #1D1D1D;
   box-shadow: 2px 2px 0px 0px #1D1D1D;
-  transition: transform 0.1s ease, box-shadow 0.1s ease;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 .brutal-border:active {
   transform: translate(2px, 2px);
   box-shadow: none;
+}
+.brutal-border-lg {
+  border: 1px solid #1D1D1D;
+  box-shadow: 4px 4px 0px 0px #1D1D1D;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.brutal-border-lg:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 5px 5px 0px 0px #1D1D1D;
 }
 .window-shadow {
   box-shadow: 0 30px 60px -15px rgba(0, 0, 0, 0.3);
@@ -34,4 +46,29 @@
   background-image: url("https://res.cloudinary.com/dmukukwp6/image/upload/carpet_light_27d74f73b5.png");
   background-size: 200px 200px;
   background-repeat: repeat;
+}
+
+@keyframes float-slow {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+.float-slow { animation: float-slow 6s ease-in-out infinite; }
+.pulse-soft { animation: pulse-soft 2.4s ease-in-out infinite; }
+.blink { animation: blink 1.6s ease-in-out infinite; }
+
+.hero-glow {
+  background: radial-gradient(
+    ellipse 60% 50% at 50% 30%,
+    rgba(205, 132, 7, 0.15) 0%,
+    rgba(235, 157, 42, 0.08) 40%,
+    transparent 70%
+  );
 }

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { LandingHeader } from "./_components/landing/LandingHeader";
 import { LandingHero } from "./_components/landing/LandingHero";
 import { FeatureGrid } from "./_components/landing/FeatureGrid";
+import { HowItWorks } from "./_components/landing/HowItWorks";
 import { LandingFinalCta } from "./_components/landing/LandingFinalCta";
 import { LandingFooter } from "./_components/landing/LandingFooter";
 
@@ -20,9 +21,9 @@ export default async function HomePage() {
       <LandingHeader />
       <LandingHero />
       <FeatureGrid />
+      <HowItWorks />
       <LandingFinalCta />
       <LandingFooter />
     </main>
   );
 }
-

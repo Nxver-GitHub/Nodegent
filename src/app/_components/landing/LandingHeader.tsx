@@ -3,8 +3,8 @@ import { Graph } from "@phosphor-icons/react/dist/ssr";
 
 export function LandingHeader() {
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-gray-300 bg-[#EEEFE9]/80 backdrop-blur">
-      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
+    <header className="sticky top-0 z-40 w-full border-b border-gray-300 bg-[#EEEFE9]/85 backdrop-blur-md">
+      <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-6">
         <Link href="/" className="flex items-center gap-2">
           <div className="flex h-7 w-7 items-center justify-center rounded bg-gray-900 text-white">
             <Graph size={16} weight="bold" />
@@ -13,7 +13,19 @@ export function LandingHeader() {
             Nodegent
           </span>
         </Link>
-        <nav className="flex items-center gap-3 text-[13px] font-semibold">
+        <nav className="flex items-center gap-5 text-[13px] font-semibold">
+          <a
+            href="#features"
+            className="hidden text-[#4D4F46] hover:text-black hover:underline underline-offset-4 sm:inline"
+          >
+            Features
+          </a>
+          <a
+            href="#how-it-works"
+            className="hidden text-[#4D4F46] hover:text-black hover:underline underline-offset-4 md:inline"
+          >
+            How it works
+          </a>
           <Link
             href="/sign-in"
             className="hidden text-[#4D4F46] hover:text-black hover:underline underline-offset-4 sm:inline"
