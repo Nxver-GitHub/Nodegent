@@ -36,16 +36,18 @@ export function HowItWorks() {
     <section id="how-it-works" className="w-full px-6 py-20">
       <div className="mx-auto max-w-7xl">
         <div className="mb-14 max-w-3xl">
-          <p className="mb-3 inline-block rounded-full border border-gray-300 bg-white px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-[#4D4F46]">
+          <p className="mb-3 inline-block rounded-full border border-gray-300 bg-white px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-gray-800">
             How it works
           </p>
           <h2 className="text-balance text-4xl font-extrabold tracking-tight text-gray-900 sm:text-5xl">
             Three steps to a calmer quarter.
           </h2>
-          <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-gray-800">
-            No new accounts to manage. No data shipped to third parties. Just
-            your campus, organized.
-          </p>
+          <div className="brutal-border mt-5 inline-block max-w-2xl rounded-md bg-white px-5 py-4">
+            <p className="text-[15px] leading-relaxed text-gray-800">
+              No new accounts to manage. No data shipped to third parties. Just
+              your campus, organized.
+            </p>
+          </div>
         </div>
         <div className="grid gap-5 md:grid-cols-3">
           {STEPS.map((step) => (

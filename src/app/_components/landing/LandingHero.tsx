@@ -28,13 +28,15 @@ export function LandingHero() {
             .
           </h1>
 
-          <p className="mt-6 max-w-xl text-pretty text-base text-gray-800 sm:text-lg">
-            Nodegent unifies <span className="font-semibold text-gray-900">Canvas</span>,{" "}
-            <span className="font-semibold text-gray-900">your campus portal</span>, and{" "}
-            <span className="font-semibold text-gray-900">Google Calendar</span> behind a single
-            OS-style dashboard — with an AI assistant that already knows your courses,
-            assignments, and deadlines.
-          </p>
+          <div className="brutal-border mt-6 inline-block max-w-xl rounded-md bg-white px-5 py-4">
+            <p className="text-pretty text-base text-gray-800 sm:text-lg">
+              Nodegent unifies <span className="font-bold text-gray-900">Canvas</span>,{" "}
+              <span className="font-bold text-gray-900">your campus portal</span>, and{" "}
+              <span className="font-bold text-gray-900">Google Calendar</span> behind a single
+              OS-style dashboard — with an AI assistant that already knows your courses,
+              assignments, and deadlines.
+            </p>
+          </div>
 
           <div className="mt-10 flex flex-col items-start gap-3 sm:flex-row sm:items-center">
             <Link
@@ -52,12 +54,14 @@ export function LandingHero() {
             </Link>
           </div>
 
-          <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-1 text-[12px] text-gray-700">
+          <div className="brutal-border mt-5 inline-flex w-fit max-w-full flex-wrap items-center gap-x-5 gap-y-1 rounded-md bg-white px-4 py-2.5 text-[12px] font-medium text-gray-800">
             <span className="flex items-center gap-1.5">
               <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#7CC36E]" />
               Free for students
             </span>
+            <span aria-hidden="true" className="text-gray-400">|</span>
             <span>Bring your own LLM API key</span>
+            <span aria-hidden="true" className="text-gray-400">|</span>
             <span>No credit card required</span>
           </div>
         </div>
