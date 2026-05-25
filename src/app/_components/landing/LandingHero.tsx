@@ -28,9 +28,9 @@ export function LandingHero() {
             .
           </h1>
 
-          <p className="mt-6 max-w-xl text-pretty text-base text-[#4D4F46] sm:text-lg">
+          <p className="mt-6 max-w-xl text-pretty text-base text-gray-800 sm:text-lg">
             Nodegent unifies <span className="font-semibold text-gray-900">Canvas</span>,{" "}
-            <span className="font-semibold text-gray-900">MyUCSC</span>, and{" "}
+            <span className="font-semibold text-gray-900">your campus portal</span>, and{" "}
             <span className="font-semibold text-gray-900">Google Calendar</span> behind a single
             OS-style dashboard — with an AI assistant that already knows your courses,
             assignments, and deadlines.
@@ -52,7 +52,7 @@ export function LandingHero() {
             </Link>
           </div>
 
-          <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-1 text-[12px] text-[#6B6D63]">
+          <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-1 text-[12px] text-gray-700">
             <span className="flex items-center gap-1.5">
               <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#7CC36E]" />
               Free for students

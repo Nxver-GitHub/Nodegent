@@ -11,7 +11,7 @@ const FEATURES = [
     icon: <ArrowsClockwise size={20} weight="bold" />,
     title: "Campus Sync",
     description:
-      "Pull courses and assignments from Canvas and MyUCSC, then mirror everything into Google Calendar so your week always lines up.",
+      "Pull courses and assignments from Canvas and your campus portal, then mirror everything into Google Calendar so your week always lines up.",
     accent: "amber" as const,
   },
   {
@@ -48,7 +48,7 @@ export function FeatureGrid() {
           <h2 className="text-balance text-4xl font-extrabold tracking-tight text-gray-900 sm:text-5xl">
             Built for the way students actually study.
           </h2>
-          <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-[#4D4F46]">
+          <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-gray-800">
             One trusted surface for your academic life — your data, your keys,
             your audit trail. No noise, no nagging, no rented agents.
           </p>

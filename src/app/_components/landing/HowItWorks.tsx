@@ -11,7 +11,7 @@ const STEPS = [
     accent: "bg-[#CD8407]",
     title: "Connect",
     description:
-      "Sign in once with your campus account. Nodegent links Canvas, MyUCSC, and Google Calendar with audited, revocable access.",
+      "Sign in once with your campus account. Nodegent links Canvas, your campus portal, and Google Calendar with audited, revocable access.",
   },
   {
     number: "02",
@@ -42,7 +42,7 @@ export function HowItWorks() {
           <h2 className="text-balance text-4xl font-extrabold tracking-tight text-gray-900 sm:text-5xl">
             Three steps to a calmer quarter.
           </h2>
-          <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-[#4D4F46]">
+          <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-gray-800">
             No new accounts to manage. No data shipped to third parties. Just
             your campus, organized.
           </p>
