@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Sans } from "next/font/google";
+import { IBM_Plex_Sans, Caveat } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { ConvexClientProvider } from "@/lib/convex-client-provider";
 import "./globals.css";
@@ -8,6 +8,14 @@ const ibmPlexSans = IBM_Plex_Sans({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
   variable: "--font-ibm-plex-sans",
+});
+
+// Handwritten-style font used on sticky notes and notebook annotations
+// across the landing page (university desk aesthetic).
+const caveat = Caveat({
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
+  variable: "--font-handwritten",
 });
 
 export const metadata: Metadata = {
@@ -23,7 +31,7 @@ export default function RootLayout({
   return (
     <ClerkProvider>
       <html lang="en">
-        <body className={ibmPlexSans.variable}>
+        <body className={`${ibmPlexSans.variable} ${caveat.variable}`}>
           <ConvexClientProvider>{children}</ConvexClientProvider>
         </body>
       </html>

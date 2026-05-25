@@ -72,3 +72,67 @@
     transparent 70%
   );
 }
+
+/* Handwritten-style font, applied via the --font-handwritten variable. */
+.font-hand {
+  font-family: var(--font-handwritten), "Comic Sans MS", cursive;
+}
+
+/* Sticky note — paper-yellow with subtle drop shadow and a slight tilt. */
+.sticky-note {
+  background: linear-gradient(135deg, #FFF6A8 0%, #FFEC8C 100%);
+  box-shadow: 2px 4px 0 rgba(0, 0, 0, 0.18), 0 1px 1px rgba(0, 0, 0, 0.06);
+  border: 1px solid #E8C95C;
+}
+.sticky-note-pink {
+  background: linear-gradient(135deg, #FFD7DA 0%, #FFC0C4 100%);
+  box-shadow: 2px 4px 0 rgba(0, 0, 0, 0.18), 0 1px 1px rgba(0, 0, 0, 0.06);
+  border: 1px solid #E8A4A8;
+}
+.sticky-note-mint {
+  background: linear-gradient(135deg, #D6F2D8 0%, #BCE9C0 100%);
+  box-shadow: 2px 4px 0 rgba(0, 0, 0, 0.18), 0 1px 1px rgba(0, 0, 0, 0.06);
+  border: 1px solid #93D89A;
+}
+
+/* Decorative item drift — desk objects gently rotate/bob */
+@keyframes drift {
+  0%, 100% { transform: translateY(0) rotate(var(--rot, 0deg)); }
+  50% { transform: translateY(-6px) rotate(calc(var(--rot, 0deg) + 2deg)); }
+}
+.drift { animation: drift 5.5s ease-in-out infinite; }
+
+/* Typing dot pulse for the AI chat preview */
+@keyframes dot-pulse {
+  0%, 80%, 100% { opacity: 0.25; transform: translateY(0); }
+  40% { opacity: 1; transform: translateY(-2px); }
+}
+.dot-pulse { animation: dot-pulse 1.2s ease-in-out infinite; }
+
+/* Konami easter egg confetti */
+.confetti-piece {
+  position: absolute;
+  top: -16px;
+  width: 10px;
+  height: 14px;
+  border-radius: 2px;
+  animation: confetti-fall linear forwards;
+}
+@keyframes confetti-fall {
+  0% {
+    transform: translateY(0) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(110vh) rotate(720deg);
+    opacity: 0.85;
+  }
+}
+
+/* Section scroll-in helper — used by reveal-on-mount client wrappers */
+@keyframes reveal-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.reveal-up { animation: reveal-up 0.7s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+
