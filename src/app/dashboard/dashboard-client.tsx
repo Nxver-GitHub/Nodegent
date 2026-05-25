@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useUser } from "@clerk/nextjs";
+import { useUser, useSession } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
 import { AnimatePresence } from "framer-motion";
 import { api } from "@convex/_generated/api";
@@ -11,14 +11,14 @@ import { NewAssignmentsBanner } from "./components/NewAssignmentsBanner";
 import { OnboardingTour } from "./components/OnboardingTour";
 import { LoadingScreen } from "./components/LoadingScreen";
 
-// Session-storage key used to ensure the OS-style loading screen (US-5.2)
-// only appears on the FIRST dashboard mount of a browser session and is
-// skipped for internal navigations within the same session.
-const LOADING_SHOWN_KEY = "nodegent_loading_shown";
+// SessionStorage key for the loading-screen gate. We key by Clerk's session.id
+// so a fresh sign-in (new session) always re-shows the loading screen, while
+// internal navigations within the same authenticated session skip it.
+const LOADING_SHOWN_SESSION_KEY = "nodegent_loading_shown_session_id";
 
 // Minimum display durations — prevents the loading screen from disappearing
 // before the user can actually see it. Welcome (first-ever sign-in) lingers
-// longer like macOS first boot; the per-session boot screen is shorter.
+// longer like macOS first boot; the per-login boot screen is shorter.
 const MIN_DURATION_WELCOME_MS = 4500;
 const MIN_DURATION_BOOT_MS = 1800;
 
@@ -28,6 +28,7 @@ const FIRST_TIME_WINDOW_MS = 60_000;
 
 export function DashboardClient() {
   const { user, isLoaded } = useUser();
+  const { session, isLoaded: sessionLoaded } = useSession();
   const ensureUser = useMutation(api.users.ensureUser);
   const markOnboardingComplete = useMutation(api.users.markOnboardingComplete);
   const currentUser = useQuery(api.users.getCurrentUser);
@@ -44,15 +45,30 @@ export function DashboardClient() {
     return sessionStorage.getItem("nodegent_onboarding_done") !== "true";
   });
 
-  // Loading-screen gate: only on the first dashboard mount per session.
-  const [showLoading, setShowLoading] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return sessionStorage.getItem(LOADING_SHOWN_KEY) !== "true";
-  });
+  // Loading screen gate. Initialize false; we promote to true once we know
+  // the current Clerk session.id and confirm it's NOT the one we last loaded for.
+  const [showLoading, setShowLoading] = useState(false);
 
   // Tracks whether the minimum display duration has elapsed. The timer is
   // armed once we know which mode (welcome vs boot) we're in.
   const [minDurationElapsed, setMinDurationElapsed] = useState(false);
+
+  const sessionId = session?.id ?? null;
+
+  // Decide whether to surface the loading screen for this Clerk session.
+  // Runs once Clerk has resolved — if the stored session id differs from
+  // (or is missing relative to) the current one, this is a fresh login.
+  useEffect(() => {
+    if (!sessionLoaded) return;
+    if (typeof window === "undefined") return;
+    if (!sessionId) return;
+
+    const stored = sessionStorage.getItem(LOADING_SHOWN_SESSION_KEY);
+    if (stored !== sessionId) {
+      loadingStartedAtRef.current = Date.now();
+      setShowLoading(true);
+    }
+  }, [sessionLoaded, sessionId]);
 
   // First-time signal: account was just created (within the welcome window).
   // We only treat the user as first-time once `currentUser` has resolved.
@@ -67,8 +83,8 @@ export function DashboardClient() {
     courses !== undefined &&
     assignments !== undefined;
 
-  // Arm the min-duration timer once we know whether to use welcome or boot
-  // timing. Must wait for currentUser to resolve so isFirstTime is accurate.
+  // Arm the min-duration timer once the loading screen is actually visible
+  // AND we know whether to use welcome or boot timing.
   useEffect(() => {
     if (!showLoading) return;
     if (currentUser === undefined) return;
@@ -87,12 +103,13 @@ export function DashboardClient() {
   }, [showLoading, currentUser, isFirstTime]);
 
   // Dismiss only when BOTH data is ready AND the min duration has elapsed.
+  // Persist the session id so internal navigations skip the loading screen.
   useEffect(() => {
-    if (showLoading && essentialDataReady && minDurationElapsed) {
-      sessionStorage.setItem(LOADING_SHOWN_KEY, "true");
+    if (showLoading && essentialDataReady && minDurationElapsed && sessionId) {
+      sessionStorage.setItem(LOADING_SHOWN_SESSION_KEY, sessionId);
       setShowLoading(false);
     }
-  }, [showLoading, essentialDataReady, minDurationElapsed]);
+  }, [showLoading, essentialDataReady, minDurationElapsed, sessionId]);
 
   useEffect(() => {
     if (isLoaded && user && !hasSynced.current) {
