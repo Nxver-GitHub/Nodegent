@@ -16,6 +16,16 @@ import { LoadingScreen } from "./components/LoadingScreen";
 // skipped for internal navigations within the same session.
 const LOADING_SHOWN_KEY = "nodegent_loading_shown";
 
+// Minimum display durations — prevents the loading screen from disappearing
+// before the user can actually see it. Welcome (first-ever sign-in) lingers
+// longer like macOS first boot; the per-session boot screen is shorter.
+const MIN_DURATION_WELCOME_MS = 4500;
+const MIN_DURATION_BOOT_MS = 1800;
+
+// Window for treating a freshly-created user as "first-time" — if the user
+// record was created within the last minute, we show the welcome variant.
+const FIRST_TIME_WINDOW_MS = 60_000;
+
 export function DashboardClient() {
   const { user, isLoaded } = useUser();
   const ensureUser = useMutation(api.users.ensureUser);
@@ -26,6 +36,7 @@ export function DashboardClient() {
   const courses = useQuery(api.courses.getCourses);
   const assignments = useQuery(api.assignments.getUpcomingAssignments);
   const hasSynced = useRef(false);
+  const loadingStartedAtRef = useRef<number>(Date.now());
 
   // Fast-path: hide tour immediately for returning users without waiting for Convex
   const [showTour, setShowTour] = useState(() => {
@@ -39,20 +50,49 @@ export function DashboardClient() {
     return sessionStorage.getItem(LOADING_SHOWN_KEY) !== "true";
   });
 
+  // Tracks whether the minimum display duration has elapsed. The timer is
+  // armed once we know which mode (welcome vs boot) we're in.
+  const [minDurationElapsed, setMinDurationElapsed] = useState(false);
+
+  // First-time signal: account was just created (within the welcome window).
+  // We only treat the user as first-time once `currentUser` has resolved.
+  const isFirstTime =
+    !!currentUser &&
+    Date.now() - currentUser.createdAt < FIRST_TIME_WINDOW_MS;
+  const loadingMode: "welcome" | "boot" = isFirstTime ? "welcome" : "boot";
+
   const essentialDataReady =
     isLoaded &&
     currentUser !== undefined &&
     courses !== undefined &&
     assignments !== undefined;
 
-  // Once everything is ready, dismiss the loading screen and remember it for
-  // the rest of the session. AnimatePresence handles the exit transition.
+  // Arm the min-duration timer once we know whether to use welcome or boot
+  // timing. Must wait for currentUser to resolve so isFirstTime is accurate.
   useEffect(() => {
-    if (showLoading && essentialDataReady) {
+    if (!showLoading) return;
+    if (currentUser === undefined) return;
+
+    const targetMs = isFirstTime ? MIN_DURATION_WELCOME_MS : MIN_DURATION_BOOT_MS;
+    const elapsed = Date.now() - loadingStartedAtRef.current;
+    const remaining = Math.max(0, targetMs - elapsed);
+
+    if (remaining === 0) {
+      setMinDurationElapsed(true);
+      return;
+    }
+
+    const t = window.setTimeout(() => setMinDurationElapsed(true), remaining);
+    return () => window.clearTimeout(t);
+  }, [showLoading, currentUser, isFirstTime]);
+
+  // Dismiss only when BOTH data is ready AND the min duration has elapsed.
+  useEffect(() => {
+    if (showLoading && essentialDataReady && minDurationElapsed) {
       sessionStorage.setItem(LOADING_SHOWN_KEY, "true");
       setShowLoading(false);
     }
-  }, [showLoading, essentialDataReady]);
+  }, [showLoading, essentialDataReady, minDurationElapsed]);
 
   useEffect(() => {
     if (isLoaded && user && !hasSynced.current) {
@@ -106,10 +146,14 @@ export function DashboardClient() {
         <OnboardingTour onComplete={handleTourComplete} />
       )}
       <AnimatePresence>
-        {showLoading && <LoadingScreen key="loading-screen" />}
+        {showLoading && (
+          <LoadingScreen
+            key="loading-screen"
+            mode={loadingMode}
+            firstName={user?.firstName ?? null}
+          />
+        )}
       </AnimatePresence>
     </>
   );
 }
-
-
