@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
+import { useRouter, usePathname } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
+import { useQuery } from "convex/react";
 import {
   Graph,
   ArrowLeft,
@@ -15,7 +17,13 @@ import {
   Minus,
   Square,
   Compass,
+  Sun,
+  Moon,
+  ArrowsClockwise,
 } from "@phosphor-icons/react";
+import { api } from "@convex/_generated/api";
+import { useTheme } from "@/hooks/useTheme";
+import { useAutoSyncPreference } from "@/hooks/useAutoSyncPreference";
 import { SnapshotWidget } from "./SnapshotWidget";
 import { ActivityLogPanel } from "./ActivityLogPanel";
 import { NotificationBell } from "./NotificationBell";
@@ -24,6 +32,61 @@ import { SecurityPanel } from "./security/SecurityPanel";
 import { CampusSyncPanel } from "./campus-sync/CampusSyncPanel";
 import { CoursesPanel } from "./courses/CoursesPanel";
 import { type ReactNode as RN } from "react";
+
+const CONNECT_CANVAS_DISMISSED_KEY = "nodegent-connect-canvas-banner-dismissed";
+
+function ConnectCanvasBanner({ onConnect }: { onConnect: (mode: "connect" | "reconnect") => void }) {
+  const status = useQuery(api.canvas.getCanvasStatus);
+  const user = useQuery(api.users.getCurrentUser);
+  const [dismissed, setDismissed] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return sessionStorage.getItem(CONNECT_CANVAS_DISMISSED_KEY) === "1";
+  });
+
+  function handleDismiss() {
+    sessionStorage.setItem(CONNECT_CANVAS_DISMISSED_KEY, "1");
+    setDismissed(true);
+  }
+
+  if (dismissed) return null;
+  if (status === undefined || user === undefined) return null;
+  if (user?.canvasEnabled === false) return null;
+
+  const isNotConnected = status === null;
+  const needsReconnect = status !== null && status.needsReconnect === true;
+  if (!isNotConnected && !needsReconnect) return null;
+
+  const title = isNotConnected ? "Connect Canvas" : "Canvas session expired";
+  const subtitle = isNotConnected
+    ? "Sign in once with your CruzID to pull in your courses and assignments."
+    : "Sign back in with your CruzID to keep your courses and assignments in sync.";
+  const buttonLabel = isNotConnected ? "Connect" : "Reconnect";
+  const mode: "connect" | "reconnect" = isNotConnected ? "connect" : "reconnect";
+
+  return (
+    <div className="mb-4 flex items-center justify-between gap-3 rounded-md border border-amber-300 bg-amber-50 px-4 py-3">
+      <div className="min-w-0">
+        <p className="text-sm font-semibold text-amber-900">{title}</p>
+        <p className="text-xs text-amber-800 mt-0.5">{subtitle}</p>
+      </div>
+      <div className="flex items-center gap-2 flex-shrink-0">
+        <button
+          onClick={() => onConnect(mode)}
+          className="rounded-sm bg-[#CD8407] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#A86A05] transition-colors"
+        >
+          {buttonLabel}
+        </button>
+        <button
+          onClick={handleDismiss}
+          aria-label="Dismiss banner"
+          className="rounded p-1 text-amber-700 hover:bg-amber-100 transition-colors"
+        >
+          <X size={14} weight="bold" />
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function Tooltip({ label, children }: { label: string; children: RN }) {
   return (
@@ -73,6 +136,8 @@ interface WindowToolbarProps {
 
 function SettingsPopover({ onRestartTour, onClose }: { onRestartTour: () => void; onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
+  const { theme, toggleTheme } = useTheme();
+  const { autoSyncEnabled, setAutoSyncEnabled } = useAutoSyncPreference();
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -85,8 +150,43 @@ function SettingsPopover({ onRestartTour, onClose }: { onRestartTour: () => void
   return (
     <div
       ref={ref}
-      className="absolute right-0 top-full mt-2 w-52 rounded-lg border border-gray-200 bg-white shadow-lg z-50 py-1"
+      className="absolute right-0 top-full mt-2 w-60 rounded-lg border border-gray-200 bg-white shadow-lg z-50 py-1"
     >
+      <button
+        onClick={toggleTheme}
+        className="w-full flex items-center gap-2.5 px-4 py-2.5 text-[13px] text-gray-700 hover:bg-gray-50 transition-colors text-left"
+      >
+        {theme === "dark" ? (
+          <Sun size={15} className="text-yellow-500 flex-shrink-0" />
+        ) : (
+          <Moon size={15} className="text-indigo-500 flex-shrink-0" />
+        )}
+        {theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+      </button>
+
+      <div className="flex items-center justify-between gap-2.5 px-4 py-2.5 text-[13px] text-gray-700">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <ArrowsClockwise size={15} weight="bold" className="text-emerald-500 flex-shrink-0" />
+          <span className="truncate">Auto-sync on login</span>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={autoSyncEnabled}
+          aria-label="Toggle auto-sync on login"
+          onClick={() => setAutoSyncEnabled(!autoSyncEnabled)}
+          className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors ${
+            autoSyncEnabled ? "bg-emerald-500" : "bg-gray-300"
+          }`}
+        >
+          <span
+            className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+              autoSyncEnabled ? "translate-x-[18px]" : "translate-x-0.5"
+            }`}
+          />
+        </button>
+      </div>
+
       <button
         onClick={() => { onRestartTour(); onClose(); }}
         className="w-full flex items-center gap-2.5 px-4 py-2.5 text-[13px] text-gray-700 hover:bg-gray-50 transition-colors text-left"
@@ -207,6 +307,8 @@ function WindowStatusBar() {
 }
 
 export function DashboardShell({ children, onRestartTour }: DashboardShellProps) {
+  const router = useRouter();
+  const pathname = usePathname();
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [securityOpen, setSecurityOpen] = useState(false);
   const [campusSyncOpen, setCampusSyncOpen] = useState(false);
@@ -224,6 +326,14 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
     setCoursesOpen(false);
     setSecurityOpen(false);
     setCalendarOpen(false);
+  }
+
+  function openCampusSyncForCanvas(mode: "connect" | "reconnect") {
+    openCampusSync();
+    if (mode === "reconnect") {
+      // CompactCanvasSync watches this query param and auto-opens the auth viewer
+      router.replace(`${pathname}?reconnect=canvas`, { scroll: false });
+    }
   }
 
   function openSecurity() {
@@ -333,7 +443,10 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
             ) : coursesOpen ? (
               <CoursesPanel onClose={() => setCoursesOpen(false)} />
             ) : (
-              children
+              <>
+                <ConnectCanvasBanner onConnect={openCampusSyncForCanvas} />
+                {children}
+              </>
             )}
           </div>
           <WindowStatusBar />

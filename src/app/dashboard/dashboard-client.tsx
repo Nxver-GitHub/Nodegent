@@ -5,6 +5,7 @@ import { useUser, useSession } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
 import { AnimatePresence } from "framer-motion";
 import { api } from "@convex/_generated/api";
+import { useAutoSync } from "@/hooks/useAutoSync";
 import { DashboardShell } from "./components/DashboardShell";
 import { AssignmentList } from "./components/AssignmentList";
 import { NewAssignmentsBanner } from "./components/NewAssignmentsBanner";
@@ -54,6 +55,8 @@ export function DashboardClient() {
   const [minDurationElapsed, setMinDurationElapsed] = useState(false);
 
   const sessionId = session?.id ?? null;
+
+  useAutoSync({ sessionId, user: currentUser ?? null });
 
   // Decide whether to surface the loading screen for this Clerk session.
   // Runs once Clerk has resolved — if the stored session id differs from

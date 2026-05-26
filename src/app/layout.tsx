@@ -31,6 +31,14 @@ export default function RootLayout({
   return (
     <ClerkProvider>
       <html lang="en">
+        <head>
+          {/* Apply stored theme before first paint to prevent flash */}
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `(function(){try{var t=localStorage.getItem('nodegent-theme');if(t==='light')document.documentElement.classList.add('light');}catch(e){}})();`,
+            }}
+          />
+        </head>
         <body className={`${ibmPlexSans.variable} ${caveat.variable}`}>
           <ConvexClientProvider>{children}</ConvexClientProvider>
         </body>

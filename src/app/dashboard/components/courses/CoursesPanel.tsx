@@ -31,7 +31,7 @@ function ColorBar({
   const inputRef = useRef<HTMLInputElement>(null);
 
   return (
-    <div className="relative h-2 w-full group" title="Click to customize color">
+    <div className="course-color-bar relative h-2 w-full group" title="Click to customize color">
       <div
         className="absolute inset-0 cursor-pointer"
         style={{ backgroundColor: color }}

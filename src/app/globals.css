@@ -409,3 +409,252 @@
   to { opacity: 1; transform: translateY(0); }
 }
 .reveal-up { animation: reveal-up 0.7s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+
+/* =========================================================================
+   DARK MODE — active when <html> does NOT have the .light class.
+   Light mode (existing cream/beige design) is enabled by adding .light to <html>.
+   ========================================================================= */
+
+/* Brand token overrides — warm olive-tinted dark palette */
+html:not(.light) {
+  --color-brand-bg: #15160E;
+  --color-brand-text: #E8EAE1;
+  --color-brand-primary: #242519;
+}
+
+html:not(.light) body {
+  background-color: #15160E;
+  color: #E8EAE1;
+}
+
+/* Desktop carpet: dark overlay at 62% lets 38% of the pattern show through.
+   The medium-olive result (~#5A594E) keeps the bg dark while preserving the
+   brand texture. The window (#1E1F17) reads clearly darker on top of it. */
+html:not(.light) .desktop-bg {
+  background-color: #15160E;
+  background-image:
+    linear-gradient(rgba(18, 20, 10, 0.62), rgba(18, 20, 10, 0.62)),
+    url("https://res.cloudinary.com/dmukukwp6/image/upload/carpet_light_27d74f73b5.png");
+  background-size: 100% 100%, 200px 200px;
+  background-repeat: no-repeat, repeat;
+}
+
+/* Top navigation bar */
+html:not(.light) nav {
+  background-color: #1A1B13 !important;
+  border-color: #2C2D22 !important;
+}
+html:not(.light) nav a,
+html:not(.light) nav button,
+html:not(.light) nav span {
+  color: #E8EAE1;
+}
+html:not(.light) nav [class~="text-black"] {
+  color: #E8EAE1 !important;
+}
+
+/* OS window — sits darker than the medium-olive bg for clear visual pop */
+html:not(.light) .window-shadow {
+  background-color: #191A12 !important;
+  border-color: #2A2B20 !important;
+  box-shadow:
+    0 32px 80px -16px rgba(0, 0, 0, 0.85),
+    0 0 0 1px rgba(255, 255, 255, 0.06) !important;
+}
+
+/* ---- Surfaces ---- */
+html:not(.light) .window-shadow [class~="bg-white"] {
+  background-color: #242519 !important;
+}
+html:not(.light) .window-shadow [class~="bg-gray-50"] {
+  background-color: #2B2C23 !important;
+}
+html:not(.light) .window-shadow [class~="bg-gray-100"] {
+  background-color: #323328 !important;
+}
+html:not(.light) .window-shadow [class~="bg-[#F6F6F6]"] {
+  background-color: #2B2C23 !important;
+}
+html:not(.light) .window-shadow [class~="bg-[#EFEFEF]"] {
+  background-color: #222319 !important;
+}
+
+/* ---- Urgency card backgrounds (assignment cards & notification banner) ---- */
+html:not(.light) .window-shadow [class~="bg-amber-50"] {
+  background-color: #2C2718 !important;
+}
+html:not(.light) .window-shadow [class~="bg-orange-50"] {
+  background-color: #2A1F10 !important;
+}
+html:not(.light) .window-shadow [class~="bg-red-50"] {
+  background-color: #291414 !important;
+}
+html:not(.light) .window-shadow [class~="bg-yellow-50"] {
+  background-color: #27230D !important;
+}
+
+/* ---- Borders ---- */
+html:not(.light) .window-shadow [class~="border-gray-300"],
+html:not(.light) .window-shadow [class~="border-gray-200"] {
+  border-color: #303126 !important;
+}
+html:not(.light) .window-shadow [class~="border-gray-100"] {
+  border-color: #262719 !important;
+}
+html:not(.light) .window-shadow [class~="border-amber-200"] {
+  border-color: rgba(205, 132, 7, 0.30) !important;
+}
+html:not(.light) .window-shadow [class~="border-amber-100"] {
+  border-color: rgba(205, 132, 7, 0.18) !important;
+}
+html:not(.light) .window-shadow [class~="border-orange-200"] {
+  border-color: rgba(235, 157, 42, 0.30) !important;
+}
+html:not(.light) .window-shadow [class~="border-red-200"] {
+  border-color: rgba(243, 77, 82, 0.30) !important;
+}
+html:not(.light) .window-shadow [class~="border-yellow-200"] {
+  border-color: rgba(205, 132, 7, 0.24) !important;
+}
+
+/* ---- Dividers ---- */
+html:not(.light) .window-shadow .divide-gray-100 > * + * {
+  border-color: #262719 !important;
+}
+html:not(.light) .window-shadow .divide-gray-200 > * + * {
+  border-color: #303126 !important;
+}
+
+/* ---- Text hierarchy ---- */
+html:not(.light) .window-shadow [class~="text-gray-900"],
+html:not(.light) .window-shadow [class~="text-gray-800"] {
+  color: #E8EAE1 !important;
+}
+html:not(.light) .window-shadow [class~="text-gray-700"] {
+  color: #B8BAB0 !important;
+}
+html:not(.light) .window-shadow [class~="text-gray-600"] {
+  color: #9A9C94 !important;
+}
+html:not(.light) .window-shadow [class~="text-gray-500"] {
+  color: #858780 !important;
+}
+/* gray-400 used for metadata (dates, pts) — kept readable at ~4:1 contrast */
+html:not(.light) .window-shadow [class~="text-gray-400"] {
+  color: #7A7C74 !important;
+}
+
+/* Hardcoded brand dark text in assignment cards and notification banner */
+html:not(.light) .window-shadow [class~="text-[#4D4F46]"] {
+  color: #E8EAE1 !important;
+}
+
+/* ---- Hover states ---- */
+html:not(.light) .window-shadow [class~="hover:bg-gray-50"]:hover {
+  background-color: #34352B !important;
+}
+html:not(.light) .window-shadow [class~="hover:bg-gray-100"]:hover {
+  background-color: #34352B !important;
+}
+
+/* ---- Input fields ---- */
+html:not(.light) .window-shadow input,
+html:not(.light) .window-shadow textarea,
+html:not(.light) .window-shadow select {
+  background-color: #1A1B13 !important;
+  color: #E8EAE1 !important;
+  border-color: #303126 !important;
+}
+html:not(.light) .window-shadow input::placeholder,
+html:not(.light) .window-shadow textarea::placeholder {
+  color: #6C6D66 !important;
+}
+
+/* brutal-border adapted for dark — light stroke for visibility */
+html:not(.light) .window-shadow .brutal-border {
+  border-color: #C8CAC0;
+  box-shadow: 2px 2px 0px 0px #C8CAC0;
+}
+html:not(.light) .window-shadow .brutal-border-lg {
+  border-color: #C8CAC0;
+  box-shadow: 4px 4px 0px 0px #C8CAC0;
+}
+
+/* ---- Calendar-specific backgrounds ---- */
+/* CalendarPanel outer bg */
+html:not(.light) .window-shadow [class~="bg-[#FAFAF8]"] {
+  background-color: #1E1F17 !important;
+}
+/* Blank leading/trailing cells */
+html:not(.light) .window-shadow [class~="bg-[#F9F9F7]"] {
+  background-color: #191A12 !important;
+}
+/* Selected day cell */
+html:not(.light) .window-shadow [class~="bg-[#FFF3DC]"] {
+  background-color: #2E2516 !important;
+}
+/* Hover state on day cells */
+html:not(.light) .window-shadow [class~="hover:bg-[#FAFAF7]"]:hover {
+  background-color: #2A2B22 !important;
+}
+/* Grid gap color (the 1px lines between cells) — lighter than cells for visible grid */
+html:not(.light) .window-shadow [class~="bg-gray-200"] {
+  background-color: #363729 !important;
+}
+
+/* ---- Course color bar — desaturate neon palette colors in dark mode ---- */
+html:not(.light) .window-shadow .course-color-bar > div {
+  filter: brightness(0.6) saturate(0.55);
+}
+/* Course code badge — pill span with text-white + inline bg color.
+   box-shadow inset paints between the background and the text, so the dark
+   tint dims the course color while white text stays fully opaque. */
+html:not(.light) .window-shadow span[class~="text-white"][style*="background-color"] {
+  box-shadow: inset 0 0 0 9999px rgba(0, 0, 0, 0.48);
+}
+/* Calendar event dots and legend dots — rounded-full with inline bg.
+   Keep colors vivid so each course stays visually distinct on the dark grid. */
+html:not(.light) .window-shadow span[class~="rounded-full"][style*="background-color"] {
+  filter: brightness(0.95) saturate(0.95);
+}
+
+/* ---- Pending badge inside course cards ---- */
+html:not(.light) .window-shadow [class~="bg-amber-100"] {
+  background-color: #332A10 !important;
+}
+html:not(.light) .window-shadow [class~="text-amber-800"] {
+  color: #E8A930 !important;
+}
+
+/* ---- Urgency card pop: brighter tint + left accent bar ---- */
+html:not(.light) .window-shadow [class~="bg-orange-50"][class~="border-orange-200"] {
+  background-color: #3D2410 !important;
+  border-left-color: #EB9D2A !important;
+  border-left-width: 3px !important;
+}
+html:not(.light) .window-shadow [class~="bg-red-50"][class~="border-red-200"] {
+  background-color: #3A1414 !important;
+  border-left-color: #F34D52 !important;
+  border-left-width: 3px !important;
+}
+html:not(.light) .window-shadow [class~="bg-amber-50"][class~="border-amber-200"] {
+  background-color: #38300F !important;
+  border-left-color: #CD8407 !important;
+  border-left-width: 3px !important;
+}
+html:not(.light) .window-shadow [class~="bg-yellow-50"][class~="border-yellow-200"] {
+  background-color: #2F2B0C !important;
+  border-left-color: #CD8407 !important;
+  border-left-width: 3px !important;
+}
+
+/* Snap-in widget panels that live outside .window-shadow scope */
+html:not(.light) [class~="bg-white"][class~="rounded-xl"],
+html:not(.light) [class~="bg-white"][class~="rounded-2xl"] {
+  background-color: #242519 !important;
+  border-color: #303126 !important;
+}
+html:not(.light) [class~="bg-white"][class~="rounded-xl"] [class~="text-gray-900"],
+html:not(.light) [class~="bg-white"][class~="rounded-2xl"] [class~="text-gray-900"] {
+  color: #E8EAE1 !important;
+}
