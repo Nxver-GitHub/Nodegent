@@ -5,6 +5,7 @@ import { LandingHero } from "./_components/landing/LandingHero";
 import { BeforeAfter } from "./_components/landing/BeforeAfter";
 import { FeatureGrid } from "./_components/landing/FeatureGrid";
 import { HowItWorks } from "./_components/landing/HowItWorks";
+import { FAQ } from "./_components/landing/FAQ";
 import { BuiltByStudents } from "./_components/landing/BuiltByStudents";
 import { LandingFinalCta } from "./_components/landing/LandingFinalCta";
 import { LandingFooter } from "./_components/landing/LandingFooter";
@@ -26,6 +27,7 @@ export default async function HomePage() {
       <BeforeAfter />
       <FeatureGrid />
       <HowItWorks />
+      <FAQ />
       <BuiltByStudents />
       <LandingFinalCta />
       <LandingFooter />
