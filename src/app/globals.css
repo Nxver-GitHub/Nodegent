@@ -427,15 +427,15 @@ html:not(.light) body {
   color: #E8EAE1;
 }
 
-/* Desktop carpet: preserve the texture via layered background.
-   A near-opaque dark overlay sits atop the repeating pattern image,
-   letting ~9% of the light carpet show through as subtle texture. */
+/* Desktop carpet: dark overlay at 62% lets 38% of the pattern show through.
+   The medium-olive result (~#5A594E) keeps the bg dark while preserving the
+   brand texture. The window (#1E1F17) reads clearly darker on top of it. */
 html:not(.light) .desktop-bg {
   background-color: #15160E;
   background-image:
-    linear-gradient(rgba(21, 22, 14, 0.91), rgba(21, 22, 14, 0.91)),
+    linear-gradient(rgba(18, 20, 10, 0.62), rgba(18, 20, 10, 0.62)),
     url("https://res.cloudinary.com/dmukukwp6/image/upload/carpet_light_27d74f73b5.png");
-  background-size: cover, 200px 200px;
+  background-size: 100% 100%, 200px 200px;
   background-repeat: no-repeat, repeat;
 }
 
@@ -453,13 +453,13 @@ html:not(.light) nav [class~="text-black"] {
   color: #E8EAE1 !important;
 }
 
-/* OS window — deeper shadow for drama, subtle inner highlight for glass-like edge */
+/* OS window — sits darker than the medium-olive bg for clear visual pop */
 html:not(.light) .window-shadow {
-  background-color: #1E1F17 !important;
-  border-color: #2C2D22 !important;
+  background-color: #191A12 !important;
+  border-color: #2A2B20 !important;
   box-shadow:
-    0 32px 80px -16px rgba(0, 0, 0, 0.8),
-    0 0 0 1px rgba(255, 255, 255, 0.05) !important;
+    0 32px 80px -16px rgba(0, 0, 0, 0.85),
+    0 0 0 1px rgba(255, 255, 255, 0.06) !important;
 }
 
 /* ---- Surfaces ---- */
