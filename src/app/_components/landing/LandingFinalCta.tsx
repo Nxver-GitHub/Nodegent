@@ -40,7 +40,7 @@ export function LandingFinalCta() {
             </Link>
             <Link
               href="/sign-in"
-              className="text-sm font-semibold text-[#4D4F46] underline-offset-4 hover:text-black hover:underline"
+              className="inline-flex items-center py-2 text-sm font-semibold text-[#4D4F46] underline-offset-4 hover:text-black hover:underline"
             >
               I already have an account
             </Link>

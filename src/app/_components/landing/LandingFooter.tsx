@@ -17,7 +17,7 @@ export function LandingFooter() {
           href="https://github.com/"
           target="_blank"
           rel="noreferrer"
-          className="inline-flex items-center gap-1.5 font-semibold hover:text-black"
+          className="inline-flex items-center gap-1.5 py-2 font-semibold hover:text-black"
         >
           <GithubLogo size={14} weight="bold" />
           GitHub
