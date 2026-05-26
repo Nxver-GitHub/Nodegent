@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { LandingHeader } from "./_components/landing/LandingHeader";
 import { LandingHero } from "./_components/landing/LandingHero";
+import { BeforeAfter } from "./_components/landing/BeforeAfter";
 import { FeatureGrid } from "./_components/landing/FeatureGrid";
 import { HowItWorks } from "./_components/landing/HowItWorks";
 import { BuiltByStudents } from "./_components/landing/BuiltByStudents";
@@ -22,6 +23,7 @@ export default async function HomePage() {
     <main className="desktop-bg min-h-screen">
       <LandingHeader />
       <LandingHero />
+      <BeforeAfter />
       <FeatureGrid />
       <HowItWorks />
       <BuiltByStudents />

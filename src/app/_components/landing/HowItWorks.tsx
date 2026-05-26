@@ -3,6 +3,7 @@ import {
   ArrowsClockwise,
   ChatCircleText,
 } from "@phosphor-icons/react/dist/ssr";
+import { RevealOnScroll } from "./RevealOnScroll";
 
 const STEPS = [
   {
@@ -35,6 +36,7 @@ export function HowItWorks() {
   return (
     <section id="how-it-works" className="w-full px-6 py-20">
       <div className="mx-auto max-w-7xl">
+        <RevealOnScroll>
         <div className="mb-14 max-w-3xl">
           <p className="mb-3 inline-block rounded-full border border-gray-300 bg-white px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-gray-800">
             How it works
@@ -49,10 +51,11 @@ export function HowItWorks() {
             </p>
           </div>
         </div>
+        </RevealOnScroll>
         <div className="grid gap-5 md:grid-cols-3">
-          {STEPS.map((step) => (
+          {STEPS.map((step, i) => (
+            <RevealOnScroll key={step.number} delay={i * 0.1}>
             <div
-              key={step.number}
               className="brutal-border-lg flex flex-col gap-4 rounded-lg bg-white p-6"
             >
               <div className="flex items-center justify-between">
@@ -72,6 +75,7 @@ export function HowItWorks() {
                 {step.description}
               </p>
             </div>
+            </RevealOnScroll>
           ))}
         </div>
       </div>

@@ -7,6 +7,7 @@ import {
   MapPin,
 } from "@phosphor-icons/react/dist/ssr";
 import { CalculatorIllustration } from "./CalculatorIllustration";
+import { RevealOnScroll } from "./RevealOnScroll";
 
 const CALLOUTS = [
   {
@@ -42,6 +43,7 @@ export function BuiltByStudents() {
       />
       <div className="relative mx-auto grid max-w-7xl grid-cols-1 items-center gap-12 lg:grid-cols-[1fr_1.1fr]">
         {/* Left — "open notebook" card with the team story */}
+        <RevealOnScroll direction="left">
         <div className="relative flex flex-col">
           {/* Floating handwritten sticky note */}
           <div
@@ -105,17 +107,20 @@ export function BuiltByStudents() {
             <CalculatorIllustration />
           </div>
         </div>
+        </RevealOnScroll>
 
         {/* Right — callouts */}
         <div className="flex flex-col gap-4">
-          <div className="flex items-center gap-3">
-            <p className="inline-block rounded-full border border-gray-300 bg-white px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-gray-800">
-              Why students stay
-            </p>
-          </div>
-          {CALLOUTS.map((c) => (
+          <RevealOnScroll>
+            <div className="flex items-center gap-3">
+              <p className="inline-block rounded-full border border-gray-300 bg-white px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-gray-800">
+                Why students stay
+              </p>
+            </div>
+          </RevealOnScroll>
+          {CALLOUTS.map((c, i) => (
+            <RevealOnScroll key={c.title} delay={i * 0.1}>
             <div
-              key={c.title}
               className="brutal-border-lg flex items-start gap-4 rounded-lg bg-white p-5"
             >
               <div
@@ -132,6 +137,7 @@ export function BuiltByStudents() {
                 </p>
               </div>
             </div>
+            </RevealOnScroll>
           ))}
         </div>
       </div>

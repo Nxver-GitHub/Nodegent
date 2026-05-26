@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { ArrowRight, Graph } from "@phosphor-icons/react/dist/ssr";
+import { RevealOnScroll } from "./RevealOnScroll";
 
 export function LandingFinalCta() {
   return (
     <section className="w-full px-6 py-24">
+      <RevealOnScroll>
       <div className="brutal-border-lg mx-auto max-w-4xl overflow-hidden rounded-lg bg-white">
         {/* Window title bar — reinforces the OS aesthetic */}
         <div className="relative flex h-9 items-center justify-between border-b border-gray-300 bg-[#F6F6F6] px-3">
@@ -45,6 +47,7 @@ export function LandingFinalCta() {
           </div>
         </div>
       </div>
+      </RevealOnScroll>
     </section>
   );
 }

@@ -5,6 +5,7 @@ import {
   ShieldCheck,
 } from "@phosphor-icons/react/dist/ssr";
 import { FeatureCard } from "./FeatureCard";
+import { RevealOnScroll } from "./RevealOnScroll";
 
 const FEATURES = [
   {
@@ -41,6 +42,7 @@ export function FeatureGrid() {
   return (
     <section id="features" className="w-full px-6 py-20">
       <div className="mx-auto max-w-7xl">
+        <RevealOnScroll>
         <div className="mb-14 max-w-3xl">
           <p className="mb-3 inline-block rounded-full border border-gray-300 bg-white px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-gray-800">
             Features
@@ -55,15 +57,17 @@ export function FeatureGrid() {
             </p>
           </div>
         </div>
+        </RevealOnScroll>
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {FEATURES.map((feature) => (
-            <FeatureCard
-              key={feature.title}
-              icon={feature.icon}
-              title={feature.title}
-              description={feature.description}
-              accent={feature.accent}
-            />
+          {FEATURES.map((feature, i) => (
+            <RevealOnScroll key={feature.title} delay={i * 0.08} className="h-full">
+              <FeatureCard
+                icon={feature.icon}
+                title={feature.title}
+                description={feature.description}
+                accent={feature.accent}
+              />
+            </RevealOnScroll>
           ))}
         </div>
       </div>
