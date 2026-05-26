@@ -69,27 +69,21 @@ export function LandingHero() {
 
         </div>
 
-        {/* Right column — MacBook + textbooks as desk scene */}
-        <div className="relative z-10 flex w-full items-end justify-center gap-5 lg:justify-end">
-          {/* Textbooks stacked on the desk beside the laptop */}
-          <div className="hidden shrink-0 pb-5 lg:block">
-            <TextbookStack className="w-40" />
-          </div>
-          <div className="relative w-full max-w-xl lg:max-w-[480px]">
+        {/* Right column — MacBook with textbooks on the desk beside it */}
+        <div className="relative z-10 flex w-full items-center justify-center lg:justify-end">
+          <div className="relative w-full max-w-xl">
+            {/* Textbooks — absolutely positioned to the lower-left, sitting on the desk */}
+            <div className="absolute bottom-0 z-10 hidden w-40 lg:block lg:-left-44">
+              <TextbookStack />
+            </div>
+
             <div className="float-slow">
               <MacBookFrame>
                 <DashboardMockup />
               </MacBookFrame>
             </div>
 
-            {/* Sticky note nudges — properly tape-pinned, vivid Post-it paper */}
-            <div
-              className="sticky sticky-yellow font-hand absolute -bottom-2 -left-2 z-20 hidden rotate-[-7deg] text-center text-gray-900 sm:block lg:-bottom-6 lg:-left-12"
-              aria-hidden="true"
-            >
-              <p className="text-[20px] leading-tight">click the tabs!</p>
-              <p className="text-[15px] text-gray-700">try every view →</p>
-            </div>
+            {/* Pink sticky note — top-right of MacBook */}
             <div
               className="sticky sticky-pink font-hand absolute -top-4 -right-1 z-20 hidden rotate-[8deg] text-center text-gray-900 md:block lg:-top-6 lg:-right-8"
               aria-hidden="true"
