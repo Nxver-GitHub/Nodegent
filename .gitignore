@@ -12,6 +12,10 @@
 /coverage
 /playwright-report
 /test-results
+/.playwright-mcp/
+# Local visual-check screenshots written by Playwright MCP
+/landing-*.png
+/sign-in-page.png
 
 # next.js
 /.next/
