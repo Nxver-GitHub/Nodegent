@@ -415,138 +415,178 @@
    Light mode (existing cream/beige design) is enabled by adding .light to <html>.
    ========================================================================= */
 
-/* Override brand CSS custom property tokens */
+/* Brand token overrides — warm olive-tinted dark palette */
 html:not(.light) {
-  --color-brand-bg: #1C1D1A;
-  --color-brand-text: #E0E1DB;
-  --color-brand-primary: #2A2B27;
+  --color-brand-bg: #15160E;
+  --color-brand-text: #E8EAE1;
+  --color-brand-primary: #242519;
 }
 
 html:not(.light) body {
-  background-color: #1C1D1A;
-  color: #E0E1DB;
+  background-color: #15160E;
+  color: #E8EAE1;
 }
 
-/* Desktop carpet becomes a flat dark surface */
+/* Desktop carpet: preserve the texture via layered background.
+   A near-opaque dark overlay sits atop the repeating pattern image,
+   letting ~9% of the light carpet show through as subtle texture. */
 html:not(.light) .desktop-bg {
-  background-color: #1C1D1A;
-  background-image: none;
+  background-color: #15160E;
+  background-image:
+    linear-gradient(rgba(21, 22, 14, 0.91), rgba(21, 22, 14, 0.91)),
+    url("https://res.cloudinary.com/dmukukwp6/image/upload/carpet_light_27d74f73b5.png");
+  background-size: cover, 200px 200px;
+  background-repeat: no-repeat, repeat;
 }
 
 /* Top navigation bar */
 html:not(.light) nav {
-  background-color: #1E1F1C !important;
-  border-color: #3A3B37 !important;
+  background-color: #1A1B13 !important;
+  border-color: #2C2D22 !important;
 }
 html:not(.light) nav a,
 html:not(.light) nav button,
 html:not(.light) nav span {
-  color: #E0E1DB;
+  color: #E8EAE1;
+}
+html:not(.light) nav [class~="text-black"] {
+  color: #E8EAE1 !important;
 }
 
-/* OS window outer frame */
+/* OS window — deeper shadow for drama, subtle inner highlight for glass-like edge */
 html:not(.light) .window-shadow {
-  background-color: #252621 !important;
-  border-color: #3A3B37 !important;
+  background-color: #1E1F17 !important;
+  border-color: #2C2D22 !important;
+  box-shadow:
+    0 32px 80px -16px rgba(0, 0, 0, 0.8),
+    0 0 0 1px rgba(255, 255, 255, 0.05) !important;
 }
 
-/* All bg-white panels inside the OS window */
+/* ---- Surfaces ---- */
 html:not(.light) .window-shadow [class~="bg-white"] {
-  background-color: #2E2F2B !important;
+  background-color: #242519 !important;
 }
 html:not(.light) .window-shadow [class~="bg-gray-50"] {
-  background-color: #2A2B27 !important;
+  background-color: #2B2C23 !important;
 }
 html:not(.light) .window-shadow [class~="bg-gray-100"] {
-  background-color: #303128 !important;
+  background-color: #323328 !important;
 }
-
-/* Window-specific hardcoded bg colors */
 html:not(.light) .window-shadow [class~="bg-[#F6F6F6]"] {
-  background-color: #2A2B27 !important;
+  background-color: #2B2C23 !important;
 }
 html:not(.light) .window-shadow [class~="bg-[#EFEFEF]"] {
-  background-color: #1E1F1C !important;
+  background-color: #222319 !important;
 }
 
-/* Text in the dashboard */
-html:not(.light) .window-shadow [class~="text-gray-900"],
-html:not(.light) .window-shadow [class~="text-gray-800"] {
-  color: #E0E1DB !important;
+/* ---- Urgency card backgrounds (assignment cards & notification banner) ---- */
+html:not(.light) .window-shadow [class~="bg-amber-50"] {
+  background-color: #2C2718 !important;
 }
-html:not(.light) .window-shadow [class~="text-gray-700"] {
-  color: #B8B9B3 !important;
+html:not(.light) .window-shadow [class~="bg-orange-50"] {
+  background-color: #2A1F10 !important;
 }
-html:not(.light) .window-shadow [class~="text-gray-600"] {
-  color: #A0A19C !important;
+html:not(.light) .window-shadow [class~="bg-red-50"] {
+  background-color: #291414 !important;
 }
-html:not(.light) .window-shadow [class~="text-gray-500"] {
-  color: #6E6F6A !important;
-}
-html:not(.light) .window-shadow [class~="text-gray-400"] {
-  color: #5A5B56 !important;
+html:not(.light) .window-shadow [class~="bg-yellow-50"] {
+  background-color: #27230D !important;
 }
 
-/* Borders inside window */
+/* ---- Borders ---- */
 html:not(.light) .window-shadow [class~="border-gray-300"],
 html:not(.light) .window-shadow [class~="border-gray-200"] {
-  border-color: #3A3B37 !important;
+  border-color: #303126 !important;
 }
 html:not(.light) .window-shadow [class~="border-gray-100"] {
-  border-color: #2E2F2B !important;
+  border-color: #262719 !important;
+}
+html:not(.light) .window-shadow [class~="border-amber-200"] {
+  border-color: rgba(205, 132, 7, 0.30) !important;
+}
+html:not(.light) .window-shadow [class~="border-amber-100"] {
+  border-color: rgba(205, 132, 7, 0.18) !important;
+}
+html:not(.light) .window-shadow [class~="border-orange-200"] {
+  border-color: rgba(235, 157, 42, 0.30) !important;
+}
+html:not(.light) .window-shadow [class~="border-red-200"] {
+  border-color: rgba(243, 77, 82, 0.30) !important;
+}
+html:not(.light) .window-shadow [class~="border-yellow-200"] {
+  border-color: rgba(205, 132, 7, 0.24) !important;
 }
 
-/* Dividers */
+/* ---- Dividers ---- */
 html:not(.light) .window-shadow .divide-gray-100 > * + * {
-  border-color: #2E2F2B !important;
+  border-color: #262719 !important;
 }
 html:not(.light) .window-shadow .divide-gray-200 > * + * {
-  border-color: #3A3B37 !important;
+  border-color: #303126 !important;
 }
 
-/* Hover states inside window */
+/* ---- Text hierarchy ---- */
+html:not(.light) .window-shadow [class~="text-gray-900"],
+html:not(.light) .window-shadow [class~="text-gray-800"] {
+  color: #E8EAE1 !important;
+}
+html:not(.light) .window-shadow [class~="text-gray-700"] {
+  color: #B8BAB0 !important;
+}
+html:not(.light) .window-shadow [class~="text-gray-600"] {
+  color: #9A9C94 !important;
+}
+html:not(.light) .window-shadow [class~="text-gray-500"] {
+  color: #858780 !important;
+}
+/* gray-400 used for metadata (dates, pts) — kept readable at ~4:1 contrast */
+html:not(.light) .window-shadow [class~="text-gray-400"] {
+  color: #7A7C74 !important;
+}
+
+/* Hardcoded brand dark text in assignment cards and notification banner */
+html:not(.light) .window-shadow [class~="text-[#4D4F46]"] {
+  color: #E8EAE1 !important;
+}
+
+/* ---- Hover states ---- */
 html:not(.light) .window-shadow [class~="hover:bg-gray-50"]:hover {
-  background-color: #363730 !important;
+  background-color: #34352B !important;
 }
 html:not(.light) .window-shadow [class~="hover:bg-gray-100"]:hover {
-  background-color: #363730 !important;
+  background-color: #34352B !important;
 }
 
-/* Input fields */
+/* ---- Input fields ---- */
 html:not(.light) .window-shadow input,
 html:not(.light) .window-shadow textarea,
 html:not(.light) .window-shadow select {
-  background-color: #1E1F1C !important;
-  color: #E0E1DB !important;
-  border-color: #3A3B37 !important;
+  background-color: #1A1B13 !important;
+  color: #E8EAE1 !important;
+  border-color: #303126 !important;
 }
 html:not(.light) .window-shadow input::placeholder,
 html:not(.light) .window-shadow textarea::placeholder {
-  color: #6E6F6A !important;
+  color: #6C6D66 !important;
 }
 
-/* brutal-border shadow inverted for dark surfaces */
+/* brutal-border adapted for dark — light stroke for visibility */
 html:not(.light) .window-shadow .brutal-border {
-  border-color: #D4D5CF;
-  box-shadow: 2px 2px 0px 0px #D4D5CF;
+  border-color: #C8CAC0;
+  box-shadow: 2px 2px 0px 0px #C8CAC0;
 }
 html:not(.light) .window-shadow .brutal-border-lg {
-  border-color: #D4D5CF;
-  box-shadow: 4px 4px 0px 0px #D4D5CF;
+  border-color: #C8CAC0;
+  box-shadow: 4px 4px 0px 0px #C8CAC0;
 }
 
-/* Snap-in widget / snapshot panels */
+/* Snap-in widget panels that live outside .window-shadow scope */
 html:not(.light) [class~="bg-white"][class~="rounded-xl"],
 html:not(.light) [class~="bg-white"][class~="rounded-2xl"] {
-  background-color: #252621 !important;
-  border-color: #3A3B37 !important;
+  background-color: #242519 !important;
+  border-color: #303126 !important;
 }
 html:not(.light) [class~="bg-white"][class~="rounded-xl"] [class~="text-gray-900"],
 html:not(.light) [class~="bg-white"][class~="rounded-2xl"] [class~="text-gray-900"] {
-  color: #E0E1DB !important;
-}
-
-/* Active / selected nav items */
-html:not(.light) nav [class~="text-black"] {
-  color: #E0E1DB !important;
+  color: #E8EAE1 !important;
 }
