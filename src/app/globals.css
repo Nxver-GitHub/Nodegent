@@ -8,6 +8,12 @@
   html {
     scroll-behavior: smooth;
   }
+  /* Offset anchor scroll targets so sticky header doesn't cover headings */
+  #features,
+  #how-it-works,
+  #faq {
+    scroll-margin-top: 64px;
+  }
 }
 
 @theme {

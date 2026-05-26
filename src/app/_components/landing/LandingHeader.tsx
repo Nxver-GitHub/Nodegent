@@ -47,6 +47,12 @@ export function LandingHeader() {
               >
                 How it works
               </a>
+              <a
+                href="#faq"
+                className="hidden text-[#4D4F46] hover:text-black hover:underline underline-offset-4 md:inline"
+              >
+                FAQ
+              </a>
               <Link
                 href="/sign-in"
                 className="hidden text-[#4D4F46] hover:text-black hover:underline underline-offset-4 sm:inline"
