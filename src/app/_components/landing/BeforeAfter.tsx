@@ -95,21 +95,25 @@ export function BeforeAfter() {
               </div>
 
               {/* Caption */}
-              <p className="mt-4 text-center text-[12px] font-semibold text-gray-500">
-                5 apps · 14 notifications · still not sure what&apos;s due
-              </p>
+              <div className="brutal-border mt-4 rounded-md bg-white px-4 py-2.5 text-center">
+                <p className="text-[14px] font-semibold text-gray-700">
+                  5 apps · 14 notifications · still not sure what&apos;s due
+                </p>
+              </div>
             </div>
           </RevealOnScroll>
 
           {/* Center arrow */}
           <RevealOnScroll delay={0.15} className="flex flex-col items-center justify-center gap-3">
             <div className="hidden h-16 w-px bg-gray-300 lg:block" aria-hidden="true" />
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#1D1D1D] text-sm font-bold text-white shadow-md">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#1D1D1D] text-base font-bold text-white shadow-md">
               →
             </div>
-            <p className="text-center text-[10px] font-bold uppercase tracking-widest text-gray-500">
-              with<br />Nodegent
-            </p>
+            <div className="brutal-border rounded-md bg-white px-3 py-1.5 text-center">
+              <p className="text-[12px] font-bold uppercase tracking-wider text-gray-800">
+                with<br />Nodegent
+              </p>
+            </div>
             <div className="hidden h-16 w-px bg-gray-300 lg:block" aria-hidden="true" />
           </RevealOnScroll>
 
@@ -170,9 +174,11 @@ export function BeforeAfter() {
               </div>
 
               {/* Caption */}
-              <p className="mt-4 text-center text-[12px] font-semibold text-[#4D4F46]">
-                One dashboard · everything synced · AI knows your schedule
-              </p>
+              <div className="brutal-border mt-4 rounded-md bg-white px-4 py-2.5 text-center">
+                <p className="text-[14px] font-semibold text-gray-700">
+                  One dashboard · everything synced · AI knows your schedule
+                </p>
+              </div>
             </div>
           </RevealOnScroll>
         </div>
