@@ -3,6 +3,7 @@ import { ArrowRight, Sparkle } from "@phosphor-icons/react/dist/ssr";
 import { DashboardMockup } from "./DashboardMockup";
 import { MacBookFrame } from "./MacBookFrame";
 import { TextbookStack } from "./TextbookStack";
+import { StickyNoteFlip } from "./StickyNoteFlip";
 
 export function LandingHero() {
   return (
@@ -62,36 +63,40 @@ export function LandingHero() {
               Free for students
             </span>
             <span aria-hidden="true" className="text-gray-400">|</span>
-            <span>Bring your own LLM API key</span>
+            <span>Powered by Llama on Groq</span>
             <span aria-hidden="true" className="text-gray-400">|</span>
             <span>No credit card required</span>
           </div>
 
+          {/* Sticky notes — mobile only (md+ shows them below the laptop on the right) */}
+          <div className="mt-6 md:hidden">
+            <StickyNoteFlip />
+          </div>
+
+          {/* Textbooks — bottom of left column, desktop only, opens horizontally */}
+          <div className="mt-8 hidden lg:block">
+            <TextbookStack />
+          </div>
+
         </div>
 
-        {/* Right column — MacBook with textbooks on the desk beside it */}
-        <div className="relative z-10 flex w-full items-center justify-center lg:justify-end">
+        {/* Right column — MacBook + sticky notes below */}
+        <div className="relative z-10 flex w-full flex-col items-center justify-center gap-6 lg:items-end">
           <div className="relative w-full max-w-xl">
-            {/* Textbooks — absolutely positioned to the lower-left, sitting on the desk */}
-            <div className="absolute bottom-0 z-10 hidden w-40 lg:block lg:-left-44">
-              <TextbookStack />
-            </div>
-
             <div className="float-slow">
               <MacBookFrame>
                 <DashboardMockup />
               </MacBookFrame>
             </div>
+          </div>
 
-            {/* Pink sticky note — top-right of MacBook */}
-            <div
-              className="sticky sticky-pink font-hand absolute -top-4 -right-1 z-20 hidden rotate-[8deg] text-center text-gray-900 md:block lg:-top-6 lg:-right-8"
-              aria-hidden="true"
-            >
-              <p className="text-[18px] leading-tight">✨ it auto-cycles too</p>
-            </div>
+          {/* Sticky notes — below the MacBook, flip between two */}
+          <div className="hidden md:flex w-full max-w-xl justify-center lg:justify-start lg:pl-8">
+            <StickyNoteFlip />
           </div>
         </div>
+
+
       </div>
     </section>
   );

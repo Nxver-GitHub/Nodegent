@@ -2,8 +2,9 @@ import { RevealOnScroll } from "./RevealOnScroll";
 
 export function BeforeAfter() {
   return (
-    <section className="w-full px-6 py-20">
-      <div className="mx-auto max-w-7xl">
+    <section className="relative w-full px-6 py-20">
+      <div className="pointer-events-none absolute inset-0 bg-white/30" aria-hidden="true" />
+      <div className="relative mx-auto max-w-7xl">
         {/* Heading */}
         <RevealOnScroll>
           <div className="mb-14 max-w-3xl">

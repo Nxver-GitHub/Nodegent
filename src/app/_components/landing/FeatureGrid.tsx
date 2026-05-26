@@ -40,8 +40,9 @@ const FEATURES = [
 
 export function FeatureGrid() {
   return (
-    <section id="features" className="w-full px-6 py-20">
-      <div className="mx-auto max-w-7xl">
+    <section id="features" className="relative w-full px-6 py-20">
+      <div className="pointer-events-none absolute inset-0 bg-white/30" aria-hidden="true" />
+      <div className="relative mx-auto max-w-7xl">
         <RevealOnScroll>
         <div className="mb-14 max-w-3xl">
           <p className="mb-3 inline-block rounded-full border border-gray-300 bg-white px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-gray-800">

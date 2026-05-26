@@ -22,7 +22,7 @@ const CALLOUTS = [
     color: "bg-[#CD8407] text-white",
     title: "Built around your data",
     description:
-      "Bring your own LLM key. Your assignments, calendar, and chat live in your Convex — not behind a paywall.",
+      "Powered by Meta Llama via Groq. Your assignments, calendar, and chat live in your Convex — not behind a paywall.",
   },
   {
     icon: <HeartStraight size={22} weight="fill" />,

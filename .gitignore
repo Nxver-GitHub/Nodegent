@@ -16,6 +16,9 @@
 # Local visual-check screenshots written by Playwright MCP
 /landing-*.png
 /sign-in-page.png
+/hero-after-fix.png
+/mobile-audit-375.png
+/mobile-hero.png
 
 # next.js
 /.next/

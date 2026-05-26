@@ -29,7 +29,7 @@ const BOOKS = [
     color: "#1D1D1D",
     rotate: 2,
     heading: "Ch. 4 — Built for Students",
-    body: "Free forever. Bring your own API key. Every agent action is logged and auditable — you’re always in control of what the AI can and can’t do.",
+    body: "Free forever. Powered by Meta Llama via Groq. Every agent action is logged and auditable — you're always in control of what the AI can and can't do.",
   },
 ];
 
@@ -37,11 +37,13 @@ export function TextbookStack({ className = "" }: { className?: string }) {
   const [openIdx, setOpenIdx] = useState<number | null>(null);
 
   return (
-    <div className={`flex flex-col gap-1.5 ${className}`}>
-      {BOOKS.map((b, i) => (
-        <div key={b.title}>
+    <div className={`flex flex-row items-center gap-2 ${className}`}>
+      {/* Spine column */}
+      <div className="flex flex-col gap-1.5">
+        {BOOKS.map((b, i) => (
           <button
-            className="textbook-spine w-full cursor-pointer text-left"
+            key={b.title}
+            className="textbook-spine w-36 cursor-pointer text-left"
             style={{
               backgroundColor: b.color,
               transform: openIdx === i ? "rotate(0deg) scale(1.03)" : `rotate(${b.rotate}deg)`,
@@ -53,34 +55,38 @@ export function TextbookStack({ className = "" }: { className?: string }) {
           >
             {b.title}
           </button>
+        ))}
+        <p className="mt-1.5 text-[11px] font-medium text-gray-600">click to open →</p>
+      </div>
 
-          <AnimatePresence>
-            {openIdx === i && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.22, ease: "easeInOut" }}
-                className="overflow-hidden"
+      {/* Content panel — slides in horizontally to the right */}
+      <AnimatePresence>
+        {openIdx !== null && (
+          <motion.div
+            key={openIdx}
+            initial={{ width: 0, opacity: 0 }}
+            animate={{ width: 200, opacity: 1 }}
+            exit={{ width: 0, opacity: 0 }}
+            transition={{ duration: 0.22, ease: "easeInOut" }}
+            className="flex-shrink-0 overflow-hidden"
+          >
+            <div
+              className="brutal-border w-[200px] rounded-md bg-white px-4 py-3"
+              style={{ borderLeft: `4px solid ${BOOKS[openIdx].color}` }}
+            >
+              <p
+                className="mb-1 text-[10px] font-bold uppercase tracking-wider"
+                style={{ color: BOOKS[openIdx].color }}
               >
-                <div
-                  className="brutal-border mt-1.5 rounded-md bg-white px-4 py-3"
-                  style={{ borderLeft: `4px solid ${b.color}` }}
-                >
-                  <p
-                    className="mb-1 text-[10px] font-bold uppercase tracking-wider"
-                    style={{ color: b.color }}
-                  >
-                    {b.heading}
-                  </p>
-                  <p className="text-[12px] leading-relaxed text-gray-800">{b.body}</p>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-      ))}
-      <p className="mt-1 text-[10px] text-gray-500">click any spine to open →</p>
+                {BOOKS[openIdx].heading}
+              </p>
+              <p className="text-[12px] leading-relaxed text-gray-800">
+                {BOOKS[openIdx].body}
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

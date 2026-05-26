@@ -218,25 +218,23 @@ export function LandingFinalCta() {
         </div>
 
         {/* Trust badges */}
+        <div className="flex justify-center">
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={inView ? { opacity: 1, y: 0 } : {}}
           transition={{ duration: 0.5, delay: 1.6 }}
-          className="mt-10 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[12px] font-medium text-gray-700"
+          className="brutal-border mt-10 inline-flex w-fit max-w-full flex-wrap items-center justify-center gap-x-5 gap-y-1 rounded-md bg-white px-4 py-2.5 text-[12px] font-medium text-gray-800"
         >
           <span className="flex items-center gap-1.5">
             <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#7CC36E]" />
             Free for students
           </span>
-          <span aria-hidden="true" className="text-gray-400">
-            ·
-          </span>
-          <span>Bring your own LLM key</span>
-          <span aria-hidden="true" className="text-gray-400">
-            ·
-          </span>
+          <span aria-hidden="true" className="text-gray-400">|</span>
+          <span>Powered by Llama on Groq</span>
+          <span aria-hidden="true" className="text-gray-400">|</span>
           <span>No credit card required</span>
         </motion.div>
+        </div>
       </div>
     </section>
   );

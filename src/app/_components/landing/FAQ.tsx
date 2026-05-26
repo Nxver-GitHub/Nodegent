@@ -70,7 +70,7 @@ export function FAQ() {
   const faq = FAQS[page];
 
   return (
-    <section id="faq" className="w-full px-6 py-20">
+    <section id="faq" className="w-full border-t border-black/10 px-6 py-20">
       <div className="mx-auto max-w-4xl">
         <RevealOnScroll>
           <div className="mb-12">
