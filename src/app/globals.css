@@ -607,10 +607,10 @@ html:not(.light) .window-shadow .course-color-bar > div {
   filter: brightness(0.6) saturate(0.55);
 }
 /* Course code badge — pill span with text-white + inline bg color.
-   background-image layers on top of the inline background-color, darkening it
-   without touching the text (unlike filter which darkens both). */
+   box-shadow inset paints between the background and the text, so the dark
+   tint dims the course color while white text stays fully opaque. */
 html:not(.light) .window-shadow span[class~="text-white"][style*="background-color"] {
-  background-image: linear-gradient(rgba(0, 0, 0, 0.38), rgba(0, 0, 0, 0.38));
+  box-shadow: inset 0 0 0 9999px rgba(0, 0, 0, 0.48);
 }
 /* Calendar event dots and legend dots — rounded-full with inline bg.
    Keep colors vivid so each course stays visually distinct on the dark grid. */
