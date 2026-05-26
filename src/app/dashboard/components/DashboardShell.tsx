@@ -15,7 +15,10 @@ import {
   Minus,
   Square,
   Compass,
+  Sun,
+  Moon,
 } from "@phosphor-icons/react";
+import { useTheme } from "@/hooks/useTheme";
 import { SnapshotWidget } from "./SnapshotWidget";
 import { ActivityLogPanel } from "./ActivityLogPanel";
 import { NotificationBell } from "./NotificationBell";
@@ -73,6 +76,7 @@ interface WindowToolbarProps {
 
 function SettingsPopover({ onRestartTour, onClose }: { onRestartTour: () => void; onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
+  const { theme, toggleTheme } = useTheme();
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -87,6 +91,17 @@ function SettingsPopover({ onRestartTour, onClose }: { onRestartTour: () => void
       ref={ref}
       className="absolute right-0 top-full mt-2 w-52 rounded-lg border border-gray-200 bg-white shadow-lg z-50 py-1"
     >
+      <button
+        onClick={toggleTheme}
+        className="w-full flex items-center gap-2.5 px-4 py-2.5 text-[13px] text-gray-700 hover:bg-gray-50 transition-colors text-left"
+      >
+        {theme === "dark" ? (
+          <Sun size={15} className="text-yellow-500 flex-shrink-0" />
+        ) : (
+          <Moon size={15} className="text-indigo-500 flex-shrink-0" />
+        )}
+        {theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+      </button>
       <button
         onClick={() => { onRestartTour(); onClose(); }}
         className="w-full flex items-center gap-2.5 px-4 py-2.5 text-[13px] text-gray-700 hover:bg-gray-50 transition-colors text-left"

@@ -409,3 +409,144 @@
   to { opacity: 1; transform: translateY(0); }
 }
 .reveal-up { animation: reveal-up 0.7s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+
+/* =========================================================================
+   DARK MODE — active when <html> does NOT have the .light class.
+   Light mode (existing cream/beige design) is enabled by adding .light to <html>.
+   ========================================================================= */
+
+/* Override brand CSS custom property tokens */
+html:not(.light) {
+  --color-brand-bg: #1C1D1A;
+  --color-brand-text: #E0E1DB;
+  --color-brand-primary: #2A2B27;
+}
+
+html:not(.light) body {
+  background-color: #1C1D1A;
+  color: #E0E1DB;
+}
+
+/* Desktop carpet becomes a flat dark surface */
+html:not(.light) .desktop-bg {
+  background-color: #1C1D1A;
+  background-image: none;
+}
+
+/* Top navigation bar */
+html:not(.light) nav {
+  background-color: #1E1F1C !important;
+  border-color: #3A3B37 !important;
+}
+html:not(.light) nav a,
+html:not(.light) nav button,
+html:not(.light) nav span {
+  color: #E0E1DB;
+}
+
+/* OS window outer frame */
+html:not(.light) .window-shadow {
+  background-color: #252621 !important;
+  border-color: #3A3B37 !important;
+}
+
+/* All bg-white panels inside the OS window */
+html:not(.light) .window-shadow [class~="bg-white"] {
+  background-color: #2E2F2B !important;
+}
+html:not(.light) .window-shadow [class~="bg-gray-50"] {
+  background-color: #2A2B27 !important;
+}
+html:not(.light) .window-shadow [class~="bg-gray-100"] {
+  background-color: #303128 !important;
+}
+
+/* Window-specific hardcoded bg colors */
+html:not(.light) .window-shadow [class~="bg-[#F6F6F6]"] {
+  background-color: #2A2B27 !important;
+}
+html:not(.light) .window-shadow [class~="bg-[#EFEFEF]"] {
+  background-color: #1E1F1C !important;
+}
+
+/* Text in the dashboard */
+html:not(.light) .window-shadow [class~="text-gray-900"],
+html:not(.light) .window-shadow [class~="text-gray-800"] {
+  color: #E0E1DB !important;
+}
+html:not(.light) .window-shadow [class~="text-gray-700"] {
+  color: #B8B9B3 !important;
+}
+html:not(.light) .window-shadow [class~="text-gray-600"] {
+  color: #A0A19C !important;
+}
+html:not(.light) .window-shadow [class~="text-gray-500"] {
+  color: #6E6F6A !important;
+}
+html:not(.light) .window-shadow [class~="text-gray-400"] {
+  color: #5A5B56 !important;
+}
+
+/* Borders inside window */
+html:not(.light) .window-shadow [class~="border-gray-300"],
+html:not(.light) .window-shadow [class~="border-gray-200"] {
+  border-color: #3A3B37 !important;
+}
+html:not(.light) .window-shadow [class~="border-gray-100"] {
+  border-color: #2E2F2B !important;
+}
+
+/* Dividers */
+html:not(.light) .window-shadow .divide-gray-100 > * + * {
+  border-color: #2E2F2B !important;
+}
+html:not(.light) .window-shadow .divide-gray-200 > * + * {
+  border-color: #3A3B37 !important;
+}
+
+/* Hover states inside window */
+html:not(.light) .window-shadow [class~="hover:bg-gray-50"]:hover {
+  background-color: #363730 !important;
+}
+html:not(.light) .window-shadow [class~="hover:bg-gray-100"]:hover {
+  background-color: #363730 !important;
+}
+
+/* Input fields */
+html:not(.light) .window-shadow input,
+html:not(.light) .window-shadow textarea,
+html:not(.light) .window-shadow select {
+  background-color: #1E1F1C !important;
+  color: #E0E1DB !important;
+  border-color: #3A3B37 !important;
+}
+html:not(.light) .window-shadow input::placeholder,
+html:not(.light) .window-shadow textarea::placeholder {
+  color: #6E6F6A !important;
+}
+
+/* brutal-border shadow inverted for dark surfaces */
+html:not(.light) .window-shadow .brutal-border {
+  border-color: #D4D5CF;
+  box-shadow: 2px 2px 0px 0px #D4D5CF;
+}
+html:not(.light) .window-shadow .brutal-border-lg {
+  border-color: #D4D5CF;
+  box-shadow: 4px 4px 0px 0px #D4D5CF;
+}
+
+/* Snap-in widget / snapshot panels */
+html:not(.light) [class~="bg-white"][class~="rounded-xl"],
+html:not(.light) [class~="bg-white"][class~="rounded-2xl"] {
+  background-color: #252621 !important;
+  border-color: #3A3B37 !important;
+}
+html:not(.light) [class~="bg-white"][class~="rounded-xl"] [class~="text-gray-900"],
+html:not(.light) [class~="bg-white"][class~="rounded-2xl"] [class~="text-gray-900"] {
+  color: #E0E1DB !important;
+}
+
+/* Active / selected nav items */
+html:not(.light) nav [class~="text-black"] {
+  color: #E0E1DB !important;
+}
