@@ -8,7 +8,6 @@ import { BuiltByStudents } from "./_components/landing/BuiltByStudents";
 import { LandingFinalCta } from "./_components/landing/LandingFinalCta";
 import { LandingFooter } from "./_components/landing/LandingFooter";
 import { KonamiEasterEgg } from "./_components/landing/KonamiEasterEgg";
-import { Bookshelves } from "./_components/landing/Bookshelves";
 
 // Server-side auth check requires dynamic rendering.
 export const dynamic = "force-dynamic";
@@ -21,7 +20,6 @@ export default async function HomePage() {
 
   return (
     <main className="desktop-bg min-h-screen">
-      <Bookshelves />
       <LandingHeader />
       <LandingHero />
       <FeatureGrid />
