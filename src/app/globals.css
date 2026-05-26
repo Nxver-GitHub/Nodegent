@@ -580,6 +580,67 @@ html:not(.light) .window-shadow .brutal-border-lg {
   box-shadow: 4px 4px 0px 0px #C8CAC0;
 }
 
+/* ---- Calendar-specific backgrounds ---- */
+/* CalendarPanel outer bg */
+html:not(.light) .window-shadow [class~="bg-[#FAFAF8]"] {
+  background-color: #1E1F17 !important;
+}
+/* Blank leading/trailing cells */
+html:not(.light) .window-shadow [class~="bg-[#F9F9F7]"] {
+  background-color: #191A12 !important;
+}
+/* Selected day cell */
+html:not(.light) .window-shadow [class~="bg-[#FFF3DC]"] {
+  background-color: #2E2516 !important;
+}
+/* Hover state on day cells */
+html:not(.light) .window-shadow [class~="hover:bg-[#FAFAF7]"]:hover {
+  background-color: #2A2B22 !important;
+}
+/* Grid gap color (the 1px lines between cells) */
+html:not(.light) .window-shadow [class~="bg-gray-200"] {
+  background-color: #2A2B22 !important;
+}
+
+/* ---- Course color bar — desaturate neon palette colors in dark mode ---- */
+html:not(.light) .window-shadow .course-color-bar > div {
+  filter: brightness(0.6) saturate(0.55);
+}
+/* Course code badge (span with inline backgroundColor = same palette color) */
+html:not(.light) .window-shadow span[style*="background-color"] {
+  filter: brightness(0.7) saturate(0.6);
+}
+
+/* ---- Pending badge inside course cards ---- */
+html:not(.light) .window-shadow [class~="bg-amber-100"] {
+  background-color: #332A10 !important;
+}
+html:not(.light) .window-shadow [class~="text-amber-800"] {
+  color: #E8A930 !important;
+}
+
+/* ---- Urgency card pop: brighter tint + left accent bar ---- */
+html:not(.light) .window-shadow [class~="bg-orange-50"][class~="border-orange-200"] {
+  background-color: #3D2410 !important;
+  border-left-color: #EB9D2A !important;
+  border-left-width: 3px !important;
+}
+html:not(.light) .window-shadow [class~="bg-red-50"][class~="border-red-200"] {
+  background-color: #3A1414 !important;
+  border-left-color: #F34D52 !important;
+  border-left-width: 3px !important;
+}
+html:not(.light) .window-shadow [class~="bg-amber-50"][class~="border-amber-200"] {
+  background-color: #38300F !important;
+  border-left-color: #CD8407 !important;
+  border-left-width: 3px !important;
+}
+html:not(.light) .window-shadow [class~="bg-yellow-50"][class~="border-yellow-200"] {
+  background-color: #2F2B0C !important;
+  border-left-color: #CD8407 !important;
+  border-left-width: 3px !important;
+}
+
 /* Snap-in widget panels that live outside .window-shadow scope */
 html:not(.light) [class~="bg-white"][class~="rounded-xl"],
 html:not(.light) [class~="bg-white"][class~="rounded-2xl"] {
