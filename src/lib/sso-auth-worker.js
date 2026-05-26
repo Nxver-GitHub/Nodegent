@@ -128,8 +128,10 @@ async function main() {
 
 async function loadChromium() {
   parentPort.postMessage({ type: 'status', message: 'Loading browser engine...' });
-  // @playwright/test re-exports chromium from playwright
-  const mod = await import('@playwright/test');
+  // Use the playwright library directly — @playwright/test is the test runner
+  // and pulls in test-only internals (worker/testInfo) that aren't resolvable
+  // outside a `playwright test` run.
+  const mod = await import('playwright');
   chromium = mod.chromium;
   parentPort.postMessage({ type: 'playwright-ready' });
 }

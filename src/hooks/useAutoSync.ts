@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { useAction, useQuery } from "convex/react";
 import type { Doc } from "@convex/_generated/dataModel";
 import { api } from "@convex/_generated/api";
+import { isAutoSyncEnabled } from "./useAutoSyncPreference";
 
 interface UseAutoSyncOptions {
   sessionId: string | null;
@@ -22,12 +23,16 @@ export function useAutoSync({ sessionId, user }: UseAutoSyncOptions): void {
     if (typeof window === "undefined") return;
     if (!sessionId) return;
     if (user === undefined) return;
+    if (user === null) return;
     if (hasFiredRef.current) return;
+    if (!isAutoSyncEnabled()) return;
 
-    // If Canvas is enabled, wait until canvasStatus has resolved so we can
-    // check connectivity before committing the once-per-session flag.
-    const needsCanvasStatus = user?.canvasEnabled === true;
-    if (needsCanvasStatus && canvasStatus === undefined) return;
+    // Wait for canvasStatus to resolve before committing the session flag —
+    // unless the user has explicitly disabled Canvas. Treat undefined/true the
+    // same as enabled, matching the `!== false` convention used elsewhere
+    // (chat.ts, AccessToggleCard, /api/google-calendar/sync).
+    const canvasMaybeEnabled = user?.canvasEnabled !== false;
+    if (canvasMaybeEnabled && canvasStatus === undefined) return;
 
     const storageKey = AUTO_SYNC_KEY_PREFIX + sessionId;
     if (sessionStorage.getItem(storageKey) === "1") {
@@ -42,7 +47,7 @@ export function useAutoSync({ sessionId, user }: UseAutoSyncOptions): void {
 
     const now = Date.now();
 
-    if (user?.canvasEnabled === true && canvasStatus) {
+    if (user?.canvasEnabled !== false && canvasStatus) {
       const ready = canvasStatus.isConnected && !canvasStatus.needsReconnect;
       const fresh =
         canvasStatus.lastSyncedAt !== undefined &&
@@ -55,7 +60,7 @@ export function useAutoSync({ sessionId, user }: UseAutoSyncOptions): void {
       }
     }
 
-    if (user?.calendarEnabled === true) {
+    if (user?.calendarEnabled !== false) {
       const lastSync = user.lastCalendarSyncAt;
       const fresh =
         lastSync !== undefined && now - lastSync < CLIENT_RATE_LIMIT_MS;
