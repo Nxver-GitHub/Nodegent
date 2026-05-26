@@ -4,21 +4,21 @@ interface FeatureCardProps {
   icon: ReactNode;
   title: string;
   description: string;
-  accent: "amber" | "yellow" | "red" | "dark";
+  accent: "amber" | "blue" | "red" | "dark";
 }
 
 const ACCENT_ICON = {
   amber: "bg-[#CD8407] text-white",
-  yellow: "bg-[#EB9D2A] text-white",
-  red: "bg-[#F34D52] text-white",
-  dark: "bg-[#1D1D1D] text-white",
+  blue:  "bg-[#3B82F6] text-white",
+  red:   "bg-[#F34D52] text-white",
+  dark:  "bg-[#1D1D1D] text-white",
 } as const;
 
 const ACCENT_SPINE = {
   amber: "bg-[#CD8407]",
-  yellow: "bg-[#EB9D2A]",
-  red: "bg-[#F34D52]",
-  dark: "bg-[#1D1D1D]",
+  blue:  "bg-[#3B82F6]",
+  red:   "bg-[#F34D52]",
+  dark:  "bg-[#1D1D1D]",
 } as const;
 
 /**

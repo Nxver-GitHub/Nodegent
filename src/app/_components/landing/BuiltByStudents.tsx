@@ -42,7 +42,7 @@ export function BuiltByStudents() {
       />
       <div className="relative mx-auto grid max-w-7xl grid-cols-1 items-center gap-12 lg:grid-cols-[1fr_1.1fr]">
         {/* Left — "open notebook" card with the team story */}
-        <div className="relative">
+        <div className="relative flex flex-col">
           {/* Floating handwritten sticky note */}
           <div
             className="sticky sticky-mint font-hand absolute -top-8 -right-4 z-20 rotate-[6deg] text-center text-gray-900"
@@ -50,14 +50,6 @@ export function BuiltByStudents() {
           >
             <p className="text-[20px] leading-tight">made with ☕ + chaos</p>
             <p className="text-[15px] text-gray-700">— the Nodegent team</p>
-          </div>
-
-          {/* TI-84 calculator sitting at the bottom-right of the notebook */}
-          <div
-            className="drift pointer-events-none absolute -bottom-10 -left-8 z-20 hidden lg:block"
-            style={{ ['--rot' as string]: '-6deg', transform: 'rotate(-6deg)' } as React.CSSProperties}
-          >
-            <CalculatorIllustration />
           </div>
 
           <div className="brutal-border-lg relative rounded-lg bg-white">
@@ -102,6 +94,15 @@ export function BuiltByStudents() {
                 </span>
               </div>
             </div>
+          </div>
+
+          {/* TI-84 CE calculator — in normal flow below the notebook, tilted like it’s sitting on a desk */}
+          <div
+            className="drift pointer-events-none ml-3 mt-4 hidden self-start lg:block"
+            style={{ ['--rot' as string]: '-6deg', transform: 'rotate(-6deg)' } as React.CSSProperties}
+            aria-hidden="true"
+          >
+            <CalculatorIllustration />
           </div>
         </div>
 

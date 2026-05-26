@@ -124,6 +124,21 @@
 .sticky-pink   { background: #FFC6CC; border: 1px solid #D27C84; }
 .sticky-mint   { background: #BCE9C0; border: 1px solid #6FB276; }
 
+/* Hover: bring hovered note to front and flatten rotation */
+.sticky {
+  transition: scale 0.2s ease, box-shadow 0.2s ease;
+}
+.sticky:hover {
+  z-index: 100;
+  scale: 1.06;
+  rotate: 0deg !important;
+  box-shadow:
+    2px 4px 0 rgba(0, 0, 0, 0.1),
+    0 20px 40px rgba(0, 0, 0, 0.28),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.05);
+  cursor: default;
+}
+
 /* Decorative item drift — desk objects gently rotate/bob */
 @keyframes drift {
   0%, 100% { transform: translateY(0) rotate(var(--rot, 0deg)); }
@@ -246,12 +261,12 @@
 .ti84 {
   width: 160px;
   padding: 12px 10px 10px;
-  border-radius: 8px;
-  background: linear-gradient(180deg, #3d3d3d 0%, #1c1c1c 100%);
-  border: 1px solid #1D1D1D;
+  border-radius: 12px;
+  background: linear-gradient(160deg, #2a2a2a 0%, #181818 100%);
+  border: 1px solid #111;
   box-shadow:
-    3px 5px 0 #1D1D1D,
-    0 8px 16px rgba(0, 0, 0, 0.2);
+    3px 5px 0 #111,
+    0 10px 24px rgba(0, 0, 0, 0.35);
 }
 .ti84-brand {
   font-family: var(--font-sans);
@@ -264,18 +279,32 @@
   text-transform: uppercase;
 }
 .ti84-screen {
-  background: linear-gradient(180deg, #c3d3a3 0%, #99ad7a 100%);
-  border: 1px solid #1D1D1D;
-  border-radius: 2px;
-  padding: 6px 8px;
+  background: #f5f5f5;
+  border: 1.5px solid #222;
+  border-radius: 4px;
+  padding: 0;
   font-family: "IBM Plex Mono", monospace;
-  font-size: 9px;
-  color: #1D1D1D;
-  line-height: 1.4;
-  min-height: 56px;
-  box-shadow: inset 0 2px 2px rgba(0, 0, 0, 0.15);
+  font-size: 8.5px;
+  color: #222;
+  line-height: 1.5;
+  min-height: 64px;
+  overflow: hidden;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.12);
 }
-.ti84-screen-line { margin: 0; white-space: nowrap; }
+.ti84-screen-topbar {
+  background: #1D1D1D;
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  text-align: center;
+}
+.ti84-screen-line { margin: 0; white-space: nowrap; padding: 0 6px; }
+.ti84-line-red    { color: #C53030; }
+.ti84-line-amber  { color: #92400E; }
+.ti84-line-green  { color: #166534; }
 .ti84-keys {
   margin-top: 8px;
   display: grid;
@@ -289,9 +318,56 @@
   border: 1px solid rgba(0, 0, 0, 0.6);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
-.ti84-key-yellow { background: linear-gradient(180deg, #F4C449 0%, #C9982A 100%); }
-.ti84-key-blue   { background: linear-gradient(180deg, #4886D6 0%, #2A5DA6 100%); }
-.ti84-key-green  { background: linear-gradient(180deg, #6FB276 0%, #4F8554 100%); }
+.ti84-key-yellow { background: linear-gradient(180deg, #F9C932 0%, #D6A010 100%); border-color: rgba(0,0,0,0.5); }
+.ti84-key-blue   { background: linear-gradient(180deg, #5B9BD6 0%, #2E6DB8 100%); border-color: rgba(0,0,0,0.5); }
+.ti84-key-green  { background: linear-gradient(180deg, #72C47A 0%, #4A8F52 100%); border-color: rgba(0,0,0,0.5); }
+
+/* =========================================================================
+   BOOKSHELVES — decorative fixed side panels on very wide viewports (2xl+).
+   ========================================================================= */
+.bookshelf-panel {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  width: 84px;
+  z-index: 5;
+  pointer-events: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0;
+  background: linear-gradient(180deg, #3D2410 0%, #2A1608 40%, #3D2410 100%);
+}
+.bookshelf-panel-left  { left: 0;  border-right: 3px solid #1A0C04; }
+.bookshelf-panel-right { right: 0; border-left:  3px solid #1A0C04; }
+.bookshelf-plank {
+  height: 10px;
+  background: linear-gradient(180deg, #A06C42 0%, #7A4E28 60%, #5C3A1E 100%);
+  border-top:    1.5px solid #3A2208;
+  border-bottom: 1.5px solid #1A0C04;
+  flex-shrink: 0;
+}
+.bookshelf-section {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 5px;
+}
+.shelf-book {
+  width: 100%;
+  padding: 3px 5px;
+  border-radius: 2px;
+  color: white;
+  font-size: 7.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border: 1px solid rgba(0,0,0,0.4);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.07), inset 0 1px 0 rgba(255,255,255,0.14);
+  line-height: 1.4;
+}
 
 /* Typing dot pulse for the AI chat preview */
 @keyframes dot-pulse {

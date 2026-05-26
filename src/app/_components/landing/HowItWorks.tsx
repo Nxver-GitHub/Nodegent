@@ -16,7 +16,7 @@ const STEPS = [
   {
     number: "02",
     icon: <ArrowsClockwise size={22} weight="bold" />,
-    accent: "bg-[#EB9D2A]",
+    accent: "bg-[#3B82F6]",
     title: "Sync",
     description:
       "Courses, assignments, exams, and class times stream into a unified dashboard — sorted by urgency, mirrored to your calendar.",

@@ -19,7 +19,7 @@ const FEATURES = [
     title: "Campus-aware AI Chat",
     description:
       "Ask anything about your workload — your assistant already knows your courses, deadlines, and snapshot of the week.",
-    accent: "yellow" as const,
+    accent: "blue" as const,
   },
   {
     icon: <Desktop size={20} weight="bold" />,
