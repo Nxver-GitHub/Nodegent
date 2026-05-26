@@ -597,18 +597,24 @@ html:not(.light) .window-shadow [class~="bg-[#FFF3DC]"] {
 html:not(.light) .window-shadow [class~="hover:bg-[#FAFAF7]"]:hover {
   background-color: #2A2B22 !important;
 }
-/* Grid gap color (the 1px lines between cells) */
+/* Grid gap color (the 1px lines between cells) — lighter than cells for visible grid */
 html:not(.light) .window-shadow [class~="bg-gray-200"] {
-  background-color: #2A2B22 !important;
+  background-color: #363729 !important;
 }
 
 /* ---- Course color bar — desaturate neon palette colors in dark mode ---- */
 html:not(.light) .window-shadow .course-color-bar > div {
   filter: brightness(0.6) saturate(0.55);
 }
-/* Course code badge (span with inline backgroundColor = same palette color) */
-html:not(.light) .window-shadow span[style*="background-color"] {
-  filter: brightness(0.7) saturate(0.6);
+/* Course code badge — pill span with text-white + inline bg color.
+   Moderate tone-down so it reads as a label, not a neon swatch. */
+html:not(.light) .window-shadow span[class~="text-white"][style*="background-color"] {
+  filter: brightness(0.75) saturate(0.75);
+}
+/* Calendar event dots and legend dots — rounded-full with inline bg.
+   Keep colors vivid so each course stays visually distinct on the dark grid. */
+html:not(.light) .window-shadow span[class~="rounded-full"][style*="background-color"] {
+  filter: brightness(0.95) saturate(0.95);
 }
 
 /* ---- Pending badge inside course cards ---- */
