@@ -67,15 +67,15 @@ export function LandingHero() {
             <span>No credit card required</span>
           </div>
 
-          {/* Textbook stack — quiet desk decoration tucked under the copy */}
-          <div className="mt-12 hidden md:block">
-            <TextbookStack />
-          </div>
         </div>
 
-        {/* Right column — interactive product mockup wrapped in a MacBook */}
-        <div className="relative z-10 flex w-full items-center justify-center lg:justify-end">
-          <div className="relative w-full max-w-xl">
+        {/* Right column — MacBook + textbooks as desk scene */}
+        <div className="relative z-10 flex w-full items-end justify-center gap-5 lg:justify-end">
+          {/* Textbooks stacked on the desk beside the laptop */}
+          <div className="hidden shrink-0 pb-5 lg:block">
+            <TextbookStack className="w-40" />
+          </div>
+          <div className="relative w-full max-w-xl lg:max-w-[480px]">
             <div className="float-slow">
               <MacBookFrame>
                 <DashboardMockup />
