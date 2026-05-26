@@ -1,0 +1,219 @@
+- generic [active] [ref=e1]:
+  - main [ref=e2]:
+    - generic [ref=e4]:
+      - link "Nodegent" [ref=e5] [cursor=pointer]:
+        - /url: /
+        - img [ref=e7]
+        - generic [ref=e9]: Nodegent
+      - navigation [ref=e10]:
+        - link "Features" [ref=e11] [cursor=pointer]:
+          - /url: "#features"
+        - link "How it works" [ref=e12] [cursor=pointer]:
+          - /url: "#how-it-works"
+        - link "Sign In" [ref=e13] [cursor=pointer]:
+          - /url: /sign-in
+        - link "Get Started" [ref=e14] [cursor=pointer]:
+          - /url: /sign-up
+    - generic [ref=e16]:
+      - generic [ref=e17]:
+        - generic [ref=e18]:
+          - img [ref=e19]
+          - text: A campus-aware AI assistant for university students
+        - heading "Your campus, on one desktop ." [level=1] [ref=e21]:
+          - text: Your campus,
+          - text: "on"
+          - generic [ref=e22]: one desktop
+          - text: .
+        - paragraph [ref=e25]: Nodegent unifies Canvas, your campus portal, and Google Calendar behind a single OS-style dashboard — with an AI assistant that already knows your courses, assignments, and deadlines.
+        - generic [ref=e26]:
+          - link "Get Started" [ref=e27] [cursor=pointer]:
+            - /url: /sign-up
+            - text: Get Started
+            - img [ref=e28]
+          - link "Sign In" [ref=e30] [cursor=pointer]:
+            - /url: /sign-in
+        - generic [ref=e31]:
+          - generic [ref=e32]: Free for students
+          - generic [ref=e34]: "|"
+          - generic [ref=e35]: Bring your own LLM API key
+          - generic [ref=e36]: "|"
+          - generic [ref=e37]: No credit card required
+        - generic [ref=e38]:
+          - generic:
+            - generic: CALC III
+            - generic: ALGORITHMS
+            - generic: LINEAR ALGEBRA
+            - generic: AI · NODEGENT
+      - generic [ref=e40]:
+        - generic [ref=e46]:
+          - generic [ref=e47]:
+            - generic [ref=e52]: nodegent.app
+            - img [ref=e53]
+          - generic [ref=e55]:
+            - button "Dashboard" [pressed] [ref=e56]:
+              - img [ref=e58]
+              - generic [ref=e60]: Dashboard
+            - button "Calendar" [ref=e61]:
+              - img [ref=e63]
+              - generic [ref=e65]: Calendar
+            - button "AI Chat" [ref=e66]:
+              - img [ref=e68]
+              - generic [ref=e70]: AI Chat
+            - generic [ref=e71]:
+              - img [ref=e72]
+              - img [ref=e74]
+              - img [ref=e76]
+          - generic [ref=e79]:
+            - generic [ref=e80]:
+              - paragraph [ref=e81]: Good afternoon, Surya
+              - paragraph [ref=e82]: Wednesday · May 25
+            - generic [ref=e83]:
+              - generic [ref=e84]:
+                - img [ref=e86]
+                - generic [ref=e88]:
+                  - paragraph [ref=e89]: CSE-160-01
+                  - paragraph [ref=e90]: Lighting & Shading Lab
+                - generic [ref=e91]: Overdue
+              - generic [ref=e92]:
+                - img [ref=e94]
+                - generic [ref=e96]:
+                  - paragraph [ref=e97]: CSE-115A
+                  - paragraph [ref=e98]: Sprint 4 Demo Prep
+                - generic [ref=e99]: Due Today
+              - generic [ref=e100]:
+                - img [ref=e102]
+                - generic [ref=e104]:
+                  - paragraph [ref=e105]: MATH-19A
+                  - paragraph [ref=e106]: Problem Set 7
+                - generic [ref=e107]: This Week
+          - generic [ref=e108]:
+            - generic [ref=e109]:
+              - generic [ref=e110]: LMS Sync Active
+              - generic [ref=e112]: "Sprint: 2 In-Progress"
+            - generic [ref=e113]: "Team: 5"
+        - generic [ref=e115]:
+          - paragraph [ref=e116]: click the tabs!
+          - paragraph [ref=e117]: try every view →
+        - paragraph [ref=e119]: ✨ it auto-cycles too
+    - generic [ref=e121]:
+      - generic [ref=e122]:
+        - paragraph [ref=e123]: Features
+        - heading "Built for the way students actually study." [level=2] [ref=e124]
+        - paragraph [ref=e126]: One trusted surface for your academic life — your data, your keys, your audit trail. No noise, no nagging, no rented agents.
+      - generic [ref=e127]:
+        - generic [ref=e128]:
+          - img [ref=e135]
+          - heading "Campus Sync" [level=3] [ref=e137]
+          - paragraph [ref=e138]: Pull courses and assignments from Canvas and your campus portal, then mirror everything into Google Calendar so your week always lines up.
+        - generic [ref=e139]:
+          - img [ref=e146]
+          - heading "Campus-aware AI Chat" [level=3] [ref=e148]
+          - paragraph [ref=e149]: Ask anything about your workload — your assistant already knows your courses, deadlines, and snapshot of the week.
+        - generic [ref=e150]:
+          - img [ref=e157]
+          - heading "OS-style Desktop" [level=3] [ref=e159]
+          - paragraph [ref=e160]: A focused, window-based interface designed for the rhythm of student life — daily snapshot, calendar, and courses in one place.
+        - generic [ref=e161]:
+          - img [ref=e168]
+          - heading "Full Transparency" [level=3] [ref=e170]
+          - paragraph [ref=e171]: Every agent action is logged with timestamp and scope. Toggle access at any time and revoke credentials instantly.
+    - generic [ref=e173]:
+      - generic [ref=e174]:
+        - paragraph [ref=e175]: How it works
+        - heading "Three steps to a calmer quarter." [level=2] [ref=e176]
+        - paragraph [ref=e178]: No new accounts to manage. No data shipped to third parties. Just your campus, organized.
+      - generic [ref=e179]:
+        - generic [ref=e180]:
+          - generic [ref=e181]:
+            - img [ref=e183]
+            - generic [ref=e185]: "01"
+          - heading "Connect" [level=3] [ref=e186]
+          - paragraph [ref=e187]: Sign in once with your campus account. Nodegent links Canvas, your campus portal, and Google Calendar with audited, revocable access.
+        - generic [ref=e188]:
+          - generic [ref=e189]:
+            - img [ref=e191]
+            - generic [ref=e193]: "02"
+          - heading "Sync" [level=3] [ref=e194]
+          - paragraph [ref=e195]: Courses, assignments, exams, and class times stream into a unified dashboard — sorted by urgency, mirrored to your calendar.
+        - generic [ref=e196]:
+          - generic [ref=e197]:
+            - img [ref=e199]
+            - generic [ref=e201]: "03"
+          - heading "Chat" [level=3] [ref=e202]
+          - paragraph [ref=e203]: Ask your assistant about deadlines, study plans, or workload. Every answer is grounded in your actual campus data.
+    - generic [ref=e205]:
+      - generic [ref=e206]:
+        - generic [ref=e207]:
+          - paragraph [ref=e208]: made with ☕ + chaos
+          - paragraph [ref=e209]: — the Nodegent team
+        - generic:
+          - generic:
+            - generic: TI · 84 Plus
+            - generic:
+              - paragraph: "> hello, surya"
+              - paragraph: "> assignments_due()"
+              - paragraph: "3"
+              - paragraph:
+                - text: ">"
+                - generic: _
+        - generic [ref=e220]:
+          - generic [ref=e221]:
+            - img [ref=e222]
+            - text: The team
+          - heading "Built by students who actually use it." [level=3] [ref=e224]
+          - paragraph [ref=e225]: Nodegent comes from a small team of UCSC students who got tired of bouncing between five tabs to figure out what was due. We’re building the tool we always wished we had — grounded in real campus data, with an audit trail that respects what an AI is allowed to do on your behalf.
+          - generic [ref=e226]:
+            - generic [ref=e227]:
+              - img [ref=e228]
+              - text: Santa Cruz, CA
+            - generic [ref=e230]:
+              - img [ref=e231]
+              - text: "Cups of coffee: 412"
+            - generic [ref=e233]:
+              - img [ref=e234]
+              - text: CSE 115A · Spring 2026
+      - generic [ref=e236]:
+        - paragraph [ref=e238]: Why students stay
+        - generic [ref=e239]:
+          - img [ref=e241]
+          - generic [ref=e243]:
+            - heading "Tested in real lectures" [level=4] [ref=e244]
+            - paragraph [ref=e245]: Every panel was prototyped while we were sitting in the same lectures, juggling the same deadlines.
+        - generic [ref=e246]:
+          - img [ref=e248]
+          - generic [ref=e250]:
+            - heading "Built around your data" [level=4] [ref=e251]
+            - paragraph [ref=e252]: Bring your own LLM key. Your assignments, calendar, and chat live in your Convex — not behind a paywall.
+        - generic [ref=e253]:
+          - img [ref=e255]
+          - generic [ref=e257]:
+            - heading "Free for students" [level=4] [ref=e258]
+            - paragraph [ref=e259]: Forever. We pay for the platform; you pay for your own coffee. (We highly recommend the coffee.)
+    - generic [ref=e261]:
+      - generic [ref=e262]:
+        - generic [ref=e267]: nodegent.app — sign up
+        - img [ref=e268]
+      - generic [ref=e270]:
+        - heading "Stop juggling tabs. Start your quarter." [level=2] [ref=e271]:
+          - text: Stop juggling tabs.
+          - text: Start your quarter.
+        - paragraph [ref=e272]: Sign up with your campus account and Nodegent will set up your dashboard in minutes.
+        - generic [ref=e273]:
+          - link "Create your dashboard" [ref=e274] [cursor=pointer]:
+            - /url: /sign-up
+            - text: Create your dashboard
+            - img [ref=e275]
+          - link "I already have an account" [ref=e277] [cursor=pointer]:
+            - /url: /sign-in
+    - generic [ref=e279]:
+      - generic [ref=e280]:
+        - img [ref=e282]
+        - generic [ref=e284]: Nodegent
+        - generic [ref=e285]: · © 2026 Built by students, at UCSC
+      - link "GitHub" [ref=e286] [cursor=pointer]:
+        - /url: https://github.com/
+        - img [ref=e287]
+        - text: GitHub
+  - button "Open Next.js Dev Tools" [ref=e294] [cursor=pointer]:
+    - img [ref=e295]
+  - alert [ref=e298]

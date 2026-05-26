@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { ArrowRight, Sparkle } from "@phosphor-icons/react/dist/ssr";
 import { DashboardMockup } from "./DashboardMockup";
-import { DeskDecorations } from "./DeskDecorations";
+import { MacBookFrame } from "./MacBookFrame";
+import { TextbookStack } from "./TextbookStack";
 
 export function LandingHero() {
   return (
     <section className="relative w-full overflow-hidden">
       <div className="hero-glow pointer-events-none absolute inset-0" aria-hidden="true" />
-      <DeskDecorations />
       <div className="relative mx-auto grid min-h-[calc(100vh-3.5rem)] max-w-7xl grid-cols-1 items-center gap-12 px-6 py-16 lg:grid-cols-[1.05fr_1fr] lg:gap-16 lg:py-24">
         {/* Left column — copy */}
         <div className="relative z-10 flex flex-col items-start text-left">
@@ -66,27 +66,35 @@ export function LandingHero() {
             <span aria-hidden="true" className="text-gray-400">|</span>
             <span>No credit card required</span>
           </div>
+
+          {/* Textbook stack — quiet desk decoration tucked under the copy */}
+          <div className="mt-12 hidden md:block">
+            <TextbookStack />
+          </div>
         </div>
 
-        {/* Right column — interactive product mockup with sticky-note nudge */}
+        {/* Right column — interactive product mockup wrapped in a MacBook */}
         <div className="relative z-10 flex w-full items-center justify-center lg:justify-end">
           <div className="relative w-full max-w-xl">
             <div className="float-slow">
-              <DashboardMockup />
+              <MacBookFrame>
+                <DashboardMockup />
+              </MacBookFrame>
             </div>
-            {/* Handwritten sticky note nudge — "try the tabs!" */}
+
+            {/* Sticky note nudges — properly tape-pinned, vivid Post-it paper */}
             <div
-              className="sticky-note font-hand absolute -bottom-6 -left-4 hidden rotate-[-7deg] rounded-sm px-3 py-2 text-center text-gray-900 sm:block lg:-bottom-8 lg:-left-10"
+              className="sticky sticky-yellow font-hand absolute -bottom-2 -left-2 z-20 hidden rotate-[-7deg] text-center text-gray-900 sm:block lg:-bottom-6 lg:-left-12"
               aria-hidden="true"
             >
-              <p className="text-[18px] leading-tight">click the tabs!</p>
-              <p className="text-[13px] text-gray-700">try every view →</p>
+              <p className="text-[20px] leading-tight">click the tabs!</p>
+              <p className="text-[15px] text-gray-700">try every view →</p>
             </div>
             <div
-              className="sticky-note-pink font-hand absolute -top-7 -right-3 hidden rotate-[8deg] rounded-sm px-3 py-2 text-center text-gray-900 md:block lg:-top-9 lg:-right-6"
+              className="sticky sticky-pink font-hand absolute -top-4 -right-1 z-20 hidden rotate-[8deg] text-center text-gray-900 md:block lg:-top-6 lg:-right-8"
               aria-hidden="true"
             >
-              <p className="text-[16px] leading-tight">✨ it auto-cycles too</p>
+              <p className="text-[18px] leading-tight">✨ it auto-cycles too</p>
             </div>
           </div>
         </div>

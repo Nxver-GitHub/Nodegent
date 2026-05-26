@@ -1,0 +1,155 @@
+- generic [active] [ref=e1]:
+  - main [ref=e2]:
+    - generic [ref=e4]:
+      - link "Nodegent" [ref=e5] [cursor=pointer]:
+        - /url: /
+        - img [ref=e7]
+        - generic [ref=e9]: Nodegent
+      - navigation [ref=e10]:
+        - link "Features" [ref=e11] [cursor=pointer]:
+          - /url: "#features"
+        - link "How it works" [ref=e12] [cursor=pointer]:
+          - /url: "#how-it-works"
+        - link "Sign In" [ref=e13] [cursor=pointer]:
+          - /url: /sign-in
+        - link "Get Started" [ref=e14] [cursor=pointer]:
+          - /url: /sign-up
+    - generic [ref=e16]:
+      - generic [ref=e17]:
+        - generic [ref=e18]:
+          - img [ref=e19]
+          - text: A campus-aware AI assistant for university students
+        - heading "Your campus, on one desktop ." [level=1] [ref=e21]:
+          - text: Your campus,
+          - text: "on"
+          - generic [ref=e22]: one desktop
+          - text: .
+        - paragraph [ref=e24]: Nodegent unifies Canvas, MyUCSC, and Google Calendar behind a single OS-style dashboard — with an AI assistant that already knows your courses, assignments, and deadlines.
+        - generic [ref=e25]:
+          - link "Get Started" [ref=e26] [cursor=pointer]:
+            - /url: /sign-up
+            - text: Get Started
+            - img [ref=e27]
+          - link "Sign In" [ref=e29] [cursor=pointer]:
+            - /url: /sign-in
+        - generic [ref=e30]:
+          - generic [ref=e31]: Free for students
+          - generic [ref=e33]: Bring your own LLM API key
+          - generic [ref=e34]: No credit card required
+      - generic [ref=e37]:
+        - generic [ref=e38]:
+          - generic [ref=e43]: nodegent.app
+          - img [ref=e44]
+        - generic [ref=e46]:
+          - generic [ref=e47]:
+            - img [ref=e48]
+            - generic [ref=e50]: My Dashboard
+          - img [ref=e52]
+          - img [ref=e54]
+          - img [ref=e56]
+          - generic [ref=e58]:
+            - img [ref=e59]
+            - generic [ref=e61]: Connect LMS
+        - generic [ref=e62]:
+          - generic [ref=e63]:
+            - paragraph [ref=e64]: Good afternoon, Surya
+            - paragraph [ref=e65]: Wednesday · May 25
+          - generic [ref=e66]:
+            - generic [ref=e67]:
+              - img [ref=e69]
+              - generic [ref=e71]:
+                - paragraph [ref=e72]: CSE-160-01
+                - paragraph [ref=e73]: Lighting & Shading Lab
+              - generic [ref=e74]: Overdue
+              - generic [ref=e75]: Due 2 days ago
+            - generic [ref=e76]:
+              - img [ref=e78]
+              - generic [ref=e80]:
+                - paragraph [ref=e81]: CSE-115A
+                - paragraph [ref=e82]: Sprint 4 Demo Prep
+              - generic [ref=e83]: Due Today
+              - generic [ref=e84]: Due 5:00 PM
+            - generic [ref=e85]:
+              - img [ref=e87]
+              - generic [ref=e89]:
+                - paragraph [ref=e90]: MATH-19A
+                - paragraph [ref=e91]: Problem Set 7
+              - generic [ref=e92]: This Week
+              - generic [ref=e93]: Due Friday · 11:59 PM
+        - generic [ref=e94]:
+          - generic [ref=e95]:
+            - generic [ref=e96]: LMS Sync Active
+            - generic [ref=e98]: "Sprint: 2 In-Progress"
+          - generic [ref=e99]: "Team: 5"
+    - generic [ref=e101]:
+      - generic [ref=e102]:
+        - paragraph [ref=e103]: Features
+        - heading "Built for the way students actually study." [level=2] [ref=e104]
+        - paragraph [ref=e105]: One trusted surface for your academic life — your data, your keys, your audit trail. No noise, no nagging, no rented agents.
+      - generic [ref=e106]:
+        - generic [ref=e107]:
+          - img [ref=e109]
+          - heading "Campus Sync" [level=3] [ref=e111]
+          - paragraph [ref=e112]: Pull courses and assignments from Canvas and MyUCSC, then mirror everything into Google Calendar so your week always lines up.
+        - generic [ref=e113]:
+          - img [ref=e115]
+          - heading "Campus-aware AI Chat" [level=3] [ref=e117]
+          - paragraph [ref=e118]: Ask anything about your workload — your assistant already knows your courses, deadlines, and snapshot of the week.
+        - generic [ref=e119]:
+          - img [ref=e121]
+          - heading "OS-style Desktop" [level=3] [ref=e123]
+          - paragraph [ref=e124]: A focused, window-based interface designed for the rhythm of student life — daily snapshot, calendar, and courses in one place.
+        - generic [ref=e125]:
+          - img [ref=e127]
+          - heading "Full Transparency" [level=3] [ref=e129]
+          - paragraph [ref=e130]: Every agent action is logged with timestamp and scope. Toggle access at any time and revoke credentials instantly.
+    - generic [ref=e132]:
+      - generic [ref=e133]:
+        - paragraph [ref=e134]: How it works
+        - heading "Three steps to a calmer quarter." [level=2] [ref=e135]
+        - paragraph [ref=e136]: No new accounts to manage. No data shipped to third parties. Just your campus, organized.
+      - generic [ref=e137]:
+        - generic [ref=e138]:
+          - generic [ref=e139]:
+            - img [ref=e141]
+            - generic [ref=e143]: "01"
+          - heading "Connect" [level=3] [ref=e144]
+          - paragraph [ref=e145]: Sign in once with your campus account. Nodegent links Canvas, MyUCSC, and Google Calendar with audited, revocable access.
+        - generic [ref=e146]:
+          - generic [ref=e147]:
+            - img [ref=e149]
+            - generic [ref=e151]: "02"
+          - heading "Sync" [level=3] [ref=e152]
+          - paragraph [ref=e153]: Courses, assignments, exams, and class times stream into a unified dashboard — sorted by urgency, mirrored to your calendar.
+        - generic [ref=e154]:
+          - generic [ref=e155]:
+            - img [ref=e157]
+            - generic [ref=e159]: "03"
+          - heading "Chat" [level=3] [ref=e160]
+          - paragraph [ref=e161]: Ask your assistant about deadlines, study plans, or workload. Every answer is grounded in your actual campus data.
+    - generic [ref=e163]:
+      - generic [ref=e164]:
+        - generic [ref=e169]: nodegent.app — sign up
+        - img [ref=e170]
+      - generic [ref=e172]:
+        - heading "Stop juggling tabs. Start your quarter." [level=2] [ref=e173]:
+          - text: Stop juggling tabs.
+          - text: Start your quarter.
+        - paragraph [ref=e174]: Sign up with your campus account and Nodegent will set up your dashboard in minutes.
+        - generic [ref=e175]:
+          - link "Create your dashboard" [ref=e176] [cursor=pointer]:
+            - /url: /sign-up
+            - text: Create your dashboard
+            - img [ref=e177]
+          - link "I already have an account" [ref=e179] [cursor=pointer]:
+            - /url: /sign-in
+    - generic [ref=e181]:
+      - generic [ref=e182]:
+        - img [ref=e184]
+        - generic [ref=e186]: Nodegent
+        - generic [ref=e187]: · © 2026 Built for students at UCSC
+      - link "GitHub" [ref=e188] [cursor=pointer]:
+        - /url: https://github.com/
+        - img [ref=e189]
+        - text: GitHub
+  - alert [ref=e191]

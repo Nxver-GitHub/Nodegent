@@ -6,6 +6,7 @@ import {
   Books,
   MapPin,
 } from "@phosphor-icons/react/dist/ssr";
+import { CalculatorIllustration } from "./CalculatorIllustration";
 
 const CALLOUTS = [
   {
@@ -44,11 +45,19 @@ export function BuiltByStudents() {
         <div className="relative">
           {/* Floating handwritten sticky note */}
           <div
-            className="sticky-note-mint font-hand absolute -top-8 -right-4 z-10 rotate-[6deg] rounded-sm px-4 py-2 text-center text-gray-900"
+            className="sticky sticky-mint font-hand absolute -top-8 -right-4 z-20 rotate-[6deg] text-center text-gray-900"
             aria-hidden="true"
           >
-            <p className="text-[18px] leading-tight">made with ☕ + chaos</p>
-            <p className="text-[13px] text-gray-700">— the Nodegent team</p>
+            <p className="text-[20px] leading-tight">made with ☕ + chaos</p>
+            <p className="text-[15px] text-gray-700">— the Nodegent team</p>
+          </div>
+
+          {/* TI-84 calculator sitting at the bottom-right of the notebook */}
+          <div
+            className="drift pointer-events-none absolute -bottom-10 -left-8 z-20 hidden lg:block"
+            style={{ ['--rot' as string]: '-6deg', transform: 'rotate(-6deg)' } as React.CSSProperties}
+          >
+            <CalculatorIllustration />
           </div>
 
           <div className="brutal-border-lg relative rounded-lg bg-white">

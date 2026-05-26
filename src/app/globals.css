@@ -78,22 +78,51 @@
   font-family: var(--font-handwritten), "Comic Sans MS", cursive;
 }
 
-/* Sticky note — paper-yellow with subtle drop shadow and a slight tilt. */
-.sticky-note {
-  background: linear-gradient(135deg, #FFF6A8 0%, #FFEC8C 100%);
-  box-shadow: 2px 4px 0 rgba(0, 0, 0, 0.18), 0 1px 1px rgba(0, 0, 0, 0.06);
-  border: 1px solid #E8C95C;
+/* =========================================================================
+   STICKY NOTES — redesigned so they clearly read as Post-it paper:
+   saturated background, layered drop shadow, paper grain, tape strip on top.
+   ========================================================================= */
+.sticky {
+  position: relative;
+  padding: 18px 22px 16px;
+  border-radius: 2px;
+  box-shadow:
+    1px 2px 0 rgba(0, 0, 0, 0.08),
+    0 8px 16px rgba(0, 0, 0, 0.18),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.05);
 }
-.sticky-note-pink {
-  background: linear-gradient(135deg, #FFD7DA 0%, #FFC0C4 100%);
-  box-shadow: 2px 4px 0 rgba(0, 0, 0, 0.18), 0 1px 1px rgba(0, 0, 0, 0.06);
-  border: 1px solid #E8A4A8;
+.sticky::before {
+  /* Translucent tape strip pinning the note to the page */
+  content: "";
+  position: absolute;
+  top: -10px;
+  left: 22%;
+  width: 56%;
+  height: 16px;
+  background: rgba(255, 255, 255, 0.55);
+  border-left: 1px dashed rgba(0, 0, 0, 0.08);
+  border-right: 1px dashed rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+  transform: rotate(-1.5deg);
+  backdrop-filter: blur(2px);
 }
-.sticky-note-mint {
-  background: linear-gradient(135deg, #D6F2D8 0%, #BCE9C0 100%);
-  box-shadow: 2px 4px 0 rgba(0, 0, 0, 0.18), 0 1px 1px rgba(0, 0, 0, 0.06);
-  border: 1px solid #93D89A;
+.sticky::after {
+  /* Subtle dog-eared corner shadow at the bottom-right */
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 18px;
+  height: 18px;
+  background: linear-gradient(
+    135deg,
+    transparent 50%,
+    rgba(0, 0, 0, 0.08) 50%
+  );
 }
+.sticky-yellow { background: #FFE875; border: 1px solid #D8B848; }
+.sticky-pink   { background: #FFC6CC; border: 1px solid #D27C84; }
+.sticky-mint   { background: #BCE9C0; border: 1px solid #6FB276; }
 
 /* Decorative item drift — desk objects gently rotate/bob */
 @keyframes drift {
@@ -101,6 +130,168 @@
   50% { transform: translateY(-6px) rotate(calc(var(--rot, 0deg) + 2deg)); }
 }
 .drift { animation: drift 5.5s ease-in-out infinite; }
+
+/* =========================================================================
+   MACBOOK FRAME — wraps the dashboard mockup as a stylized laptop:
+   silver lid + black bezel with camera notch + curved keyboard deck.
+   ========================================================================= */
+.macbook-lid {
+  position: relative;
+  background: linear-gradient(180deg, #d4d4d4 0%, #b4b4b4 100%);
+  padding: 8px;
+  border-radius: 14px;
+  border: 1px solid #1D1D1D;
+  box-shadow:
+    4px 6px 0 #1D1D1D,
+    0 22px 40px -10px rgba(0, 0, 0, 0.28);
+}
+.macbook-bezel {
+  position: relative;
+  background: #141414;
+  padding: 14px;
+  border-radius: 8px;
+}
+.macbook-bezel::before {
+  /* Camera dot at the top of the screen */
+  content: "";
+  position: absolute;
+  top: 5px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #2c2c2c;
+  box-shadow: inset 0 0 0 1px #5a5a5a;
+}
+.macbook-screen {
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+.macbook-deck {
+  position: relative;
+  margin: -2px -16px 0;
+  height: 14px;
+  background: linear-gradient(180deg, #b8b8b8 0%, #7a7a7a 100%);
+  border-radius: 0 0 14px 14px;
+  border: 1px solid #1D1D1D;
+  border-top: none;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.18);
+}
+.macbook-deck::after {
+  /* Trackpad / hinge indent */
+  content: "";
+  position: absolute;
+  bottom: 3px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 32%;
+  height: 3px;
+  background: #4a4a4a;
+  border-radius: 2px;
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.3);
+}
+
+/* =========================================================================
+   TEXTBOOK SPINES — a small stack of colored book spines as decoration.
+   ========================================================================= */
+.textbook-spine {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  height: 30px;
+  padding: 0 14px 0 22px;
+  border: 1px solid #1D1D1D;
+  border-radius: 3px;
+  color: white;
+  font-family: var(--font-sans);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  box-shadow: 2px 3px 0 #1D1D1D;
+}
+.textbook-spine::before {
+  /* gold band running along the spine */
+  content: "";
+  position: absolute;
+  left: 8px;
+  top: 5px;
+  bottom: 5px;
+  width: 3px;
+  background: rgba(255, 255, 255, 0.55);
+  border-radius: 1px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.12);
+}
+.textbook-spine::after {
+  /* page edge band on the right — looks like paper edges */
+  content: "";
+  position: absolute;
+  right: 4px;
+  top: 4px;
+  bottom: 4px;
+  width: 4px;
+  background: repeating-linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.7) 0 1px,
+    rgba(0, 0, 0, 0.05) 1px 2px
+  );
+  border-radius: 1px;
+}
+
+/* =========================================================================
+   TI-84 CALCULATOR — stylized illustration used as a desk decoration.
+   ========================================================================= */
+.ti84 {
+  width: 160px;
+  padding: 12px 10px 10px;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #3d3d3d 0%, #1c1c1c 100%);
+  border: 1px solid #1D1D1D;
+  box-shadow:
+    3px 5px 0 #1D1D1D,
+    0 8px 16px rgba(0, 0, 0, 0.2);
+}
+.ti84-brand {
+  font-family: var(--font-sans);
+  font-size: 8px;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.6);
+  letter-spacing: 0.15em;
+  text-align: center;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+}
+.ti84-screen {
+  background: linear-gradient(180deg, #c3d3a3 0%, #99ad7a 100%);
+  border: 1px solid #1D1D1D;
+  border-radius: 2px;
+  padding: 6px 8px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 9px;
+  color: #1D1D1D;
+  line-height: 1.4;
+  min-height: 56px;
+  box-shadow: inset 0 2px 2px rgba(0, 0, 0, 0.15);
+}
+.ti84-screen-line { margin: 0; white-space: nowrap; }
+.ti84-keys {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 3px;
+}
+.ti84-key {
+  height: 10px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #5c5c5c 0%, #3a3a3a 100%);
+  border: 1px solid rgba(0, 0, 0, 0.6);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+.ti84-key-yellow { background: linear-gradient(180deg, #F4C449 0%, #C9982A 100%); }
+.ti84-key-blue   { background: linear-gradient(180deg, #4886D6 0%, #2A5DA6 100%); }
+.ti84-key-green  { background: linear-gradient(180deg, #6FB276 0%, #4F8554 100%); }
 
 /* Typing dot pulse for the AI chat preview */
 @keyframes dot-pulse {
@@ -129,10 +320,9 @@
   }
 }
 
-/* Section scroll-in helper — used by reveal-on-mount client wrappers */
+/* Section scroll-in helper */
 @keyframes reveal-up {
   from { opacity: 0; transform: translateY(16px); }
   to { opacity: 1; transform: translateY(0); }
 }
 .reveal-up { animation: reveal-up 0.7s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
-
