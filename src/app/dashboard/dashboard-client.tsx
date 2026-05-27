@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useUser, useSession } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
 import { AnimatePresence } from "framer-motion";
@@ -9,6 +9,9 @@ import { useAutoSync } from "@/hooks/useAutoSync";
 import { DashboardShell } from "./components/DashboardShell";
 import { AssignmentList } from "./components/AssignmentList";
 import { NewAssignmentsBanner } from "./components/NewAssignmentsBanner";
+import { SnapshotPanel } from "./components/SnapshotPanel";
+import { SchedulePanel } from "./components/SchedulePanel";
+import type { WidgetConfig } from "@/hooks/useWidgetLayout";
 import { OnboardingTour } from "./components/OnboardingTour";
 import { LoadingScreen } from "./components/LoadingScreen";
 
@@ -154,12 +157,27 @@ export function DashboardClient() {
     );
   }
 
+  function renderWidgets(layout: WidgetConfig[]) {
+    const widgetMap: Record<string, React.ReactNode> = {
+      snapshot: <SnapshotPanel key="snapshot" />,
+      assignments: <AssignmentList key="assignments" />,
+      schedule: <SchedulePanel key="schedule" />,
+    };
+    return (
+      <div className="flex flex-col gap-6">
+        <NewAssignmentsBanner />
+        {layout
+          .filter((w) => w.visible)
+          .map((w) => widgetMap[w.id])}
+      </div>
+    );
+  }
+
   return (
     <>
       {isLoaded && (
         <DashboardShell onRestartTour={handleRestartTour}>
-          <NewAssignmentsBanner />
-          <AssignmentList />
+          {renderWidgets}
         </DashboardShell>
       )}
       {isLoaded && showTour && currentUser !== undefined && !showLoading && (
