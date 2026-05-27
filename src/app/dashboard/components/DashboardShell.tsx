@@ -31,6 +31,8 @@ import { CalendarPanel } from "./calendar/CalendarPanel";
 import { SecurityPanel } from "./security/SecurityPanel";
 import { CampusSyncPanel } from "./campus-sync/CampusSyncPanel";
 import { CoursesPanel } from "./courses/CoursesPanel";
+import { AppDock } from "./dock/AppDock";
+import { type PanelId } from "./dock/dockConfig";
 import { type ReactNode as RN } from "react";
 
 const CONNECT_CANVAS_DISMISSED_KEY = "nodegent-connect-canvas-banner-dismissed";
@@ -331,7 +333,6 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
   function openCampusSyncForCanvas(mode: "connect" | "reconnect") {
     openCampusSync();
     if (mode === "reconnect") {
-      // CompactCanvasSync watches this query param and auto-opens the auth viewer
       router.replace(`${pathname}?reconnect=canvas`, { scroll: false });
     }
   }
@@ -360,10 +361,31 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
 
   const isDashboard = !securityOpen && !campusSyncOpen && !coursesOpen;
 
+  const activePanel: PanelId =
+    securityOpen   ? "security"    :
+    campusSyncOpen ? "campus-sync" :
+    coursesOpen    ? "courses"     :
+    calendarOpen   ? "calendar"    :
+    pathname === "/chat" ? "ai-chat" :
+    "dashboard";
+
+  function handleDockNavigate(id: PanelId) {
+    switch (id) {
+      case "dashboard":    goHome(); break;
+      case "calendar":     setCalendarOpen(true); setSecurityOpen(false); setCampusSyncOpen(false); setCoursesOpen(false); break;
+      case "courses":      openCourses(); break;
+      case "campus-sync":  openCampusSync(); break;
+      case "security":     openSecurity(); break;
+      case "ai-chat":      router.push("/chat"); break;
+      case "slug-schedule": break; // handled by DockIcon externalUrl
+    }
+  }
+
   return (
     <div className="desktop-bg min-h-screen overflow-hidden">
       <SnapshotWidget />
       <ActivityLogPanel />
+
       {/* Top Navigation */}
       <nav className="fixed top-0 left-0 right-0 h-14 bg-[#EEEFE9] border-b border-gray-300 z-50 flex items-center justify-between px-6">
         <div className="flex items-center gap-8">
@@ -418,40 +440,42 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
         <UserButton />
       </nav>
 
-      {/* Main desktop area */}
-      <main className="flex items-start justify-center pt-20 px-6 pb-6 min-h-screen">
-        {/* OS Window */}
-        <div className="window-shadow bg-white rounded-lg border border-gray-300 w-full max-w-3xl flex flex-col overflow-hidden relative">
-          <WindowTitleBar />
-          <WindowToolbar
-            calendarOpen={calendarOpen}
-            onCalendarToggle={() => setCalendarOpen((prev) => !prev)}
-            onBack={handleBack}
-            onHome={goHome}
-            onCampusSync={openCampusSync}
-            onCourses={openCourses}
-            onRestartTour={onRestartTour ?? (() => {})}
-          />
-          {/* Calendar panel — slides in below toolbar */}
-          {calendarOpen && <CalendarPanel />}
-          {/* Scrollable content — suppressed whenever the calendar is open */}
-          <div className={`flex-1 overflow-y-auto p-6 ${calendarOpen ? "" : "min-h-[400px]"}`}>
-            {calendarOpen ? null : securityOpen ? (
-              <SecurityPanel onClose={() => setSecurityOpen(false)} />
-            ) : campusSyncOpen ? (
-              <CampusSyncPanel onClose={() => setCampusSyncOpen(false)} />
-            ) : coursesOpen ? (
-              <CoursesPanel onClose={() => setCoursesOpen(false)} />
-            ) : (
-              <>
-                <ConnectCanvasBanner onConnect={openCampusSyncForCanvas} />
-                {children}
-              </>
-            )}
+      {/* Desktop area — dock + window side by side */}
+      <div className="flex flex-row min-h-screen">
+        <AppDock activePanel={activePanel} onNavigate={handleDockNavigate} />
+
+        <main className="flex-1 flex items-start justify-center pt-20 px-6 pb-6 min-h-screen">
+          {/* OS Window */}
+          <div className="window-shadow bg-white rounded-lg border border-gray-300 w-full max-w-3xl flex flex-col overflow-hidden relative">
+            <WindowTitleBar />
+            <WindowToolbar
+              calendarOpen={calendarOpen}
+              onCalendarToggle={() => setCalendarOpen((prev) => !prev)}
+              onBack={handleBack}
+              onHome={goHome}
+              onCampusSync={openCampusSync}
+              onCourses={openCourses}
+              onRestartTour={onRestartTour ?? (() => {})}
+            />
+            {calendarOpen && <CalendarPanel />}
+            <div className={`flex-1 overflow-y-auto p-6 ${calendarOpen ? "" : "min-h-[400px]"}`}>
+              {calendarOpen ? null : securityOpen ? (
+                <SecurityPanel onClose={() => setSecurityOpen(false)} />
+              ) : campusSyncOpen ? (
+                <CampusSyncPanel onClose={() => setCampusSyncOpen(false)} />
+              ) : coursesOpen ? (
+                <CoursesPanel onClose={() => setCoursesOpen(false)} />
+              ) : (
+                <>
+                  <ConnectCanvasBanner onConnect={openCampusSyncForCanvas} />
+                  {children}
+                </>
+              )}
+            </div>
+            <WindowStatusBar />
           </div>
-          <WindowStatusBar />
-        </div>
-      </main>
+        </main>
+      </div>
     </div>
   );
 }
