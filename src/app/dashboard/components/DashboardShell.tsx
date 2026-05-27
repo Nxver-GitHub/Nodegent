@@ -24,6 +24,8 @@ import {
 import { api } from "@convex/_generated/api";
 import { useTheme } from "@/hooks/useTheme";
 import { useAutoSyncPreference } from "@/hooks/useAutoSyncPreference";
+import { useWallpaper, getWallpaperStyle } from "@/hooks/useWallpaper";
+import { WallpaperPicker } from "./WallpaperPicker";
 import { SnapshotWidget } from "./SnapshotWidget";
 import { ActivityLogPanel } from "./ActivityLogPanel";
 import { NotificationBell } from "./NotificationBell";
@@ -150,9 +152,18 @@ interface WindowToolbarProps {
   onCampusSync: () => void;
   onCourses: () => void;
   onRestartTour: () => void;
+  wallpaper: string;
+  onWallpaperChange: (id: string) => void;
 }
 
-function SettingsPopover({ onRestartTour, onClose }: { onRestartTour: () => void; onClose: () => void }) {
+interface SettingsPopoverProps {
+  onRestartTour: () => void;
+  onClose: () => void;
+  wallpaper: string;
+  onWallpaperChange: (id: string) => void;
+}
+
+function SettingsPopover({ onRestartTour, onClose, wallpaper, onWallpaperChange }: SettingsPopoverProps) {
   const ref = useRef<HTMLDivElement>(null);
   const { theme, toggleTheme } = useTheme();
   const { autoSyncEnabled, setAutoSyncEnabled } = useAutoSyncPreference();
@@ -212,11 +223,20 @@ function SettingsPopover({ onRestartTour, onClose }: { onRestartTour: () => void
         <Compass size={15} className="text-blue-500 flex-shrink-0" />
         Restart onboarding tour
       </button>
+
+      <div className="mx-4 my-1 border-t border-gray-100" />
+
+      <div className="px-4 py-2.5">
+        <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2">
+          Wallpaper
+        </p>
+        <WallpaperPicker value={wallpaper} onChange={onWallpaperChange} />
+      </div>
     </div>
   );
 }
 
-function WindowToolbar({ calendarOpen, onCalendarToggle, onBack, onHome, onCampusSync, onCourses, onRestartTour }: WindowToolbarProps) {
+function WindowToolbar({ calendarOpen, onCalendarToggle, onBack, onHome, onCampusSync, onCourses, onRestartTour, wallpaper, onWallpaperChange }: WindowToolbarProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
@@ -294,6 +314,8 @@ function WindowToolbar({ calendarOpen, onCalendarToggle, onBack, onHome, onCampu
             <SettingsPopover
               onRestartTour={onRestartTour}
               onClose={() => setSettingsOpen(false)}
+              wallpaper={wallpaper}
+              onWallpaperChange={onWallpaperChange}
             />
           )}
         </div>
@@ -328,6 +350,7 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
   const [campusSyncOpen, setCampusSyncOpen] = useState(false);
   const [coursesOpen, setCoursesOpen] = useState(false);
   const [activeDockApp, setActiveDockApp] = useState<DockAppId | null>("nodegent");
+  const [wallpaper, setWallpaper] = useWallpaper();
 
   // Derived: which iframe app is currently open (if any)
   const iframeApp = activeDockApp
@@ -393,7 +416,10 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
   const isDashboard = !securityOpen && !campusSyncOpen && !coursesOpen;
 
   return (
-    <div className="desktop-bg min-h-screen overflow-hidden">
+    <div
+      className="desktop-bg min-h-screen overflow-hidden"
+      style={wallpaper !== "default" ? getWallpaperStyle(wallpaper) : undefined}
+    >
       <SnapshotWidget />
       <ActivityLogPanel />
 
@@ -474,6 +500,8 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
                 onCampusSync={openCampusSync}
                 onCourses={openCourses}
                 onRestartTour={onRestartTour ?? (() => {})}
+                wallpaper={wallpaper}
+                onWallpaperChange={setWallpaper}
               />
               {calendarOpen && <CalendarPanel />}
               <div className={`flex-1 overflow-y-auto p-6 ${calendarOpen ? "" : "min-h-[300px]"}`}>
