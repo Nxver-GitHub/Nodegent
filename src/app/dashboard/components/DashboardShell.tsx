@@ -39,6 +39,11 @@ const IframeWindow = dynamic(
   () => import("./dock/IframeWindow").then((m) => m.IframeWindow),
   { ssr: false }
 );
+
+const DraggableWindow = dynamic(
+  () => import("./dock/DraggableWindow").then((m) => m.DraggableWindow),
+  { ssr: false }
+);
 import { type ReactNode as RN } from "react";
 
 const CONNECT_CANVAS_DISMISSED_KEY = "nodegent-connect-canvas-banner-dismissed";
@@ -446,13 +451,20 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
         <UserButton />
       </nav>
 
-      {/* Desktop area — dock + window side by side */}
+      {/* Desktop area — dock fills left, main fills rest (windows are overlaid) */}
       <div className="flex flex-row min-h-screen">
         <AppDock activeDockApp={activeDockApp} onAppClick={handleDockAppClick} />
+        <main className="flex-1 min-h-screen" />
+      </div>
 
-        <main className="flex-1 flex items-start justify-center pt-20 px-6 pb-6 min-h-screen">
-          {activeDockApp === "nodegent" && (
-            <div className="window-shadow bg-white rounded-lg border border-gray-300 w-full max-w-3xl flex flex-col overflow-hidden relative">
+      {/* Nodegent window overlay — draggable + resizable, centered on open */}
+      {activeDockApp === "nodegent" && (
+        <div
+          className="fixed inset-0"
+          style={{ zIndex: 40, top: "56px", pointerEvents: "none" }}
+        >
+          <DraggableWindow defaultWidth={780} defaultHeight={580}>
+            <div className="window-shadow bg-white rounded-lg border border-gray-300 w-full h-full flex flex-col overflow-hidden">
               <WindowTitleBar onClose={() => setActiveDockApp(null)} />
               <WindowToolbar
                 calendarOpen={calendarOpen}
@@ -464,7 +476,7 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
                 onRestartTour={onRestartTour ?? (() => {})}
               />
               {calendarOpen && <CalendarPanel />}
-              <div className={`flex-1 overflow-y-auto p-6 ${calendarOpen ? "" : "min-h-[400px]"}`}>
+              <div className={`flex-1 overflow-y-auto p-6 ${calendarOpen ? "" : "min-h-[300px]"}`}>
                 {calendarOpen ? null : securityOpen ? (
                   <SecurityPanel onClose={() => setSecurityOpen(false)} />
                 ) : campusSyncOpen ? (
@@ -480,9 +492,9 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
               </div>
               <WindowStatusBar />
             </div>
-          )}
-        </main>
-      </div>
+          </DraggableWindow>
+        </div>
+      )}
 
       {/* Iframe window overlay — pointer-events-none so dock remains clickable */}
       {iframeApp && (
