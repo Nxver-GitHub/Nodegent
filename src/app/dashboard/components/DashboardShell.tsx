@@ -24,6 +24,8 @@ import {
 import { api } from "@convex/_generated/api";
 import { useTheme } from "@/hooks/useTheme";
 import { useAutoSyncPreference } from "@/hooks/useAutoSyncPreference";
+import { useWidgetLayout, type WidgetId, type WidgetConfig } from "@/hooks/useWidgetLayout";
+import { WidgetLayoutSettings } from "./WidgetLayoutSettings";
 import { SnapshotWidget } from "./SnapshotWidget";
 import { ActivityLogPanel } from "./ActivityLogPanel";
 import { NotificationBell } from "./NotificationBell";
@@ -114,7 +116,7 @@ function Tooltip({ label, children }: { label: string; children: RN }) {
 }
 
 interface DashboardShellProps {
-  children: ReactNode;
+  children: ReactNode | ((layout: WidgetConfig[]) => ReactNode);
   onRestartTour?: () => void;
 }
 
@@ -150,9 +152,29 @@ interface WindowToolbarProps {
   onCampusSync: () => void;
   onCourses: () => void;
   onRestartTour: () => void;
+  widgetLayout: WidgetConfig[];
+  onSetWidgetVisible: (id: WidgetId, visible: boolean) => void;
+  onMoveWidgetUp: (id: WidgetId) => void;
+  onMoveWidgetDown: (id: WidgetId) => void;
 }
 
-function SettingsPopover({ onRestartTour, onClose }: { onRestartTour: () => void; onClose: () => void }) {
+interface SettingsPopoverProps {
+  onRestartTour: () => void;
+  onClose: () => void;
+  widgetLayout: WidgetConfig[];
+  onSetWidgetVisible: (id: WidgetId, visible: boolean) => void;
+  onMoveWidgetUp: (id: WidgetId) => void;
+  onMoveWidgetDown: (id: WidgetId) => void;
+}
+
+function SettingsPopover({
+  onRestartTour,
+  onClose,
+  widgetLayout,
+  onSetWidgetVisible,
+  onMoveWidgetUp,
+  onMoveWidgetDown,
+}: SettingsPopoverProps) {
   const ref = useRef<HTMLDivElement>(null);
   const { theme, toggleTheme } = useTheme();
   const { autoSyncEnabled, setAutoSyncEnabled } = useAutoSyncPreference();
@@ -212,11 +234,25 @@ function SettingsPopover({ onRestartTour, onClose }: { onRestartTour: () => void
         <Compass size={15} className="text-blue-500 flex-shrink-0" />
         Restart onboarding tour
       </button>
+
+      <div className="mx-4 my-1 border-t border-gray-100" />
+
+      <div className="px-4 py-2.5">
+        <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2">
+          Widgets
+        </p>
+        <WidgetLayoutSettings
+          layout={widgetLayout}
+          onSetVisible={onSetWidgetVisible}
+          onMoveUp={onMoveWidgetUp}
+          onMoveDown={onMoveWidgetDown}
+        />
+      </div>
     </div>
   );
 }
 
-function WindowToolbar({ calendarOpen, onCalendarToggle, onBack, onHome, onCampusSync, onCourses, onRestartTour }: WindowToolbarProps) {
+function WindowToolbar({ calendarOpen, onCalendarToggle, onBack, onHome, onCampusSync, onCourses, onRestartTour, widgetLayout, onSetWidgetVisible, onMoveWidgetUp, onMoveWidgetDown }: WindowToolbarProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
@@ -294,6 +330,10 @@ function WindowToolbar({ calendarOpen, onCalendarToggle, onBack, onHome, onCampu
             <SettingsPopover
               onRestartTour={onRestartTour}
               onClose={() => setSettingsOpen(false)}
+              widgetLayout={widgetLayout}
+              onSetWidgetVisible={onSetWidgetVisible}
+              onMoveWidgetUp={onMoveWidgetUp}
+              onMoveWidgetDown={onMoveWidgetDown}
             />
           )}
         </div>
@@ -328,6 +368,7 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
   const [campusSyncOpen, setCampusSyncOpen] = useState(false);
   const [coursesOpen, setCoursesOpen] = useState(false);
   const [activeDockApp, setActiveDockApp] = useState<DockAppId | null>("nodegent");
+  const { layout: widgetLayout, setVisible: setWidgetVisible, moveUp: moveWidgetUp, moveDown: moveWidgetDown } = useWidgetLayout();
 
   // Derived: which iframe app is currently open (if any)
   const iframeApp = activeDockApp
@@ -474,6 +515,10 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
                 onCampusSync={openCampusSync}
                 onCourses={openCourses}
                 onRestartTour={onRestartTour ?? (() => {})}
+                widgetLayout={widgetLayout}
+                onSetWidgetVisible={setWidgetVisible}
+                onMoveWidgetUp={moveWidgetUp}
+                onMoveWidgetDown={moveWidgetDown}
               />
               {calendarOpen && <CalendarPanel />}
               <div className={`flex-1 overflow-y-auto p-6 ${calendarOpen ? "" : "min-h-[300px]"}`}>
@@ -486,7 +531,7 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
                 ) : (
                   <>
                     <ConnectCanvasBanner onConnect={openCampusSyncForCanvas} />
-                    {children}
+                    {typeof children === "function" ? children(widgetLayout) : children}
                   </>
                 )}
               </div>
