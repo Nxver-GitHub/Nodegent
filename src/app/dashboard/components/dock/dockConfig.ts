@@ -4,32 +4,69 @@ export type PanelId =
   | "calendar"
   | "courses"
   | "campus-sync"
-  | "security"
-  | "slug-schedule";
+  | "security";
 
-export interface DefaultApp {
-  id: PanelId;
+export type DockAppId = "nodegent" | "slug-schedule" | "canvas" | "sidekick" | "myucsc";
+export type AppType = "internal" | "iframe" | "external";
+
+export interface DockApp {
+  id: DockAppId;
   label: string;
   phosphorIcon: string;
   color: string;
-  href?: string;
-  externalUrl?: string;
+  appType: AppType;
+  url?: string;
+  hideable: boolean;
+  tooltip?: string;
 }
 
 // TODO Sprint 7 (US-7.3): gate SlugSchedule on user.university === "ucsc"
-export const DEFAULT_APPS: DefaultApp[] = [
-  { id: "dashboard",     label: "Dashboard",    phosphorIcon: "House",             color: "#CD8407" },
-  { id: "ai-chat",       label: "AI Chat",      phosphorIcon: "ChatCircle",        color: "#3B82F6", href: "/chat" },
-  { id: "calendar",      label: "Calendar",     phosphorIcon: "CalendarCheck",     color: "#10B981" },
-  { id: "courses",       label: "Courses",      phosphorIcon: "ChalkboardTeacher", color: "#8B5CF6" },
-  { id: "campus-sync",   label: "Campus Sync",  phosphorIcon: "ArrowsClockwise",   color: "#F59E0B" },
-  { id: "security",      label: "Security",     phosphorIcon: "ShieldCheck",       color: "#EF4444" },
+export const DEFAULT_APPS: DockApp[] = [
+  {
+    id: "nodegent",
+    label: "Nodegent",
+    phosphorIcon: "Graph",
+    color: "#CD8407",
+    appType: "internal",
+    hideable: false,
+  },
   {
     id: "slug-schedule",
     label: "SlugSchedule",
     phosphorIcon: "Clock",
     color: "#06B6D4",
-    externalUrl: "https://cabalex.github.io/slugschedule/",
+    appType: "iframe",
+    url: "https://cabalex.github.io/slugschedule/",
+    hideable: true,
+  },
+  {
+    id: "canvas",
+    label: "Canvas",
+    phosphorIcon: "BookOpen",
+    color: "#E63946",
+    appType: "external",
+    url: "https://canvas.ucsc.edu/",
+    hideable: true,
+    tooltip: "Opens in new tab ↗",
+  },
+  {
+    id: "sidekick",
+    label: "Sidekick",
+    phosphorIcon: "Robot",
+    color: "#8B5CF6",
+    appType: "iframe",
+    url: "https://santacruz-sidekick.vercel.app/",
+    hideable: true,
+  },
+  {
+    id: "myucsc",
+    label: "MyUCSC",
+    phosphorIcon: "IdentificationCard",
+    color: "#003C6C",
+    appType: "external",
+    url: "https://my.ucsc.edu/",
+    hideable: true,
+    tooltip: "Opens in new tab ↗",
   },
 ];
 

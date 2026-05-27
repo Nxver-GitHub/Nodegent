@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
 import {
   DndContext,
@@ -20,14 +19,14 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
-import { DEFAULT_APPS, type PanelId } from "./dockConfig";
+import { DEFAULT_APPS, type DockApp, type DockAppId } from "./dockConfig";
 import { DockIcon } from "./DockIcon";
 import { AddAppModal } from "./AddAppModal";
 import { ConfirmDialog } from "../ConfirmDialog";
 
 interface AppDockProps {
-  activePanel: PanelId;
-  onNavigate: (id: PanelId) => void;
+  activeDockApp: DockAppId | null;
+  onAppClick: (app: DockApp) => void;
 }
 
 interface CustomApp {
@@ -70,8 +69,7 @@ function SortableDockIcon({ app, onRemove }: SortableDockIconProps) {
   );
 }
 
-export function AppDock({ activePanel, onNavigate }: AppDockProps) {
-  const router = useRouter();
+export function AppDock({ activeDockApp, onAppClick }: AppDockProps) {
   const currentUser = useQuery(api.users.getCurrentUser);
   const customApps = useQuery(api.dockApps.getDockApps);
   const deleteDockApp = useMutation(api.dockApps.deleteDockApp);
@@ -88,18 +86,6 @@ export function AppDock({ activePanel, onNavigate }: AppDockProps) {
   const displayedCustomApps = localApps ?? customApps ?? [];
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
-
-  function handleDefaultNavigate(app: (typeof DEFAULT_APPS)[number]) {
-    if (app.externalUrl) {
-      window.open(app.externalUrl, "_blank", "noopener,noreferrer");
-      return;
-    }
-    if (app.href) {
-      router.push(app.href);
-      return;
-    }
-    onNavigate(app.id);
-  }
 
   async function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
@@ -152,15 +138,17 @@ export function AppDock({ activePanel, onNavigate }: AppDockProps) {
               label={app.label}
               icon={app.phosphorIcon}
               color={app.color}
-              active={activePanel === app.id}
-              onClick={() => handleDefaultNavigate(app)}
-              onRemove={() => setConfirmHide({ id: app.id, name: app.label })}
+              active={activeDockApp === app.id}
+              onClick={() => onAppClick(app)}
+              onRemove={app.hideable ? () => setConfirmHide({ id: app.id, name: app.label }) : undefined}
               removeLabel="Hide"
+              tooltip={app.tooltip}
+              hideable={app.hideable}
             />
           ))}
         </div>
 
-        {/* Separator — only shown when there are custom apps or user can add */}
+        {/* Separator */}
         <hr className="border-white/30 mx-1" />
 
         {/* Custom apps — sortable 2-column grid */}
@@ -178,7 +166,6 @@ export function AppDock({ activePanel, onNavigate }: AppDockProps) {
                 />
               ))}
 
-              {/* Add App slot */}
               {!atLimit && (
                 <button
                   onClick={() => setShowAddModal(true)}
