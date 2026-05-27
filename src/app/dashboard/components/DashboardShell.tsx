@@ -31,6 +31,14 @@ import { CalendarPanel } from "./calendar/CalendarPanel";
 import { SecurityPanel } from "./security/SecurityPanel";
 import { CampusSyncPanel } from "./campus-sync/CampusSyncPanel";
 import { CoursesPanel } from "./courses/CoursesPanel";
+import dynamic from "next/dynamic";
+import { AppDock } from "./dock/AppDock";
+import { DEFAULT_APPS, type DockApp, type DockAppId } from "./dock/dockConfig";
+
+const IframeWindow = dynamic(
+  () => import("./dock/IframeWindow").then((m) => m.IframeWindow),
+  { ssr: false }
+);
 import { type ReactNode as RN } from "react";
 
 const CONNECT_CANVAS_DISMISSED_KEY = "nodegent-connect-canvas-banner-dismissed";
@@ -105,7 +113,7 @@ interface DashboardShellProps {
   onRestartTour?: () => void;
 }
 
-function WindowTitleBar() {
+function WindowTitleBar({ onClose }: { onClose: () => void }) {
   return (
     <div className="relative h-10 border-b border-gray-300 bg-[#F6F6F6] flex items-center justify-between px-3 flex-shrink-0">
       <div className="flex items-center gap-1 text-gray-500">
@@ -114,11 +122,16 @@ function WindowTitleBar() {
       <span className="absolute left-1/2 -translate-x-1/2 text-[13px] font-bold text-gray-800">
         nodegent.app
       </span>
-      {/* Decorative window controls */}
       <div className="flex items-center gap-3 text-gray-400 text-base">
         <Minus size={14} />
         <Square size={12} />
-        <X size={14} />
+        <button
+          onClick={onClose}
+          aria-label="Close Nodegent"
+          className="hover:text-red-500 transition-colors"
+        >
+          <X size={14} />
+        </button>
       </div>
     </div>
   );
@@ -203,7 +216,6 @@ function WindowToolbar({ calendarOpen, onCalendarToggle, onBack, onHome, onCampu
 
   return (
     <div className="h-12 border-b border-gray-200 bg-white flex items-center px-4 gap-2 flex-shrink-0">
-      {/* Nav arrows */}
       <Tooltip label="Back">
         <button
           onClick={onBack}
@@ -219,7 +231,6 @@ function WindowToolbar({ calendarOpen, onCalendarToggle, onBack, onHome, onCampu
 
       <div className="w-px h-4 bg-gray-200 mx-1" />
 
-      {/* My Dashboard button */}
       <Link
         id="tour-my-dashboard"
         href="/dashboard"
@@ -232,7 +243,6 @@ function WindowToolbar({ calendarOpen, onCalendarToggle, onBack, onHome, onCampu
 
       <div className="w-px h-4 bg-gray-200 mx-1" />
 
-      {/* Toolbar icon buttons */}
       <Tooltip label="My Courses">
         <button
           onClick={onCourses}
@@ -261,7 +271,6 @@ function WindowToolbar({ calendarOpen, onCalendarToggle, onBack, onHome, onCampu
         <NotificationBell />
       </Tooltip>
 
-      {/* Right side */}
       <div className="ml-auto flex items-center gap-2">
         <div className="relative">
           <Tooltip label="Settings">
@@ -313,6 +322,12 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
   const [securityOpen, setSecurityOpen] = useState(false);
   const [campusSyncOpen, setCampusSyncOpen] = useState(false);
   const [coursesOpen, setCoursesOpen] = useState(false);
+  const [activeDockApp, setActiveDockApp] = useState<DockAppId | null>("nodegent");
+
+  // Derived: which iframe app is currently open (if any)
+  const iframeApp = activeDockApp
+    ? (DEFAULT_APPS.find((a) => a.id === activeDockApp && a.appType === "iframe") ?? null)
+    : null;
 
   function openCourses() {
     setCoursesOpen(true);
@@ -331,7 +346,6 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
   function openCampusSyncForCanvas(mode: "connect" | "reconnect") {
     openCampusSync();
     if (mode === "reconnect") {
-      // CompactCanvasSync watches this query param and auto-opens the auth viewer
       router.replace(`${pathname}?reconnect=canvas`, { scroll: false });
     }
   }
@@ -358,12 +372,26 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
     }
   }
 
+  function handleDockAppClick(app: DockApp) {
+    if (app.appType === "external") {
+      window.open(app.url!, "_blank", "noopener,noreferrer");
+      return;
+    }
+    if (app.appType === "iframe") {
+      setActiveDockApp(app.id);
+      return;
+    }
+    // internal (nodegent) — open dashboard, close any iframe
+    setActiveDockApp("nodegent");
+  }
+
   const isDashboard = !securityOpen && !campusSyncOpen && !coursesOpen;
 
   return (
     <div className="desktop-bg min-h-screen overflow-hidden">
       <SnapshotWidget />
       <ActivityLogPanel />
+
       {/* Top Navigation */}
       <nav className="fixed top-0 left-0 right-0 h-14 bg-[#EEEFE9] border-b border-gray-300 z-50 flex items-center justify-between px-6">
         <div className="flex items-center gap-8">
@@ -418,40 +446,57 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
         <UserButton />
       </nav>
 
-      {/* Main desktop area */}
-      <main className="flex items-start justify-center pt-20 px-6 pb-6 min-h-screen">
-        {/* OS Window */}
-        <div className="window-shadow bg-white rounded-lg border border-gray-300 w-full max-w-3xl flex flex-col overflow-hidden relative">
-          <WindowTitleBar />
-          <WindowToolbar
-            calendarOpen={calendarOpen}
-            onCalendarToggle={() => setCalendarOpen((prev) => !prev)}
-            onBack={handleBack}
-            onHome={goHome}
-            onCampusSync={openCampusSync}
-            onCourses={openCourses}
-            onRestartTour={onRestartTour ?? (() => {})}
+      {/* Desktop area — dock + window side by side */}
+      <div className="flex flex-row min-h-screen">
+        <AppDock activeDockApp={activeDockApp} onAppClick={handleDockAppClick} />
+
+        <main className="flex-1 flex items-start justify-center pt-20 px-6 pb-6 min-h-screen">
+          {activeDockApp === "nodegent" && (
+            <div className="window-shadow bg-white rounded-lg border border-gray-300 w-full max-w-3xl flex flex-col overflow-hidden relative">
+              <WindowTitleBar onClose={() => setActiveDockApp(null)} />
+              <WindowToolbar
+                calendarOpen={calendarOpen}
+                onCalendarToggle={() => setCalendarOpen((prev) => !prev)}
+                onBack={handleBack}
+                onHome={goHome}
+                onCampusSync={openCampusSync}
+                onCourses={openCourses}
+                onRestartTour={onRestartTour ?? (() => {})}
+              />
+              {calendarOpen && <CalendarPanel />}
+              <div className={`flex-1 overflow-y-auto p-6 ${calendarOpen ? "" : "min-h-[400px]"}`}>
+                {calendarOpen ? null : securityOpen ? (
+                  <SecurityPanel onClose={() => setSecurityOpen(false)} />
+                ) : campusSyncOpen ? (
+                  <CampusSyncPanel onClose={() => setCampusSyncOpen(false)} />
+                ) : coursesOpen ? (
+                  <CoursesPanel onClose={() => setCoursesOpen(false)} />
+                ) : (
+                  <>
+                    <ConnectCanvasBanner onConnect={openCampusSyncForCanvas} />
+                    {children}
+                  </>
+                )}
+              </div>
+              <WindowStatusBar />
+            </div>
+          )}
+        </main>
+      </div>
+
+      {/* Iframe window overlay — pointer-events-none so dock remains clickable */}
+      {iframeApp && (
+        <div
+          className="fixed inset-0"
+          style={{ zIndex: 40, top: "56px", pointerEvents: "none" }}
+        >
+          <IframeWindow
+            url={iframeApp.url!}
+            label={iframeApp.label}
+            onClose={() => setActiveDockApp(null)}
           />
-          {/* Calendar panel — slides in below toolbar */}
-          {calendarOpen && <CalendarPanel />}
-          {/* Scrollable content — suppressed whenever the calendar is open */}
-          <div className={`flex-1 overflow-y-auto p-6 ${calendarOpen ? "" : "min-h-[400px]"}`}>
-            {calendarOpen ? null : securityOpen ? (
-              <SecurityPanel onClose={() => setSecurityOpen(false)} />
-            ) : campusSyncOpen ? (
-              <CampusSyncPanel onClose={() => setCampusSyncOpen(false)} />
-            ) : coursesOpen ? (
-              <CoursesPanel onClose={() => setCoursesOpen(false)} />
-            ) : (
-              <>
-                <ConnectCanvasBanner onConnect={openCampusSyncForCanvas} />
-                {children}
-              </>
-            )}
-          </div>
-          <WindowStatusBar />
         </div>
-      </main>
+      )}
     </div>
   );
 }

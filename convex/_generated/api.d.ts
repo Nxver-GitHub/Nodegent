@@ -13,6 +13,7 @@ import type * as auditLog from "../auditLog.js";
 import type * as canvas from "../canvas.js";
 import type * as chat from "../chat.js";
 import type * as courses from "../courses.js";
+import type * as dockApps from "../dockApps.js";
 import type * as events from "../events.js";
 import type * as googleCalendar from "../googleCalendar.js";
 import type * as users from "../users.js";
@@ -29,6 +30,7 @@ declare const fullApi: ApiFromModules<{
   canvas: typeof canvas;
   chat: typeof chat;
   courses: typeof courses;
+  dockApps: typeof dockApps;
   events: typeof events;
   googleCalendar: typeof googleCalendar;
   users: typeof users;

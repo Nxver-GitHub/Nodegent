@@ -15,6 +15,7 @@ export default defineSchema({
     canvasEnabled: v.optional(v.boolean()),
     calendarEnabled: v.optional(v.boolean()),
     onboardingCompleted: v.optional(v.boolean()),
+    hiddenDefaultApps: v.optional(v.array(v.string())),
   }).index("by_clerkId", ["clerkId"]),
 
   chatThreads: defineTable({
@@ -133,6 +134,17 @@ export default defineSchema({
     // upsertCanvasCookies on a successful reconnect.
     needsReconnect: v.optional(v.boolean()),
   }).index("by_userId", ["userId"]),
+  dockApps: defineTable({
+    userId: v.id("users"),
+    name: v.string(),
+    url: v.string(),
+    icon: v.string(),
+    color: v.optional(v.string()),
+    order: v.number(),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_userId_order", ["userId", "order"]),
+
   auditLog: defineTable({
     userId: v.id("users"),
     action: v.union(
