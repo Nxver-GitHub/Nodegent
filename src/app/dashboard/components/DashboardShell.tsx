@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
@@ -20,6 +20,12 @@ import {
   Sun,
   Moon,
   ArrowsClockwise,
+  SquaresFour,
+  Clock,
+  BookOpen,
+  Robot,
+  IdentificationCard,
+  type Icon,
 } from "@phosphor-icons/react";
 import { api } from "@convex/_generated/api";
 import { useTheme } from "@/hooks/useTheme";
@@ -50,7 +56,78 @@ const DraggableWindow = dynamic(
 );
 import { type ReactNode as RN } from "react";
 
+// Maps phosphor icon name strings (as stored in DockApp) to components for tray chips
+const TRAY_ICON_MAP: Record<string, Icon> = {
+  Graph,
+  Clock,
+  BookOpen,
+  Robot,
+  IdentificationCard,
+};
+
 const CONNECT_CANVAS_DISMISSED_KEY = "nodegent-connect-canvas-banner-dismissed";
+
+// ─── MinimizedTray ────────────────────────────────────────────────────────────
+
+interface MinimizedEntry {
+  id: DockAppId;
+  label: string;
+  phosphorIcon: string;
+  color: string;
+}
+
+function MinimizedTray({
+  windows,
+  onRestore,
+}: {
+  windows: MinimizedEntry[];
+  onRestore: (id: DockAppId) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  if (windows.length === 0) return null;
+
+  return (
+    <div
+      className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 transition-all"
+      onMouseEnter={() => setExpanded(true)}
+      onMouseLeave={() => setExpanded(false)}
+    >
+      {expanded ? (
+        <div className="flex items-center gap-1.5 bg-black/75 backdrop-blur-sm rounded-full px-2 py-1.5 shadow-lg">
+          {windows.map((w) => {
+            const PhosphorIcon = TRAY_ICON_MAP[w.phosphorIcon] ?? null;
+            return (
+              <button
+                key={w.id}
+                onClick={() => onRestore(w.id)}
+                aria-label={`Restore ${w.label}`}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-white text-[12px] font-medium hover:bg-white/15 transition-colors"
+              >
+                <span
+                  className="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0"
+                  style={{ backgroundColor: w.color }}
+                >
+                  {PhosphorIcon && (
+                    <PhosphorIcon size={11} weight="bold" className="text-white" />
+                  )}
+                </span>
+                {w.label}
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="flex items-center gap-1.5 bg-black/75 backdrop-blur-sm text-white px-3 py-1.5 rounded-full text-[12px] font-medium select-none shadow-lg">
+          <SquaresFour size={14} weight="bold" />
+          <span>{windows.length} minimized</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── ConnectCanvasBanner ──────────────────────────────────────────────────────
 
 function ConnectCanvasBanner({ onConnect }: { onConnect: (mode: "connect" | "reconnect") => void }) {
   const status = useQuery(api.canvas.getCanvasStatus);
@@ -105,6 +182,8 @@ function ConnectCanvasBanner({ onConnect }: { onConnect: (mode: "connect" | "rec
   );
 }
 
+// ─── Tooltip ──────────────────────────────────────────────────────────────────
+
 function Tooltip({ label, children }: { label: string; children: RN }) {
   return (
     <div className="relative group">
@@ -117,14 +196,18 @@ function Tooltip({ label, children }: { label: string; children: RN }) {
   );
 }
 
-interface DashboardShellProps {
-  children: ReactNode | ((layout: WidgetConfig[]) => ReactNode);
-  onRestartTour?: () => void;
+// ─── WindowTitleBar ───────────────────────────────────────────────────────────
+
+interface WindowTitleBarProps {
+  onClose: () => void;
+  onMinimize: () => void;
+  onMaximize: () => void;
+  isFullscreen: boolean;
 }
 
-function WindowTitleBar({ onClose }: { onClose: () => void }) {
+function WindowTitleBar({ onClose, onMinimize, onMaximize, isFullscreen }: WindowTitleBarProps) {
   return (
-    <div className="relative h-10 border-b border-gray-300 bg-[#F6F6F6] flex items-center justify-between px-3 flex-shrink-0">
+    <div className="relative h-10 border-b border-gray-300 bg-[#F6F6F6] flex items-center justify-between px-3 flex-shrink-0 select-none">
       <div className="flex items-center gap-1 text-gray-500">
         <Graph size={14} />
       </div>
@@ -132,8 +215,20 @@ function WindowTitleBar({ onClose }: { onClose: () => void }) {
         nodegent.app
       </span>
       <div className="flex items-center gap-3 text-gray-400 text-base">
-        <Minus size={14} />
-        <Square size={12} />
+        <button
+          onClick={onMinimize}
+          aria-label="Minimize"
+          className="hover:text-yellow-500 transition-colors"
+        >
+          <Minus size={14} />
+        </button>
+        <button
+          onClick={onMaximize}
+          aria-label={isFullscreen ? "Exit fullscreen" : "Maximize"}
+          className="hover:text-green-500 transition-colors"
+        >
+          <Square size={12} />
+        </button>
         <button
           onClick={onClose}
           aria-label="Close Nodegent"
@@ -145,6 +240,8 @@ function WindowTitleBar({ onClose }: { onClose: () => void }) {
     </div>
   );
 }
+
+// ─── WindowToolbar ────────────────────────────────────────────────────────────
 
 interface WindowToolbarProps {
   calendarOpen: boolean;
@@ -183,7 +280,6 @@ function SettingsPopover({
   onMoveWidgetUp,
   onMoveWidgetDown,
 }: SettingsPopoverProps) {
-
   const ref = useRef<HTMLDivElement>(null);
   const { theme, toggleTheme } = useTheme();
   const { autoSyncEnabled, setAutoSyncEnabled } = useAutoSyncPreference();
@@ -365,6 +461,8 @@ function WindowToolbar({ calendarOpen, onCalendarToggle, onBack, onHome, onCampu
   );
 }
 
+// ─── WindowStatusBar ──────────────────────────────────────────────────────────
+
 function WindowStatusBar() {
   return (
     <div className="h-6 border-t border-gray-200 bg-[#EFEFEF] flex items-center justify-between px-3 text-[11px] text-gray-500 font-mono flex-shrink-0">
@@ -380,6 +478,13 @@ function WindowStatusBar() {
   );
 }
 
+// ─── DashboardShell ───────────────────────────────────────────────────────────
+
+interface DashboardShellProps {
+  children: ReactNode | ((layout: WidgetConfig[]) => ReactNode);
+  onRestartTour?: () => void;
+}
+
 export function DashboardShell({ children, onRestartTour }: DashboardShellProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -390,6 +495,55 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
   const [activeDockApp, setActiveDockApp] = useState<DockAppId | null>("nodegent");
   const [wallpaper, setWallpaper] = useWallpaper();
   const { layout: widgetLayout, setVisible: setWidgetVisible, moveUp: moveWidgetUp, moveDown: moveWidgetDown } = useWidgetLayout();
+
+  // Window minimize/maximize state
+  const [minimizedWindows, setMinimizedWindows] = useState<DockAppId[]>([]);
+  const [minimizingId, setMinimizingId] = useState<DockAppId | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Track fullscreen changes (including Escape key exit)
+  useEffect(() => {
+    function onFullscreenChange() {
+      setIsFullscreen(!!document.fullscreenElement);
+    }
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
+  }, []);
+
+  const handleMaximize = useCallback(() => {
+    if (isFullscreen) {
+      document.exitFullscreen().catch(() => {});
+    } else {
+      document.documentElement.requestFullscreen().catch(() => {});
+    }
+  }, [isFullscreen]);
+
+  function handleMinimize(id: DockAppId) {
+    setMinimizingId(id);
+    setTimeout(() => {
+      setMinimizedWindows((prev) => (prev.includes(id) ? prev : [...prev, id]));
+      setActiveDockApp(null);
+      setMinimizingId(null);
+      // Exit fullscreen when minimizing
+      if (isFullscreen) document.exitFullscreen().catch(() => {});
+    }, 280);
+  }
+
+  function handleRestore(id: DockAppId) {
+    setMinimizedWindows((prev) => prev.filter((m) => m !== id));
+    setActiveDockApp(id);
+  }
+
+  // Build tray entries from minimized ids
+  const minimizedEntries: MinimizedEntry[] = minimizedWindows.map((id) => {
+    const app = DEFAULT_APPS.find((a) => a.id === id);
+    return {
+      id,
+      label: app?.label ?? id,
+      phosphorIcon: app?.phosphorIcon ?? "Graph",
+      color: app?.color ?? "#CD8407",
+    };
+  });
 
   // Derived: which iframe app is currently open (if any)
   const iframeApp = activeDockApp
@@ -440,6 +594,11 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
   }
 
   function handleDockAppClick(app: DockApp) {
+    // Clicking a minimized app restores it
+    if (minimizedWindows.includes(app.id)) {
+      handleRestore(app.id);
+      return;
+    }
     if (app.appType === "external") {
       window.open(app.url!, "_blank", "noopener,noreferrer");
       return;
@@ -448,11 +607,14 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
       setActiveDockApp(app.id);
       return;
     }
-    // internal (nodegent) — open dashboard, close any iframe
+    // internal (nodegent) — open dashboard
     setActiveDockApp("nodegent");
   }
 
   const isDashboard = !securityOpen && !campusSyncOpen && !coursesOpen;
+
+  // Whether the nodegent window is currently visible (active or mid-minimize animation)
+  const nodegentVisible = activeDockApp === "nodegent" || minimizingId === "nodegent";
 
   return (
     <div
@@ -516,21 +678,30 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
         <UserButton />
       </nav>
 
-      {/* Desktop area — dock fills left, main fills rest (windows are overlaid) */}
+      {/* Desktop area — dock fills left, main fills rest */}
       <div className="flex flex-row min-h-screen">
         <AppDock activeDockApp={activeDockApp} onAppClick={handleDockAppClick} />
         <main className="flex-1 min-h-screen" />
       </div>
 
-      {/* Nodegent window overlay — draggable + resizable, centered on open */}
-      {activeDockApp === "nodegent" && (
+      {/* Nodegent window overlay */}
+      {nodegentVisible && (
         <div
           className="fixed inset-0"
-          style={{ zIndex: 40, top: "56px", pointerEvents: "none" }}
+          style={{ zIndex: 40, top: isFullscreen ? 0 : "56px", pointerEvents: "none" }}
         >
-          <DraggableWindow defaultWidth={780} defaultHeight={580}>
-            <div className="window-shadow bg-white rounded-lg border border-gray-300 w-full h-full flex flex-col overflow-hidden">
-              <WindowTitleBar onClose={() => setActiveDockApp(null)} />
+          {isFullscreen ? (
+            // Fullscreen: no Rnd wrapper, fills entire viewport; title bar always visible
+            <div
+              className="w-full h-full flex flex-col bg-white overflow-hidden"
+              style={{ pointerEvents: "auto" }}
+            >
+              <WindowTitleBar
+                onClose={() => setActiveDockApp(null)}
+                onMinimize={() => handleMinimize("nodegent")}
+                onMaximize={handleMaximize}
+                isFullscreen={isFullscreen}
+              />
               <WindowToolbar
                 calendarOpen={calendarOpen}
                 onCalendarToggle={() => setCalendarOpen((prev) => !prev)}
@@ -563,23 +734,83 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
               </div>
               <WindowStatusBar />
             </div>
-          </DraggableWindow>
+          ) : (
+            // Normal: draggable + resizable, with minimize animation
+            <DraggableWindow defaultWidth={780} defaultHeight={580}>
+              <div
+                className="window-shadow bg-white rounded-lg border border-gray-300 w-full h-full flex flex-col overflow-hidden"
+                style={{
+                  transition: "transform 280ms ease-in, opacity 280ms ease-in",
+                  transform: minimizingId === "nodegent" ? "scale(0.05)" : "scale(1)",
+                  opacity: minimizingId === "nodegent" ? 0 : 1,
+                  transformOrigin: "bottom center",
+                }}
+              >
+                <WindowTitleBar
+                  onClose={() => setActiveDockApp(null)}
+                  onMinimize={() => handleMinimize("nodegent")}
+                  onMaximize={handleMaximize}
+                  isFullscreen={isFullscreen}
+                />
+                <WindowToolbar
+                  calendarOpen={calendarOpen}
+                  onCalendarToggle={() => setCalendarOpen((prev) => !prev)}
+                  onBack={handleBack}
+                  onHome={goHome}
+                  onCampusSync={openCampusSync}
+                  onCourses={openCourses}
+                  onRestartTour={onRestartTour ?? (() => {})}
+                  wallpaper={wallpaper}
+                  onWallpaperChange={setWallpaper}
+                  widgetLayout={widgetLayout}
+                  onSetWidgetVisible={setWidgetVisible}
+                  onMoveWidgetUp={moveWidgetUp}
+                  onMoveWidgetDown={moveWidgetDown}
+                />
+                {calendarOpen && <CalendarPanel />}
+                <div className={`flex-1 overflow-y-auto p-6 ${calendarOpen ? "" : "min-h-[300px]"}`}>
+                  {calendarOpen ? null : securityOpen ? (
+                    <SecurityPanel onClose={() => setSecurityOpen(false)} />
+                  ) : campusSyncOpen ? (
+                    <CampusSyncPanel onClose={() => setCampusSyncOpen(false)} />
+                  ) : coursesOpen ? (
+                    <CoursesPanel onClose={() => setCoursesOpen(false)} />
+                  ) : (
+                    <>
+                      <ConnectCanvasBanner onConnect={openCampusSyncForCanvas} />
+                      {typeof children === "function" ? children(widgetLayout) : children}
+                    </>
+                  )}
+                </div>
+                <WindowStatusBar />
+              </div>
+            </DraggableWindow>
+          )}
         </div>
       )}
 
-      {/* Iframe window overlay — pointer-events-none so dock remains clickable */}
+      {/* Iframe window overlay — iframeApp stays non-null during the 280ms minimize animation */}
       {iframeApp && (
         <div
           className="fixed inset-0"
-          style={{ zIndex: 40, top: "56px", pointerEvents: "none" }}
+          style={{ zIndex: 40, top: isFullscreen ? 0 : "56px", pointerEvents: "none" }}
         >
           <IframeWindow
             url={iframeApp.url!}
             label={iframeApp.label}
+            phosphorIcon={iframeApp.phosphorIcon}
+            color={iframeApp.color}
             onClose={() => setActiveDockApp(null)}
+            onMinimize={() => handleMinimize(iframeApp.id)}
+            onMaximize={handleMaximize}
+            isFullscreen={isFullscreen}
+            isMinimizing={minimizingId === iframeApp.id}
           />
         </div>
       )}
+
+      {/* Minimized windows tray */}
+      <MinimizedTray windows={minimizedEntries} onRestore={handleRestore} />
     </div>
   );
 }
