@@ -85,18 +85,39 @@ function MinimizedTray({
   windows: MinimizedEntry[];
   onRestore: (id: DockAppId) => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [open]);
 
   if (windows.length === 0) return null;
 
   return (
-    <div
-      className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 transition-all"
-      onMouseEnter={() => setExpanded(true)}
-      onMouseLeave={() => setExpanded(false)}
-    >
-      {expanded ? (
-        <div className="flex items-center gap-1.5 bg-black/75 backdrop-blur-sm rounded-full px-2 py-1.5 shadow-lg">
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((prev) => !prev)}
+        aria-label={`${windows.length} minimized window${windows.length > 1 ? "s" : ""}`}
+        aria-expanded={open}
+        className="relative w-8 h-8 rounded-lg flex items-center justify-center text-[#4D4F46] hover:bg-black/10 transition-colors"
+      >
+        <SquaresFour size={18} weight="bold" />
+        <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#CD8407] text-white text-[9px] font-bold flex items-center justify-center leading-none">
+          {windows.length}
+        </span>
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full mt-2 min-w-[168px] bg-gray-900/90 backdrop-blur-sm rounded-xl shadow-xl z-50 py-1.5 flex flex-col">
+          <p className="px-3 pt-1 pb-1.5 text-[10px] font-bold uppercase tracking-widest text-white/40 select-none">
+            Minimized
+          </p>
           {windows.map((w) => {
             const PhosphorIcon = TRAY_ICON_MAP[w.phosphorIcon] ?? null;
             return (
@@ -104,7 +125,7 @@ function MinimizedTray({
                 key={w.id}
                 onClick={() => onRestore(w.id)}
                 aria-label={`Restore ${w.label}`}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-white text-[12px] font-medium hover:bg-white/15 transition-colors"
+                className="flex items-center gap-2.5 px-3 py-2 text-white text-[12px] font-medium hover:bg-white/10 transition-colors text-left w-full"
               >
                 <span
                   className="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0"
@@ -118,11 +139,6 @@ function MinimizedTray({
               </button>
             );
           })}
-        </div>
-      ) : (
-        <div className="flex items-center gap-1.5 bg-black/75 backdrop-blur-sm text-white px-3 py-1.5 rounded-full text-[12px] font-medium select-none shadow-lg">
-          <SquaresFour size={14} weight="bold" />
-          <span>{windows.length} minimized</span>
         </div>
       )}
     </div>
@@ -663,7 +679,10 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
               </button>
             </div>
           </div>
-          <UserButton />
+          <div className="flex items-center gap-3">
+            <MinimizedTray windows={minimizedEntries} onRestore={openWindow} />
+            <UserButton />
+          </div>
         </nav>
       )}
 
@@ -748,7 +767,7 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
                       transition: "transform 280ms ease-in, opacity 280ms ease-in",
                       transform: isMinimizing ? "scale(0.05)" : "scale(1)",
                       opacity: isMinimizing ? 0 : 1,
-                      transformOrigin: "bottom center",
+                      transformOrigin: "top right",
                     }}
                   >
                     {windowContent}
@@ -785,8 +804,6 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
         return null;
       })}
 
-      {/* Minimized windows tray */}
-      <MinimizedTray windows={minimizedEntries} onRestore={openWindow} />
     </div>
   );
 }

@@ -82,7 +82,7 @@ export function IframeWindow({
           transition: "transform 280ms ease-in, opacity 280ms ease-in",
           transform: isMinimizing ? "scale(0.05)" : "scale(1)",
           opacity: isMinimizing ? 0 : 1,
-          transformOrigin: "bottom center",
+          transformOrigin: "top right",
         }}
       >
         {titleBar}
