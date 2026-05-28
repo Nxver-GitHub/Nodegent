@@ -209,14 +209,14 @@ interface WindowTitleBarProps {
 
 function WindowTitleBar({ onClose, onMinimize, onMaximize, isMaximized }: WindowTitleBarProps) {
   return (
-    <div className="relative h-10 border-b border-gray-300 dark:border-gray-700 bg-[#F6F6F6] dark:bg-gray-900 flex items-center justify-between px-3 flex-shrink-0 select-none">
-      <div className="flex items-center gap-1 text-gray-500 dark:text-gray-400">
+    <div className="relative h-10 border-b border-gray-300 bg-[#F6F6F6] flex items-center justify-between px-3 flex-shrink-0 select-none">
+      <div className="flex items-center gap-1 text-gray-500">
         <Graph size={14} />
       </div>
-      <span className="absolute left-1/2 -translate-x-1/2 text-[13px] font-bold text-gray-800 dark:text-gray-100">
+      <span className="absolute left-1/2 -translate-x-1/2 text-[13px] font-bold text-gray-800">
         nodegent.app
       </span>
-      <div className="flex items-center gap-3 text-gray-400 dark:text-gray-500 text-base">
+      <div className="flex items-center gap-3 text-gray-400 text-base">
         <button
           onClick={onMinimize}
           aria-label="Minimize"
@@ -372,7 +372,7 @@ function WindowToolbar({ calendarOpen, onCalendarToggle, onBack, onHome, onCampu
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
-    <div className="h-12 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 flex items-center px-4 gap-2 flex-shrink-0">
+    <div className="h-12 border-b border-gray-200 bg-white flex items-center px-4 gap-2 flex-shrink-0">
       <Tooltip label="Back">
         <button
           onClick={onBack}
@@ -494,35 +494,46 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
   const [securityOpen, setSecurityOpen] = useState(false);
   const [campusSyncOpen, setCampusSyncOpen] = useState(false);
   const [coursesOpen, setCoursesOpen] = useState(false);
-  const [activeDockApp, setActiveDockApp] = useState<DockAppId | null>("nodegent");
   const [wallpaper, setWallpaper] = useWallpaper();
   const { layout: widgetLayout, setVisible: setWidgetVisible, moveUp: moveWidgetUp, moveDown: moveWidgetDown } = useWidgetLayout();
 
-  // Window minimize/maximize state
+  // Multi-window state: ordered array where last element = topmost (focused) window
+  const [openWindows, setOpenWindows] = useState<DockAppId[]>(["nodegent"]);
   const [minimizedWindows, setMinimizedWindows] = useState<DockAppId[]>([]);
   const [minimizingId, setMinimizingId] = useState<DockAppId | null>(null);
-  const [isMaximized, setIsMaximized] = useState(false);
+  const [maximizedWindow, setMaximizedWindow] = useState<DockAppId | null>(null);
 
-  function handleMaximize() {
-    setIsMaximized((prev) => !prev);
+  function focusWindow(id: DockAppId) {
+    setOpenWindows((prev) => [...prev.filter((w) => w !== id), id]);
+  }
+
+  function openWindow(id: DockAppId) {
+    if (minimizedWindows.includes(id)) {
+      setMinimizedWindows((prev) => prev.filter((m) => m !== id));
+    }
+    setOpenWindows((prev) => [...prev.filter((w) => w !== id), id]);
+  }
+
+  function closeWindow(id: DockAppId) {
+    setOpenWindows((prev) => prev.filter((w) => w !== id));
+    setMaximizedWindow((prev) => (prev === id ? null : prev));
+  }
+
+  function handleMaximize(id: DockAppId) {
+    setMaximizedWindow((prev) => (prev === id ? null : id));
+    focusWindow(id);
   }
 
   function handleMinimize(id: DockAppId) {
     setMinimizingId(id);
     setTimeout(() => {
+      setOpenWindows((prev) => prev.filter((w) => w !== id));
       setMinimizedWindows((prev) => (prev.includes(id) ? prev : [...prev, id]));
-      setActiveDockApp(null);
+      setMaximizedWindow((prev) => (prev === id ? null : prev));
       setMinimizingId(null);
-      setIsMaximized(false);
     }, 280);
   }
 
-  function handleRestore(id: DockAppId) {
-    setMinimizedWindows((prev) => prev.filter((m) => m !== id));
-    setActiveDockApp(id);
-  }
-
-  // Build tray entries from minimized ids
   const minimizedEntries: MinimizedEntry[] = minimizedWindows.map((id) => {
     const app = DEFAULT_APPS.find((a) => a.id === id);
     return {
@@ -533,16 +544,12 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
     };
   });
 
-  // Derived: which iframe app is currently open (if any)
-  const iframeApp = activeDockApp
-    ? (DEFAULT_APPS.find((a) => a.id === activeDockApp && a.appType === "iframe") ?? null)
-    : null;
-
   function openCourses() {
     setCoursesOpen(true);
     setSecurityOpen(false);
     setCampusSyncOpen(false);
     setCalendarOpen(false);
+    openWindow("nodegent");
   }
 
   function openCampusSync() {
@@ -550,6 +557,7 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
     setCoursesOpen(false);
     setSecurityOpen(false);
     setCalendarOpen(false);
+    openWindow("nodegent");
   }
 
   function openCampusSyncForCanvas(mode: "connect" | "reconnect") {
@@ -564,6 +572,7 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
     setCampusSyncOpen(false);
     setCoursesOpen(false);
     setCalendarOpen(false);
+    openWindow("nodegent");
   }
 
   function goHome() {
@@ -571,6 +580,7 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
     setCampusSyncOpen(false);
     setCoursesOpen(false);
     setCalendarOpen(false);
+    openWindow("nodegent");
   }
 
   function handleBack() {
@@ -582,27 +592,16 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
   }
 
   function handleDockAppClick(app: DockApp) {
-    // Clicking a minimized app restores it
-    if (minimizedWindows.includes(app.id)) {
-      handleRestore(app.id);
-      return;
-    }
     if (app.appType === "external") {
       window.open(app.url!, "_blank", "noopener,noreferrer");
       return;
     }
-    if (app.appType === "iframe") {
-      setActiveDockApp(app.id);
-      return;
-    }
-    // internal (nodegent) — open dashboard
-    setActiveDockApp("nodegent");
+    openWindow(app.id);
   }
 
   const isDashboard = !securityOpen && !campusSyncOpen && !coursesOpen;
-
-  // Whether the nodegent window is currently visible (active or mid-minimize animation)
-  const nodegentVisible = activeDockApp === "nodegent" || minimizingId === "nodegent";
+  // All apps that are open or minimized — used for dock active indicators
+  const allOpenApps = [...new Set([...openWindows, ...minimizedWindows])];
 
   return (
     <div
@@ -612,83 +611,86 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
       <SnapshotWidget />
       <ActivityLogPanel />
 
-      {/* Top Navigation */}
-      <nav className="fixed top-0 left-0 right-0 h-14 bg-[#EEEFE9] border-b border-gray-300 z-50 flex items-center justify-between px-6">
-        <div className="flex items-center gap-8">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="w-7 h-7 flex items-center justify-center bg-gray-900 rounded text-white">
-              <Graph size={16} weight="bold" />
+      {/* Top Navigation — hidden when any window is maximized */}
+      {maximizedWindow === null && (
+        <nav className="fixed top-0 left-0 right-0 h-14 bg-[#EEEFE9] border-b border-gray-300 z-50 flex items-center justify-between px-6">
+          <div className="flex items-center gap-8">
+            <Link href="/" className="flex items-center gap-2">
+              <div className="w-7 h-7 flex items-center justify-center bg-gray-900 rounded text-white">
+                <Graph size={16} weight="bold" />
+              </div>
+              <span className="font-extrabold tracking-tight text-lg text-gray-900">Nodegent</span>
+            </Link>
+            <div className="hidden md:flex items-center gap-6 text-[13px] font-semibold text-[#4D4F46]">
+              <Link
+                href="/dashboard"
+                onClick={goHome}
+                className={[
+                  "hover:text-black hover:underline underline-offset-4 decoration-gray-400",
+                  isDashboard ? "text-black underline" : "",
+                ].join(" ")}
+              >
+                Dashboard
+              </Link>
+              <button
+                id="tour-campus-sync"
+                type="button"
+                onClick={openCampusSync}
+                className={[
+                  "hover:text-black hover:underline underline-offset-4 decoration-gray-400",
+                  campusSyncOpen ? "text-black underline" : "",
+                ].join(" ")}
+              >
+                Campus Sync
+              </button>
+              <Link
+                id="tour-ai-chat"
+                href="/chat"
+                className="hover:text-black hover:underline underline-offset-4 decoration-gray-400"
+              >
+                AI Chat
+              </Link>
+              <button
+                id="tour-security"
+                type="button"
+                onClick={openSecurity}
+                className={[
+                  "hover:text-black hover:underline underline-offset-4 decoration-gray-400",
+                  securityOpen ? "text-black underline" : "",
+                ].join(" ")}
+              >
+                Security
+              </button>
             </div>
-            <span className="font-extrabold tracking-tight text-lg text-gray-900">Nodegent</span>
-          </Link>
-          <div className="hidden md:flex items-center gap-6 text-[13px] font-semibold text-[#4D4F46]">
-            <Link
-              href="/dashboard"
-              onClick={goHome}
-              className={[
-                "hover:text-black hover:underline underline-offset-4 decoration-gray-400",
-                isDashboard ? "text-black underline" : "",
-              ].join(" ")}
-            >
-              Dashboard
-            </Link>
-            <button
-              id="tour-campus-sync"
-              type="button"
-              onClick={openCampusSync}
-              className={[
-                "hover:text-black hover:underline underline-offset-4 decoration-gray-400",
-                campusSyncOpen ? "text-black underline" : "",
-              ].join(" ")}
-            >
-              Campus Sync
-            </button>
-            <Link
-              id="tour-ai-chat"
-              href="/chat"
-              className="hover:text-black hover:underline underline-offset-4 decoration-gray-400"
-            >
-              AI Chat
-            </Link>
-            <button
-              id="tour-security"
-              type="button"
-              onClick={openSecurity}
-              className={[
-                "hover:text-black hover:underline underline-offset-4 decoration-gray-400",
-                securityOpen ? "text-black underline" : "",
-              ].join(" ")}
-            >
-              Security
-            </button>
           </div>
-        </div>
-        <UserButton />
-      </nav>
+          <UserButton />
+        </nav>
+      )}
 
       {/* Desktop area — dock fills left, main fills rest */}
       <div className="flex flex-row min-h-screen">
-        <AppDock activeDockApp={activeDockApp} onAppClick={handleDockAppClick} />
+        <AppDock openWindows={allOpenApps} onAppClick={handleDockAppClick} />
         <main className="flex-1 min-h-screen" />
       </div>
 
-      {/* Nodegent window overlay */}
-      {nodegentVisible && (
-        <div
-          className="fixed inset-0"
-          style={{ zIndex: 40, top: "56px", pointerEvents: "none" }}
-        >
-          {isMaximized ? (
-            // Maximized: fills all desktop space including the dock
-            <div
-              className="absolute inset-0 flex flex-col bg-white dark:bg-gray-900 overflow-hidden"
-              style={{ pointerEvents: "auto" }}
-            >
+      {/* All open windows rendered in z-order; last in array = topmost */}
+      {openWindows.map((id, index) => {
+        const app = DEFAULT_APPS.find((a) => a.id === id);
+        if (!app) return null;
+
+        const isWindowMaximized = maximizedWindow === id;
+        const isMinimizing = minimizingId === id;
+        const zIndex = 40 + index;
+        const topOffset = isWindowMaximized ? "0" : "56px";
+
+        if (app.appType === "internal") {
+          const windowContent = (
+            <>
               <WindowTitleBar
-                onClose={() => { setActiveDockApp(null); setIsMaximized(false); }}
-                onMinimize={() => handleMinimize("nodegent")}
-                onMaximize={handleMaximize}
-                isMaximized={isMaximized}
+                onClose={() => closeWindow(id)}
+                onMinimize={() => handleMinimize(id)}
+                onMaximize={() => handleMaximize(id)}
+                isMaximized={isWindowMaximized}
               />
               <WindowToolbar
                 calendarOpen={calendarOpen}
@@ -721,84 +723,70 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
                 )}
               </div>
               <WindowStatusBar />
-            </div>
-          ) : (
-            // Normal: draggable + resizable, with minimize animation
-            <DraggableWindow defaultWidth={780} defaultHeight={580}>
-              <div
-                className="window-shadow bg-white rounded-lg border border-gray-300 w-full h-full flex flex-col overflow-hidden"
-                style={{
-                  transition: "transform 280ms ease-in, opacity 280ms ease-in",
-                  transform: minimizingId === "nodegent" ? "scale(0.05)" : "scale(1)",
-                  opacity: minimizingId === "nodegent" ? 0 : 1,
-                  transformOrigin: "bottom center",
-                }}
-              >
-                <WindowTitleBar
-                  onClose={() => setActiveDockApp(null)}
-                  onMinimize={() => handleMinimize("nodegent")}
-                  onMaximize={handleMaximize}
-                  isMaximized={isMaximized}
-                />
-                <WindowToolbar
-                  calendarOpen={calendarOpen}
-                  onCalendarToggle={() => setCalendarOpen((prev) => !prev)}
-                  onBack={handleBack}
-                  onHome={goHome}
-                  onCampusSync={openCampusSync}
-                  onCourses={openCourses}
-                  onRestartTour={onRestartTour ?? (() => {})}
-                  wallpaper={wallpaper}
-                  onWallpaperChange={setWallpaper}
-                  widgetLayout={widgetLayout}
-                  onSetWidgetVisible={setWidgetVisible}
-                  onMoveWidgetUp={moveWidgetUp}
-                  onMoveWidgetDown={moveWidgetDown}
-                />
-                {calendarOpen && <CalendarPanel />}
-                <div className={`flex-1 overflow-y-auto p-6 ${calendarOpen ? "" : "min-h-[300px]"}`}>
-                  {calendarOpen ? null : securityOpen ? (
-                    <SecurityPanel onClose={() => setSecurityOpen(false)} />
-                  ) : campusSyncOpen ? (
-                    <CampusSyncPanel onClose={() => setCampusSyncOpen(false)} />
-                  ) : coursesOpen ? (
-                    <CoursesPanel onClose={() => setCoursesOpen(false)} />
-                  ) : (
-                    <>
-                      <ConnectCanvasBanner onConnect={openCampusSyncForCanvas} />
-                      {typeof children === "function" ? children(widgetLayout) : children}
-                    </>
-                  )}
-                </div>
-                <WindowStatusBar />
-              </div>
-            </DraggableWindow>
-          )}
-        </div>
-      )}
+            </>
+          );
 
-      {/* Iframe window overlay — iframeApp stays non-null during the 280ms minimize animation */}
-      {iframeApp && (
-        <div
-          className="fixed inset-0"
-          style={{ zIndex: 40, top: "56px", pointerEvents: "none" }}
-        >
-          <IframeWindow
-            url={iframeApp.url!}
-            label={iframeApp.label}
-            phosphorIcon={iframeApp.phosphorIcon}
-            color={iframeApp.color}
-            onClose={() => { setActiveDockApp(null); setIsMaximized(false); }}
-            onMinimize={() => handleMinimize(iframeApp.id)}
-            onMaximize={handleMaximize}
-            isMaximized={isMaximized}
-            isMinimizing={minimizingId === iframeApp.id}
-          />
-        </div>
-      )}
+          return (
+            <div
+              key={id}
+              className="fixed inset-0"
+              style={{ zIndex, top: topOffset, pointerEvents: "none" }}
+              onMouseDown={() => focusWindow(id)}
+            >
+              {isWindowMaximized ? (
+                <div
+                  className="window-shadow absolute inset-0 flex flex-col bg-white overflow-hidden"
+                  style={{ pointerEvents: "auto" }}
+                >
+                  {windowContent}
+                </div>
+              ) : (
+                <DraggableWindow defaultWidth={780} defaultHeight={580}>
+                  <div
+                    className="window-shadow bg-white rounded-lg border border-gray-300 w-full h-full flex flex-col overflow-hidden"
+                    style={{
+                      transition: "transform 280ms ease-in, opacity 280ms ease-in",
+                      transform: isMinimizing ? "scale(0.05)" : "scale(1)",
+                      opacity: isMinimizing ? 0 : 1,
+                      transformOrigin: "bottom center",
+                    }}
+                  >
+                    {windowContent}
+                  </div>
+                </DraggableWindow>
+              )}
+            </div>
+          );
+        }
+
+        if (app.appType === "iframe") {
+          return (
+            <div
+              key={id}
+              className="fixed inset-0"
+              style={{ zIndex, top: topOffset, pointerEvents: "none" }}
+            >
+              <IframeWindow
+                url={app.url!}
+                label={app.label}
+                phosphorIcon={app.phosphorIcon}
+                color={app.color}
+                onClose={() => closeWindow(id)}
+                onMinimize={() => handleMinimize(id)}
+                onMaximize={() => handleMaximize(id)}
+                isMaximized={isWindowMaximized}
+                isMinimizing={isMinimizing}
+                onFocus={() => focusWindow(id)}
+              />
+            </div>
+          );
+        }
+
+        return null;
+      })}
 
       {/* Minimized windows tray */}
-      <MinimizedTray windows={minimizedEntries} onRestore={handleRestore} />
+      <MinimizedTray windows={minimizedEntries} onRestore={openWindow} />
     </div>
   );
 }

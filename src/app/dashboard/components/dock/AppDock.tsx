@@ -25,7 +25,7 @@ import { AddAppModal } from "./AddAppModal";
 import { ConfirmDialog } from "../ConfirmDialog";
 
 interface AppDockProps {
-  activeDockApp: DockAppId | null;
+  openWindows: DockAppId[];
   onAppClick: (app: DockApp) => void;
 }
 
@@ -69,7 +69,7 @@ function SortableDockIcon({ app, onRemove }: SortableDockIconProps) {
   );
 }
 
-export function AppDock({ activeDockApp, onAppClick }: AppDockProps) {
+export function AppDock({ openWindows, onAppClick }: AppDockProps) {
   const currentUser = useQuery(api.users.getCurrentUser);
   const customApps = useQuery(api.dockApps.getDockApps);
   const deleteDockApp = useMutation(api.dockApps.deleteDockApp);
@@ -138,7 +138,7 @@ export function AppDock({ activeDockApp, onAppClick }: AppDockProps) {
               label={app.label}
               icon={app.phosphorIcon}
               color={app.color}
-              active={activeDockApp === app.id}
+              active={openWindows.includes(app.id)}
               onClick={() => onAppClick(app)}
               onRemove={app.hideable ? () => setConfirmHide({ id: app.id, name: app.label }) : undefined}
               removeLabel="Hide"

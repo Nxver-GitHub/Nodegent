@@ -11,6 +11,7 @@ interface IframeWindowProps {
   onClose: () => void;
   onMinimize: () => void;
   onMaximize: () => void;
+  onFocus: () => void;
   isMaximized: boolean;
   isMinimizing: boolean;
 }
@@ -21,11 +22,12 @@ export function IframeWindow({
   onClose,
   onMinimize,
   onMaximize,
+  onFocus,
   isMaximized,
   isMinimizing,
 }: IframeWindowProps) {
   const titleBar = (
-    <div className="iframe-drag-handle h-10 bg-[#F6F6F6] dark:bg-gray-900 border-b border-gray-300 dark:border-gray-700 flex items-center justify-between px-3 flex-shrink-0 cursor-grab active:cursor-grabbing select-none">
+    <div onMouseDown={onFocus} className="iframe-drag-handle h-10 bg-[#F6F6F6] border-b border-gray-300 flex items-center justify-between px-3 flex-shrink-0 cursor-grab active:cursor-grabbing select-none">
       <span className="text-[13px] font-bold text-gray-800 dark:text-gray-100">{label}</span>
       <div className="flex items-center gap-3 text-gray-400 dark:text-gray-500">
         <button
@@ -56,7 +58,7 @@ export function IframeWindow({
   if (isMaximized) {
     return (
       <div
-        className="absolute inset-0 flex flex-col bg-white dark:bg-gray-900 overflow-hidden"
+        className="window-shadow absolute inset-0 flex flex-col bg-white overflow-hidden"
         style={{ pointerEvents: "auto" }}
       >
         {titleBar}
@@ -75,7 +77,7 @@ export function IframeWindow({
       style={{ pointerEvents: "auto" }}
     >
       <div
-        className="flex flex-col w-full h-full rounded-lg border border-gray-300 bg-white shadow-xl overflow-hidden"
+        className="window-shadow flex flex-col w-full h-full rounded-lg border border-gray-300 bg-white overflow-hidden"
         style={{
           transition: "transform 280ms ease-in, opacity 280ms ease-in",
           transform: isMinimizing ? "scale(0.05)" : "scale(1)",
