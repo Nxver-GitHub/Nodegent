@@ -82,7 +82,11 @@ export function AppDock({ openWindows, onAppClick }: AppDockProps) {
   const [localApps, setLocalApps] = useState<CustomApp[] | null>(null);
 
   const hiddenDefaultApps = currentUser?.hiddenDefaultApps ?? [];
-  const visibleDefaults = DEFAULT_APPS.filter((a) => !hiddenDefaultApps.includes(a.id));
+  const visibleDefaults = DEFAULT_APPS.filter((a) => {
+    if (hiddenDefaultApps.includes(a.id)) return false;
+    if (a.id === "slug-schedule" && currentUser?.university && currentUser.university !== "ucsc") return false;
+    return true;
+  });
   const displayedCustomApps = localApps ?? customApps ?? [];
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));

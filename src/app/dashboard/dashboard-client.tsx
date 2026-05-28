@@ -181,7 +181,7 @@ export function DashboardClient() {
         </DashboardShell>
       )}
       {isLoaded && showTour && currentUser !== undefined && !showLoading && (
-        <OnboardingTour onComplete={handleTourComplete} />
+        <OnboardingTour onComplete={handleTourComplete} userUniversity={currentUser?.university} />
       )}
       <AnimatePresence>
         {showLoading && (

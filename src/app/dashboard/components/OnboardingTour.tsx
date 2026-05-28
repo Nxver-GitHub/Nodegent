@@ -3,6 +3,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ArrowRight, X } from "@phosphor-icons/react";
+import { useMutation } from "convex/react";
+import { api } from "@convex/_generated/api";
 
 interface TourStep {
   targetId: string;
@@ -84,15 +86,19 @@ function computeTooltipPosition(
 
 interface OnboardingTourProps {
   onComplete: () => void;
+  userUniversity?: string | null;
 }
 
-export function OnboardingTour({ onComplete }: OnboardingTourProps) {
-  const [step, setStep] = useState(0);
+export function OnboardingTour({ onComplete, userUniversity }: OnboardingTourProps) {
+  const updateUniversity = useMutation(api.users.updateUniversity);
+  const [step, setStep] = useState(userUniversity ? 0 : -1);
   const [targetRect, setTargetRect] = useState<Rect | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [selectedUniversity, setSelectedUniversity] = useState<string>("");
+  const [universityError, setUniversityError] = useState<string>("");
   const rafRef = useRef<number | null>(null);
 
-  const current = STEPS[step];
+  const current = step >= 0 ? STEPS[step] : null;
 
   useEffect(() => {
     setMounted(true);
@@ -100,10 +106,10 @@ export function OnboardingTour({ onComplete }: OnboardingTourProps) {
 
   // Track target element position via rAF so it stays in sync with layout
   useLayoutEffect(() => {
-    if (!mounted) return;
+    if (!mounted || !current) return;
 
     function updateRect() {
-      setTargetRect(getTargetRect(current.targetId));
+      setTargetRect(getTargetRect(current!.targetId));
     }
 
     updateRect();
@@ -117,7 +123,7 @@ export function OnboardingTour({ onComplete }: OnboardingTourProps) {
     return () => {
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
     };
-  }, [mounted, current.targetId]);
+  }, [mounted, current]);
 
   // Keyboard: Escape to skip, Enter/→ to advance
   useEffect(() => {
@@ -142,11 +148,84 @@ export function OnboardingTour({ onComplete }: OnboardingTourProps) {
   const vpWidth = window.innerWidth;
   const vpHeight = window.innerHeight;
 
-  const tooltipPos = targetRect
+  const tooltipPos = (current && targetRect)
     ? computeTooltipPosition(targetRect, vpWidth, vpHeight)
     : { top: vpHeight / 2 - 80, left: vpWidth / 2 - TOOLTIP_WIDTH / 2 };
 
   const isLast = step === STEPS.length - 1;
+
+  // University picker step (step === -1)
+  if (step === -1) {
+    return createPortal(
+      <>
+        <div
+          className="fixed inset-0 z-[9998]"
+          style={{ background: "rgba(0,0,0,0.5)" }}
+          onClick={onComplete}
+          aria-hidden="true"
+        />
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="University selection"
+          className="fixed z-[10000] bg-white rounded-xl shadow-2xl border border-gray-100 p-5 flex flex-col gap-3"
+          style={{ width: TOOLTIP_WIDTH, top: vpHeight / 2 - 120, left: vpWidth / 2 - TOOLTIP_WIDTH / 2 }}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-mono font-semibold text-gray-400 uppercase tracking-wider">
+              Setup
+            </span>
+            <button
+              onClick={onComplete}
+              className="text-gray-300 hover:text-gray-600 transition-colors"
+              aria-label="Skip tour"
+            >
+              <X size={16} />
+            </button>
+          </div>
+          <div>
+            <h3 className="text-[14px] font-bold text-gray-900 mb-1">Which university do you attend?</h3>
+            <p className="text-[13px] text-gray-600 leading-relaxed mb-3">
+              This helps Nodegent connect to the right Canvas instance for your school.
+            </p>
+            <select
+              value={selectedUniversity}
+              onChange={(e) => { setSelectedUniversity(e.target.value); setUniversityError(""); }}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Select your university...</option>
+              <option value="ucsc">UC Santa Cruz</option>
+              <option value="ucberkeley">UC Berkeley</option>
+              <option value="ucla">UCLA</option>
+              <option value="ucsd">UC San Diego</option>
+              <option value="ucdavis">UC Davis</option>
+              <option value="stanford">Stanford</option>
+            </select>
+            {universityError && <p className="text-[12px] text-red-500 mt-1">{universityError}</p>}
+          </div>
+          <div className="flex items-center justify-between pt-1">
+            <button
+              onClick={onComplete}
+              className="text-[12px] text-gray-400 hover:text-gray-700 transition-colors"
+            >
+              Skip
+            </button>
+            <button
+              onClick={async () => {
+                if (!selectedUniversity) { setUniversityError("Please select your university"); return; }
+                await updateUniversity({ university: selectedUniversity });
+                setStep(0);
+              }}
+              className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[13px] font-semibold px-4 py-1.5 rounded-lg transition-colors"
+            >
+              Continue <ArrowRight size={14} weight="bold" />
+            </button>
+          </div>
+        </div>
+      </>,
+      document.body
+    );
+  }
 
   return createPortal(
     <>
@@ -178,7 +257,7 @@ export function OnboardingTour({ onComplete }: OnboardingTourProps) {
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={`Onboarding step ${step + 1} of ${STEPS.length}: ${current.title}`}
+        aria-label={`Onboarding step ${step + 1} of ${STEPS.length}: ${current!.title}`}
         className="fixed z-[10000] bg-white rounded-xl shadow-2xl border border-gray-100 p-5 flex flex-col gap-3"
         style={{ width: TOOLTIP_WIDTH, top: tooltipPos.top, left: tooltipPos.left }}
       >
@@ -214,8 +293,8 @@ export function OnboardingTour({ onComplete }: OnboardingTourProps) {
 
         {/* Content */}
         <div>
-          <h3 className="text-[14px] font-bold text-gray-900 mb-1">{current.title}</h3>
-          <p className="text-[13px] text-gray-600 leading-relaxed">{current.description}</p>
+          <h3 className="text-[14px] font-bold text-gray-900 mb-1">{current!.title}</h3>
+          <p className="text-[13px] text-gray-600 leading-relaxed">{current!.description}</p>
         </div>
 
         {/* Actions */}

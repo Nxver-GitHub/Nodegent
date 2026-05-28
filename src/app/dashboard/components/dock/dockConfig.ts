@@ -20,7 +20,6 @@ export interface DockApp {
   tooltip?: string;
 }
 
-// TODO Sprint 7 (US-7.3): gate SlugSchedule on user.university === "ucsc"
 export const DEFAULT_APPS: DockApp[] = [
   {
     id: "nodegent",

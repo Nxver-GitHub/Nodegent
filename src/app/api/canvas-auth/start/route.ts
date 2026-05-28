@@ -56,7 +56,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   if (!trimmedUsername || !trimmedPassword) {
     return NextResponse.json(
-      { error: "CruzID and password are required" },
+      { error: "Username and password are required" },
       { status: 400 }
     );
   }

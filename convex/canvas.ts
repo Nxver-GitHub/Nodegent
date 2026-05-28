@@ -124,6 +124,7 @@ export const upsertCanvasCookies = internalMutation({
   args: {
     userId: v.id("users"),
     canvasCookies: v.string(),
+    canvasBaseUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db
@@ -134,6 +135,7 @@ export const upsertCanvasCookies = internalMutation({
     if (existing) {
       await ctx.db.patch(existing._id, {
         canvasCookies: args.canvasCookies,
+        canvasBaseUrl: args.canvasBaseUrl,
         // Clear legacy PAT and stale sync state on reconnect
         accessToken: undefined,
         lastSyncStatus: undefined,
@@ -144,7 +146,7 @@ export const upsertCanvasCookies = internalMutation({
       await ctx.db.insert("canvasCredentials", {
         userId: args.userId,
         canvasCookies: args.canvasCookies,
-        canvasBaseUrl: CANVAS_BASE_URL,
+        canvasBaseUrl: args.canvasBaseUrl ?? CANVAS_BASE_URL,
       });
     }
   },
@@ -223,6 +225,7 @@ export const saveCanvasCookies = action({
   args: {
     // JSON-serialized array of Playwright cookie objects
     cookiesJson: v.string(),
+    canvasBaseUrl: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<void> => {
     const identity = await ctx.auth.getUserIdentity();
@@ -248,6 +251,7 @@ export const saveCanvasCookies = action({
     await ctx.runMutation(internal.canvas.upsertCanvasCookies, {
       userId,
       canvasCookies: JSON.stringify(cookies),
+      canvasBaseUrl: args.canvasBaseUrl,
     });
 
     await ctx.runMutation(internal.auditLog.logAction, {
@@ -368,6 +372,8 @@ export const syncCanvas = action({
       );
     }
 
+    const baseUrl = creds.canvasBaseUrl ?? CANVAS_BASE_URL;
+
     let cookies: PlaywrightCookie[];
     try {
       cookies = JSON.parse(creds.canvasCookies) as PlaywrightCookie[];
@@ -379,7 +385,7 @@ export const syncCanvas = action({
 
     try {
       const courses = await fetchAllPagesWithCookies<CanvasCourse>(
-        `${CANVAS_BASE_URL}/api/v1/courses?enrollment_state=active&include[]=term&per_page=50`,
+        `${baseUrl}/api/v1/courses?enrollment_state=active&include[]=term&per_page=50`,
         cookieHeader
       );
 
@@ -396,7 +402,7 @@ export const syncCanvas = action({
         coursesSynced++;
 
         const assignments = await fetchAllPagesWithCookies<CanvasAssignment>(
-          `${CANVAS_BASE_URL}/api/v1/courses/${course.id}/assignments?order_by=due_at&bucket=future&per_page=50`,
+          `${baseUrl}/api/v1/courses/${course.id}/assignments?order_by=due_at&bucket=future&per_page=50`,
           cookieHeader
         );
 
