@@ -6,7 +6,7 @@ export type PanelId =
   | "campus-sync"
   | "security";
 
-export type DockAppId = "nodegent" | "slug-schedule" | "canvas" | "sidekick" | "myucsc";
+export type DockAppId = "nodegent" | "slug-schedule" | "canvas" | "sidekick" | "myucsc" | "gradescope";
 export type AppType = "internal" | "iframe" | "external";
 
 export interface DockApp {
@@ -65,6 +65,16 @@ export const DEFAULT_APPS: DockApp[] = [
     color: "#003C6C",
     appType: "external",
     url: "https://my.ucsc.edu/",
+    hideable: true,
+    tooltip: "Opens in new tab ↗",
+  },
+  {
+    id: "gradescope",
+    label: "Gradescope",
+    phosphorIcon: "Trophy",
+    color: "#059669",
+    appType: "external",
+    url: "https://www.gradescope.com/",
     hideable: true,
     tooltip: "Opens in new tab ↗",
   },

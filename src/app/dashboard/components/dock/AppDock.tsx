@@ -25,7 +25,7 @@ import { AddAppModal } from "./AddAppModal";
 import { ConfirmDialog } from "../ConfirmDialog";
 
 interface AppDockProps {
-  activeDockApp: DockAppId | null;
+  openWindows: DockAppId[];
   onAppClick: (app: DockApp) => void;
 }
 
@@ -69,7 +69,7 @@ function SortableDockIcon({ app, onRemove }: SortableDockIconProps) {
   );
 }
 
-export function AppDock({ activeDockApp, onAppClick }: AppDockProps) {
+export function AppDock({ openWindows, onAppClick }: AppDockProps) {
   const currentUser = useQuery(api.users.getCurrentUser);
   const customApps = useQuery(api.dockApps.getDockApps);
   const deleteDockApp = useMutation(api.dockApps.deleteDockApp);
@@ -130,15 +130,15 @@ export function AppDock({ activeDockApp, onAppClick }: AppDockProps) {
   return (
     <>
       <aside className="hidden md:flex flex-col gap-3 pt-20 px-3 w-[176px] flex-shrink-0 min-h-screen overflow-y-auto scrollbar-none">
-        {/* Default apps — 2-column grid */}
-        <div className="grid grid-cols-2 gap-x-2 gap-y-4">
+        {/* Default apps — single column */}
+        <div className="flex flex-col gap-4">
           {visibleDefaults.map((app) => (
             <DockIcon
               key={app.id}
               label={app.label}
               icon={app.phosphorIcon}
               color={app.color}
-              active={activeDockApp === app.id}
+              active={openWindows.includes(app.id)}
               onClick={() => onAppClick(app)}
               onRemove={app.hideable ? () => setConfirmHide({ id: app.id, name: app.label }) : undefined}
               removeLabel="Hide"
@@ -151,13 +151,13 @@ export function AppDock({ activeDockApp, onAppClick }: AppDockProps) {
         {/* Separator */}
         <hr className="border-white/30 mx-1" />
 
-        {/* Custom apps — sortable 2-column grid */}
+        {/* Custom apps — sortable single column */}
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext
             items={displayedCustomApps.map((a) => a._id)}
             strategy={rectSortingStrategy}
           >
-            <div className="grid grid-cols-2 gap-x-2 gap-y-4">
+            <div className="flex flex-col gap-4">
               {displayedCustomApps.map((app) => (
                 <SortableDockIcon
                   key={app._id}
