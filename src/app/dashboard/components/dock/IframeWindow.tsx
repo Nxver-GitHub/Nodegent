@@ -11,7 +11,7 @@ interface IframeWindowProps {
   onClose: () => void;
   onMinimize: () => void;
   onMaximize: () => void;
-  isFullscreen: boolean;
+  isMaximized: boolean;
   isMinimizing: boolean;
 }
 
@@ -21,7 +21,7 @@ export function IframeWindow({
   onClose,
   onMinimize,
   onMaximize,
-  isFullscreen,
+  isMaximized,
   isMinimizing,
 }: IframeWindowProps) {
   const titleBar = (
@@ -37,7 +37,7 @@ export function IframeWindow({
         </button>
         <button
           onClick={onMaximize}
-          aria-label={isFullscreen ? "Exit fullscreen" : `Maximize ${label}`}
+          aria-label={isMaximized ? `Restore ${label}` : `Maximize ${label}`}
           className="w-6 h-6 flex items-center justify-center rounded hover:text-green-500 transition-colors"
         >
           <Square size={11} />
@@ -53,10 +53,10 @@ export function IframeWindow({
     </div>
   );
 
-  if (isFullscreen) {
+  if (isMaximized) {
     return (
       <div
-        className="w-full h-full flex flex-col bg-white overflow-hidden"
+        className="absolute inset-0 left-[176px] flex flex-col bg-white overflow-hidden"
         style={{ pointerEvents: "auto" }}
       >
         {titleBar}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
@@ -25,6 +25,7 @@ import {
   BookOpen,
   Robot,
   IdentificationCard,
+  Trophy,
   type Icon,
 } from "@phosphor-icons/react";
 import { api } from "@convex/_generated/api";
@@ -63,6 +64,7 @@ const TRAY_ICON_MAP: Record<string, Icon> = {
   BookOpen,
   Robot,
   IdentificationCard,
+  Trophy,
 };
 
 const CONNECT_CANVAS_DISMISSED_KEY = "nodegent-connect-canvas-banner-dismissed";
@@ -202,10 +204,10 @@ interface WindowTitleBarProps {
   onClose: () => void;
   onMinimize: () => void;
   onMaximize: () => void;
-  isFullscreen: boolean;
+  isMaximized: boolean;
 }
 
-function WindowTitleBar({ onClose, onMinimize, onMaximize, isFullscreen }: WindowTitleBarProps) {
+function WindowTitleBar({ onClose, onMinimize, onMaximize, isMaximized }: WindowTitleBarProps) {
   return (
     <div className="relative h-10 border-b border-gray-300 bg-[#F6F6F6] flex items-center justify-between px-3 flex-shrink-0 select-none">
       <div className="flex items-center gap-1 text-gray-500">
@@ -224,7 +226,7 @@ function WindowTitleBar({ onClose, onMinimize, onMaximize, isFullscreen }: Windo
         </button>
         <button
           onClick={onMaximize}
-          aria-label={isFullscreen ? "Exit fullscreen" : "Maximize"}
+          aria-label={isMaximized ? "Restore" : "Maximize"}
           className="hover:text-green-500 transition-colors"
         >
           <Square size={12} />
@@ -499,24 +501,11 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
   // Window minimize/maximize state
   const [minimizedWindows, setMinimizedWindows] = useState<DockAppId[]>([]);
   const [minimizingId, setMinimizingId] = useState<DockAppId | null>(null);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isMaximized, setIsMaximized] = useState(false);
 
-  // Track fullscreen changes (including Escape key exit)
-  useEffect(() => {
-    function onFullscreenChange() {
-      setIsFullscreen(!!document.fullscreenElement);
-    }
-    document.addEventListener("fullscreenchange", onFullscreenChange);
-    return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
-  }, []);
-
-  const handleMaximize = useCallback(() => {
-    if (isFullscreen) {
-      document.exitFullscreen().catch(() => {});
-    } else {
-      document.documentElement.requestFullscreen().catch(() => {});
-    }
-  }, [isFullscreen]);
+  function handleMaximize() {
+    setIsMaximized((prev) => !prev);
+  }
 
   function handleMinimize(id: DockAppId) {
     setMinimizingId(id);
@@ -524,8 +513,7 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
       setMinimizedWindows((prev) => (prev.includes(id) ? prev : [...prev, id]));
       setActiveDockApp(null);
       setMinimizingId(null);
-      // Exit fullscreen when minimizing
-      if (isFullscreen) document.exitFullscreen().catch(() => {});
+      setIsMaximized(false);
     }, 280);
   }
 
@@ -688,19 +676,19 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
       {nodegentVisible && (
         <div
           className="fixed inset-0"
-          style={{ zIndex: 40, top: isFullscreen ? 0 : "56px", pointerEvents: "none" }}
+          style={{ zIndex: 40, top: "56px", pointerEvents: "none" }}
         >
-          {isFullscreen ? (
-            // Fullscreen: no Rnd wrapper, fills entire viewport; title bar always visible
+          {isMaximized ? (
+            // Maximized: fills all desktop space to the right of the dock
             <div
-              className="w-full h-full flex flex-col bg-white overflow-hidden"
+              className="absolute inset-0 left-[176px] flex flex-col bg-white overflow-hidden"
               style={{ pointerEvents: "auto" }}
             >
               <WindowTitleBar
-                onClose={() => setActiveDockApp(null)}
+                onClose={() => { setActiveDockApp(null); setIsMaximized(false); }}
                 onMinimize={() => handleMinimize("nodegent")}
                 onMaximize={handleMaximize}
-                isFullscreen={isFullscreen}
+                isMaximized={isMaximized}
               />
               <WindowToolbar
                 calendarOpen={calendarOpen}
@@ -750,7 +738,7 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
                   onClose={() => setActiveDockApp(null)}
                   onMinimize={() => handleMinimize("nodegent")}
                   onMaximize={handleMaximize}
-                  isFullscreen={isFullscreen}
+                  isMaximized={isMaximized}
                 />
                 <WindowToolbar
                   calendarOpen={calendarOpen}
@@ -793,17 +781,17 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
       {iframeApp && (
         <div
           className="fixed inset-0"
-          style={{ zIndex: 40, top: isFullscreen ? 0 : "56px", pointerEvents: "none" }}
+          style={{ zIndex: 40, top: "56px", pointerEvents: "none" }}
         >
           <IframeWindow
             url={iframeApp.url!}
             label={iframeApp.label}
             phosphorIcon={iframeApp.phosphorIcon}
             color={iframeApp.color}
-            onClose={() => setActiveDockApp(null)}
+            onClose={() => { setActiveDockApp(null); setIsMaximized(false); }}
             onMinimize={() => handleMinimize(iframeApp.id)}
             onMaximize={handleMaximize}
-            isFullscreen={isFullscreen}
+            isMaximized={isMaximized}
             isMinimizing={minimizingId === iframeApp.id}
           />
         </div>
