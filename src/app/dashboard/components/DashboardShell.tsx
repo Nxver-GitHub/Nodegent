@@ -209,14 +209,14 @@ interface WindowTitleBarProps {
 
 function WindowTitleBar({ onClose, onMinimize, onMaximize, isMaximized }: WindowTitleBarProps) {
   return (
-    <div className="relative h-10 border-b border-gray-300 bg-[#F6F6F6] flex items-center justify-between px-3 flex-shrink-0 select-none">
-      <div className="flex items-center gap-1 text-gray-500">
+    <div className="relative h-10 border-b border-gray-300 dark:border-gray-700 bg-[#F6F6F6] dark:bg-gray-900 flex items-center justify-between px-3 flex-shrink-0 select-none">
+      <div className="flex items-center gap-1 text-gray-500 dark:text-gray-400">
         <Graph size={14} />
       </div>
-      <span className="absolute left-1/2 -translate-x-1/2 text-[13px] font-bold text-gray-800">
+      <span className="absolute left-1/2 -translate-x-1/2 text-[13px] font-bold text-gray-800 dark:text-gray-100">
         nodegent.app
       </span>
-      <div className="flex items-center gap-3 text-gray-400 text-base">
+      <div className="flex items-center gap-3 text-gray-400 dark:text-gray-500 text-base">
         <button
           onClick={onMinimize}
           aria-label="Minimize"
@@ -372,7 +372,7 @@ function WindowToolbar({ calendarOpen, onCalendarToggle, onBack, onHome, onCampu
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
-    <div className="h-12 border-b border-gray-200 bg-white flex items-center px-4 gap-2 flex-shrink-0">
+    <div className="h-12 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 flex items-center px-4 gap-2 flex-shrink-0">
       <Tooltip label="Back">
         <button
           onClick={onBack}
@@ -679,9 +679,9 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
           style={{ zIndex: 40, top: "56px", pointerEvents: "none" }}
         >
           {isMaximized ? (
-            // Maximized: fills all desktop space to the right of the dock
+            // Maximized: fills all desktop space including the dock
             <div
-              className="absolute inset-0 left-[176px] flex flex-col bg-white overflow-hidden"
+              className="absolute inset-0 flex flex-col bg-white dark:bg-gray-900 overflow-hidden"
               style={{ pointerEvents: "auto" }}
             >
               <WindowTitleBar

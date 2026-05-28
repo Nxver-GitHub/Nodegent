@@ -25,9 +25,9 @@ export function IframeWindow({
   isMinimizing,
 }: IframeWindowProps) {
   const titleBar = (
-    <div className="iframe-drag-handle h-10 bg-[#F6F6F6] border-b border-gray-300 flex items-center justify-between px-3 flex-shrink-0 cursor-grab active:cursor-grabbing select-none">
-      <span className="text-[13px] font-bold text-gray-800">{label}</span>
-      <div className="flex items-center gap-3 text-gray-400">
+    <div className="iframe-drag-handle h-10 bg-[#F6F6F6] dark:bg-gray-900 border-b border-gray-300 dark:border-gray-700 flex items-center justify-between px-3 flex-shrink-0 cursor-grab active:cursor-grabbing select-none">
+      <span className="text-[13px] font-bold text-gray-800 dark:text-gray-100">{label}</span>
+      <div className="flex items-center gap-3 text-gray-400 dark:text-gray-500">
         <button
           onClick={onMinimize}
           aria-label={`Minimize ${label}`}
@@ -56,7 +56,7 @@ export function IframeWindow({
   if (isMaximized) {
     return (
       <div
-        className="absolute inset-0 left-[176px] flex flex-col bg-white overflow-hidden"
+        className="absolute inset-0 flex flex-col bg-white dark:bg-gray-900 overflow-hidden"
         style={{ pointerEvents: "auto" }}
       >
         {titleBar}
