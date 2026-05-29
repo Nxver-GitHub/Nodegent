@@ -332,7 +332,7 @@ export function ChatClient() {
           </button>
         </div>
         <p className="mt-2 text-[11px] text-gray-500">
-          Nodegent's AI is powered by llama-3.3-70b-versatile from Groq.
+          Nodegent's AI is powered by llama-4-scout-17b-16e-instruct from Groq.
         </p>
       </div>
     </div>

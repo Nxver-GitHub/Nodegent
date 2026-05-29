@@ -581,8 +581,9 @@ async function callOpenAI(args: {
   });
 
   if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`OpenAI API error (${response.status}): ${text}`);
+    const errBody: any = await response.json().catch(() => null);
+    const detail = errBody?.error?.message ?? `status ${response.status}`;
+    throw new Error(`OpenAI API error: ${detail}`);
   }
 
   const json: any = await response.json();
@@ -620,8 +621,9 @@ async function callAnthropic(args: {
   });
 
   if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Anthropic API error (${response.status}): ${text}`);
+    const errBody: any = await response.json().catch(() => null);
+    const detail = errBody?.error?.message ?? `status ${response.status}`;
+    throw new Error(`Anthropic API error: ${detail}`);
   }
 
   const json: any = await response.json();
@@ -762,7 +764,7 @@ export const sendMessage = action({
     } else if (process.env.GROQ_API_KEY) {
       llmResult = await callGroq({
         apiKey: process.env.GROQ_API_KEY,
-        model: process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile",
+        model: process.env.GROQ_MODEL ?? "meta-llama/llama-4-scout-17b-16e-instruct",
         system,
         contextText,
         messages: history.concat([{ role: "user", content }]),
