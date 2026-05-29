@@ -78,6 +78,7 @@ export default defineSchema({
     officeHours: v.optional(v.string()),
     tasJson: v.optional(v.string()),
     selectedTaEmail: v.optional(v.string()),
+    calendarSync: v.optional(v.boolean()),
   })
     .index("by_userId", ["userId"])
     .index("by_userId_canvasId", ["userId", "canvasId"]),

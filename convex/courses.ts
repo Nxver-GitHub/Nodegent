@@ -95,6 +95,7 @@ export const getCourseSummaries = query({
         officeHours: course.officeHours,
         tasJson: course.tasJson,
         selectedTaEmail: course.selectedTaEmail,
+        calendarSync: course.calendarSync,
       }))
       .sort((a, b) => {
         const aDate = a.nextDueAt ?? Number.MAX_SAFE_INTEGER;
@@ -259,6 +260,25 @@ export const updateTaOfficeHours = mutation({
     const course = await ctx.db.get(args.courseId);
     if (!course || course.userId !== user._id) throw new Error("Unauthorized");
     await ctx.db.patch(args.courseId, { tasJson: args.tasJson });
+  },
+});
+
+export const updateCourseCalendarSync = mutation({
+  args: {
+    courseId: v.id("courses"),
+    enabled: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .unique();
+    if (!user) throw new Error("User not found");
+    const course = await ctx.db.get(args.courseId);
+    if (!course || course.userId !== user._id) throw new Error("Unauthorized");
+    await ctx.db.patch(args.courseId, { calendarSync: args.enabled });
   },
 });
 

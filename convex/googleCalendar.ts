@@ -56,12 +56,18 @@ export const getAssignmentsForSync = query({
     // Fetch course names for event titles
     const courseIds = [...new Set(pushable.map((a) => a.courseId))];
     const courseMap = new Map<string, string>();
+    const disabledCourseIds = new Set<string>();
     for (const courseId of courseIds) {
       const course = await ctx.db.get(courseId);
-      if (course) courseMap.set(courseId, course.courseCode || course.name);
+      if (course) {
+        courseMap.set(courseId, course.courseCode || course.name);
+        if (course.calendarSync === false) disabledCourseIds.add(courseId);
+      }
     }
 
-    return pushable.map((a) => ({
+    return pushable
+      .filter((a) => !disabledCourseIds.has(a.courseId))
+      .map((a) => ({
       _id: a._id,
       title: a.title,
       dueAt: a.dueAt!,

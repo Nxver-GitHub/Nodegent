@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useAction, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { Id } from "@convex/_generated/dataModel";
-import { X, PencilSimple, Check, Robot, EnvelopeSimple, UserCircle } from "@phosphor-icons/react";
+import { X, PencilSimple, Check, Robot, EnvelopeSimple, UserCircle, CalendarBlank } from "@phosphor-icons/react";
 
 interface OfficeHoursData {
   days?: string;
@@ -30,6 +30,7 @@ export interface CourseForDrawer {
   officeHours?: string;
   tasJson?: string;
   selectedTaEmail?: string;
+  calendarSync?: boolean;
 }
 
 function parseOfficeHours(raw: string | undefined): OfficeHoursData | null {
@@ -187,10 +188,12 @@ export function CourseDetailDrawer({
   const updateOfficeHours = useMutation(api.courses.updateOfficeHours);
   const updateTaOfficeHours = useMutation(api.courses.updateTaOfficeHours);
   const updateSelectedTa = useMutation(api.courses.updateSelectedTa);
+  const updateCourseCalendarSync = useMutation(api.courses.updateCourseCalendarSync);
   const logOfficeHoursViewed = useMutation(api.auditLog.logOfficeHoursViewed);
 
   const [taList, setTaList] = useState<TaEntry[]>(() => parseTas(course.tasJson));
   const [selectedTaEmail, setSelectedTaEmail] = useState<string | undefined>(course.selectedTaEmail);
+  const [calendarSyncEnabled, setCalendarSyncEnabled] = useState(course.calendarSync ?? true);
 
   const hasExistingProfHours = !!parseOfficeHours(course.officeHours);
   const hasMissingTaHours = taList.some((ta) => !ta.officeHours);
@@ -313,6 +316,42 @@ export function CourseDetailDrawer({
         </div>
 
         <div className="flex-1 overflow-y-auto p-5 space-y-6">
+          {/* Calendar Sync */}
+          <section>
+            <h3 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
+              Calendar
+            </h3>
+            <div className="flex items-center justify-between gap-3 rounded-lg bg-gray-50 border border-gray-100 px-3 py-2.5">
+              <div className="flex items-center gap-2">
+                <CalendarBlank size={15} className="text-gray-400 shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-gray-800">Sync to Google Calendar</p>
+                  <p className="text-[11px] text-gray-400 mt-0.5">
+                    {calendarSyncEnabled ? "Assignments synced to your calendar" : "Assignments not synced"}
+                  </p>
+                </div>
+              </div>
+              <button
+                role="switch"
+                aria-checked={calendarSyncEnabled}
+                onClick={async () => {
+                  const next = !calendarSyncEnabled;
+                  setCalendarSyncEnabled(next);
+                  await updateCourseCalendarSync({ courseId: course._id, enabled: next });
+                }}
+                className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-1 ${
+                  calendarSyncEnabled ? "bg-blue-600" : "bg-gray-200"
+                }`}
+              >
+                <span
+                  className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
+                    calendarSyncEnabled ? "translate-x-4" : "translate-x-1"
+                  }`}
+                />
+              </button>
+            </div>
+          </section>
+
           {/* Instructor */}
           {(course.instructorName || course.instructorEmail) && (
             <section>

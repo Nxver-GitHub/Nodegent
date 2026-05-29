@@ -142,6 +142,7 @@ export function CoursesPanel({ onClose }: { onClose: () => void }) {
                     officeHours: course.officeHours,
                     tasJson: course.tasJson,
                     selectedTaEmail: course.selectedTaEmail,
+                    calendarSync: course.calendarSync,
                   })}
                 >
                   <div onClick={(e) => e.stopPropagation()}>
