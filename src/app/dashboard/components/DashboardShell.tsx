@@ -521,16 +521,26 @@ function WindowToolbar({ calendarOpen, onCalendarToggle, onBack, onHome, onCampu
 // ─── WindowStatusBar ──────────────────────────────────────────────────────────
 
 function WindowStatusBar() {
+  const status = useQuery(api.canvas.getCanvasStatus);
+  const user = useQuery(api.users.getCurrentUser);
+
+  const isActive =
+    status !== undefined &&
+    status !== null &&
+    status.isConnected &&
+    !status.needsReconnect &&
+    user?.canvasEnabled !== false;
+
   return (
-    <div className="h-6 border-t border-gray-200 bg-[#EFEFEF] flex items-center justify-between px-3 text-[11px] text-gray-500 font-mono flex-shrink-0">
-      <div className="flex items-center gap-4">
-        <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-green-400 inline-block" />
-          LMS Sync Active
-        </span>
-        <span>Sprint: 2 In-Progress</span>
-      </div>
-      <div>Team: 5</div>
+    <div className="h-6 border-t border-gray-200 bg-[#EFEFEF] flex items-center px-3 text-[11px] text-gray-500 font-mono flex-shrink-0">
+      <span className="flex items-center gap-1">
+        <span
+          className={`w-2 h-2 rounded-full inline-block ${
+            isActive ? "bg-green-400" : "bg-red-400"
+          }`}
+        />
+        {isActive ? "LMS Sync Active" : "LMS Sync Not Active"}
+      </span>
     </div>
   );
 }
