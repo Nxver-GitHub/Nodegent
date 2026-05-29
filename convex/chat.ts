@@ -38,6 +38,17 @@ function clampText(input: string, maxLen: number): string {
   return input.slice(0, maxLen - 1) + "…";
 }
 
+const EVENT_CATEGORIES = ["Office Hours", "Meetings & Remote", "Classes & Labs", "Exams", "Other"] as const;
+type EventCategory = typeof EVENT_CATEGORIES[number];
+
+function classifyEvent(title: string, eventType: string): EventCategory {
+  if (eventType === "exam" || /\b(exam|midterm|final)\b/i.test(title)) return "Exams";
+  if (/office\s+hours?/i.test(title)) return "Office Hours";
+  if (/\b(zoom|meet|teams|webex|virtual|online|remote|video call|conference)\b/i.test(title)) return "Meetings & Remote";
+  if (eventType === "class" || /\b(lecture|section|discussion|lab)\b/i.test(title)) return "Classes & Labs";
+  return "Other";
+}
+
 function shouldPrioritizeAssignments(message: string): boolean {
   const m = message.toLowerCase();
   return (
@@ -256,7 +267,8 @@ export const buildCampusContext = internalQuery({
       mentionedCourseIds.length > 0
         ? events.filter((e) => !e.courseId || mentionedCourseIds.includes(e.courseId))
         : events
-    ).filter((e) => calendarEnabled || e.source !== "google_calendar");
+    ).filter((e) => calendarEnabled || e.source !== "google_calendar")
+     .filter((e) => !e.title.startsWith("Due: "));
 
     const contextRefs: ContextRef[] = [];
 
@@ -355,17 +367,21 @@ export const buildCampusContext = internalQuery({
       return `- **[${courseLabel}]** ${titlePart} — *due ${due}${suffix}*`;
     });
 
-    const eventLines = filteredEvents.map((e) => {
+    const formatEventDate = (ts: number) =>
+      new Intl.DateTimeFormat("en-US", {
+        timeZone: "America/Los_Angeles",
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      }).format(new Date(ts));
+
+    const eventsByCategory = new Map<EventCategory, string[]>();
+    for (const cat of EVENT_CATEGORIES) eventsByCategory.set(cat, []);
+
+    for (const e of filteredEvents) {
       const course = e.courseId ? courseById.get(e.courseId) : null;
-      const formatEventDate = (ts: number) =>
-        new Intl.DateTimeFormat("en-US", {
-          timeZone: "America/Los_Angeles",
-          month: "short",
-          day: "numeric",
-          hour: "numeric",
-          minute: "2-digit",
-          hour12: true,
-        }).format(new Date(ts));
       const start = formatEventDate(e.startAt);
       const end = e.endAt ? formatEventDate(e.endAt) : null;
       const title = clampText(stripHtml(e.title), 140);
@@ -375,8 +391,20 @@ export const buildCampusContext = internalQuery({
         id: e._id,
         label: `${courseLabel} — ${title} (${start}${end ? ` to ${end}` : ""})`,
       });
-      return `- **[${courseLabel}]** ${title} — *${start}${end ? ` to ${end}` : ""}*`;
-    });
+      const category = classifyEvent(e.title, e.eventType);
+      eventsByCategory.get(category)!.push(
+        `- **[${courseLabel}]** ${title} — *${start}${end ? ` to ${end}` : ""}*`
+      );
+    }
+
+    const eventSectionLines: string[] = [];
+    for (const cat of EVENT_CATEGORIES) {
+      const lines = eventsByCategory.get(cat)!;
+      if (lines.length > 0) {
+        eventSectionLines.push(`*${cat}*`);
+        eventSectionLines.push(...lines);
+      }
+    }
 
     const prioritizeAssignments = shouldPrioritizeAssignments(message);
     const prioritizeSchedule = shouldPrioritizeSchedule(message);
@@ -410,9 +438,9 @@ export const buildCampusContext = internalQuery({
       sections.push(assignmentLines.length ? assignmentLines.join("\n") : "- (none)");
     }
 
-    if (prioritizeSchedule || (!prioritizeAssignments && eventLines.length > 0)) {
+    if (prioritizeSchedule || (!prioritizeAssignments && eventSectionLines.length > 0)) {
       sections.push("\nEVENTS (upcoming):");
-      sections.push(eventLines.length ? eventLines.join("\n") : "- (none)");
+      sections.push(eventSectionLines.length ? eventSectionLines.join("\n") : "- (none)");
     }
 
     const contextText = sections.join("\n");
