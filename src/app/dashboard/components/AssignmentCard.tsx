@@ -1,6 +1,6 @@
 "use client";
 
-import { BookBookmark, Warning, CheckCircle } from "@phosphor-icons/react";
+import { BookBookmark, Warning, CheckCircle, PencilSimple, ClipboardText } from "@phosphor-icons/react";
 import { Id } from "@convex/_generated/dataModel";
 
 export type Urgency = "overdue" | "today" | "soon" | "upcoming";
@@ -65,6 +65,14 @@ const SUBMISSION_BADGE: Record<Exclude<SubmissionStatus, "unsubmitted">, { bg: s
   excused: { bg: "bg-gray-100", text: "text-gray-500", label: "Excused" },
 };
 
+type AssignmentType = "exam" | "quiz" | "regular";
+
+function getAssignmentType(title: string, submissionType?: string): AssignmentType {
+  if (/midterm|final|exam/i.test(title)) return "exam";
+  if (submissionType?.includes("online_quiz")) return "quiz";
+  return "regular";
+}
+
 interface AssignmentCardProps {
   assignment: {
     _id: Id<"assignments">;
@@ -74,6 +82,7 @@ interface AssignmentCardProps {
     courseId: Id<"courses">;
     pointsPossible?: number;
     htmlUrl?: string;
+    submissionType?: string;
     submissionStatus?: string;
     score?: number;
     letterGrade?: string;
@@ -93,13 +102,18 @@ export function AssignmentCard({ assignment, courseName, onToggleComplete }: Ass
     <div
       className={`border rounded-sm p-3 flex items-center gap-3 ${config.cardBg} hover:opacity-90 transition-opacity`}
     >
-      {/* Urgency icon */}
+      {/* Type icon — exam/quiz always; regular falls back to urgency icon */}
       <div className={`flex-shrink-0 ${config.iconColor}`}>
-        {urgency === "overdue" || urgency === "today" ? (
-          <Warning size={20} weight="bold" />
-        ) : (
-          <BookBookmark size={20} weight="fill" />
-        )}
+        {(() => {
+          const type = getAssignmentType(assignment.title, assignment.submissionType);
+          if (type === "exam") return <ClipboardText size={20} weight="fill" />;
+          if (type === "quiz") return <PencilSimple size={20} weight="fill" />;
+          return urgency === "overdue" || urgency === "today" ? (
+            <Warning size={20} weight="bold" />
+          ) : (
+            <BookBookmark size={20} weight="fill" />
+          );
+        })()}
       </div>
 
       {/* Content */}

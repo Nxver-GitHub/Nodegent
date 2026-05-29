@@ -12,6 +12,10 @@ interface Assignment {
   courseId: Id<"courses">;
   pointsPossible?: number;
   htmlUrl?: string;
+  submissionType?: string;
+  submissionStatus?: string;
+  score?: number;
+  letterGrade?: string;
 }
 
 interface CourseGroupRowProps {
