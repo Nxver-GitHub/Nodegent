@@ -319,7 +319,16 @@ export const buildCampusContext = internalQuery({
 
     const assignmentLines = filteredAssignments.map((a) => {
       const course = courseById.get(a.courseId);
-      const due = a.dueAt ? new Date(a.dueAt).toISOString() : "unknown";
+      const due = a.dueAt
+        ? new Intl.DateTimeFormat("en-US", {
+            timeZone: "America/Los_Angeles",
+            month: "short",
+            day: "numeric",
+            hour: "numeric",
+            minute: "2-digit",
+            hour12: true,
+          }).format(new Date(a.dueAt))
+        : "no due date";
       const title = clampText(stripHtml(a.title), 140);
       const courseLabel = course ? `${course.courseCode}` : "Unknown course";
       contextRefs.push({
