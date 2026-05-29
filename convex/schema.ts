@@ -74,6 +74,8 @@ export default defineSchema({
     // Lets getCourseSummaries read N course rows instead of N*M assignment rows.
     pendingCount: v.optional(v.number()),
     nextDueAt: v.optional(v.number()),
+    instructorEmail: v.optional(v.string()),
+    officeHours: v.optional(v.string()),
   })
     .index("by_userId", ["userId"])
     .index("by_userId_canvasId", ["userId", "canvasId"]),

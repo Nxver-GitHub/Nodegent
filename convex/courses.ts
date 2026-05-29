@@ -85,6 +85,9 @@ export const getCourseSummaries = query({
         name: course.name,
         pendingCount: course.pendingCount ?? 0,
         nextDueAt: course.nextDueAt,
+        instructorName: course.instructorName,
+        instructorEmail: course.instructorEmail,
+        officeHours: course.officeHours,
       }))
       .sort((a, b) => {
         const aDate = a.nextDueAt ?? Number.MAX_SAFE_INTEGER;
@@ -102,6 +105,8 @@ export const upsertCourse = mutation({
     term: v.string(),
     instructorName: v.optional(v.string()),
     syllabusUrl: v.optional(v.string()),
+    instructorEmail: v.optional(v.string()),
+    officeHours: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -134,6 +139,8 @@ export const upsertCourse = mutation({
         term: args.term,
         instructorName: args.instructorName,
         syllabusUrl: args.syllabusUrl,
+        instructorEmail: args.instructorEmail,
+        officeHours: args.officeHours,
         lastSyncedAt: now,
       });
       return existing._id;
@@ -147,6 +154,8 @@ export const upsertCourse = mutation({
       term: args.term,
       instructorName: args.instructorName,
       syllabusUrl: args.syllabusUrl,
+      instructorEmail: args.instructorEmail,
+      officeHours: args.officeHours,
       lastSyncedAt: now,
       pendingCount: 0,
       nextDueAt: undefined,

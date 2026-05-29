@@ -19,6 +19,7 @@ interface CanvasCourse {
   name: string;
   course_code: string | null;
   term?: { name: string };
+  teachers?: Array<{ id: number; display_name: string }>;
 }
 
 interface CanvasAssignment {
@@ -385,7 +386,7 @@ export const syncCanvas = action({
 
     try {
       const courses = await fetchAllPagesWithCookies<CanvasCourse>(
-        `${baseUrl}/api/v1/courses?enrollment_state=active&include[]=term&per_page=50`,
+        `${baseUrl}/api/v1/courses?enrollment_state=active&include[]=term&include[]=teachers&per_page=50`,
         cookieHeader
       );
 
@@ -393,11 +394,28 @@ export const syncCanvas = action({
       let assignmentsSynced = 0;
 
       for (const course of courses) {
+        let instructorEmail: string | undefined;
+        try {
+          const enrollRes = await fetch(
+            `${CANVAS_BASE_URL}/api/v1/courses/${course.id}/enrollments?type[]=TeacherEnrollment&per_page=5`,
+            { headers: { Cookie: cookieHeader, Accept: "application/json" } }
+          );
+          if (enrollRes.ok) {
+            const enrollData = await enrollRes.json() as Array<{ user: { id: number; name: string; email?: string } }>;
+            instructorEmail = enrollData[0]?.user?.email;
+          }
+        } catch {
+          // instructor enrichment failure must not abort sync
+        }
+
         const courseId: Id<"courses"> = await ctx.runMutation(api.courses.upsertCourse, {
           canvasId: String(course.id),
           name: course.name,
           courseCode: course.course_code ?? course.name,
           term: course.term?.name ?? "Unknown Term",
+          instructorName: course.teachers?.[0]?.display_name,
+          instructorEmail,
+          officeHours: undefined, // officeHours not available via Canvas API; future: parse syllabus_body
         });
         coursesSynced++;
 
