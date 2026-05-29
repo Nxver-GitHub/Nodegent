@@ -97,6 +97,9 @@ export const upsertAssignment = mutation({
     submissionType: v.optional(v.string()),
     htmlUrl: v.optional(v.string()),
     skipRecompute: v.optional(v.boolean()),
+    submissionStatus: v.optional(v.string()),
+    score: v.optional(v.number()),
+    letterGrade: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -136,6 +139,9 @@ export const upsertAssignment = mutation({
         submissionType: args.submissionType,
         htmlUrl: args.htmlUrl,
         lastSyncedAt: now,
+        ...(args.submissionStatus !== undefined ? { submissionStatus: args.submissionStatus } : {}),
+        ...(args.score !== undefined ? { score: args.score } : {}),
+        ...(args.letterGrade !== undefined ? { letterGrade: args.letterGrade } : {}),
       });
       if (!args.skipRecompute) {
         await recomputeCourseSummary(ctx, args.courseId);
@@ -156,6 +162,9 @@ export const upsertAssignment = mutation({
       htmlUrl: args.htmlUrl,
       lastSyncedAt: now,
       isNew: true,
+      ...(args.submissionStatus !== undefined ? { submissionStatus: args.submissionStatus } : {}),
+      ...(args.score !== undefined ? { score: args.score } : {}),
+      ...(args.letterGrade !== undefined ? { letterGrade: args.letterGrade } : {}),
     });
     if (!args.skipRecompute) {
       await recomputeCourseSummary(ctx, args.courseId);

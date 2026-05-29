@@ -96,6 +96,8 @@ export const getCourseSummaries = query({
         tasJson: course.tasJson,
         selectedTaEmail: course.selectedTaEmail,
         calendarSync: course.calendarSync,
+        courseScore: course.courseScore,
+        courseGrade: course.courseGrade,
       }))
       .sort((a, b) => {
         const aDate = a.nextDueAt ?? Number.MAX_SAFE_INTEGER;
@@ -116,6 +118,8 @@ export const upsertCourse = mutation({
     instructorEmail: v.optional(v.string()),
     officeHours: v.optional(v.string()),
     tasJson: v.optional(v.string()),
+    courseScore: v.optional(v.number()),
+    courseGrade: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -168,6 +172,8 @@ export const upsertCourse = mutation({
         // prevents Canvas re-sync from clobbering manually-entered or extracted hours.
         ...(args.officeHours !== undefined ? { officeHours: args.officeHours } : {}),
         ...(mergedTasJson !== undefined ? { tasJson: mergedTasJson } : {}),
+        ...(args.courseScore !== undefined ? { courseScore: args.courseScore } : {}),
+        ...(args.courseGrade !== undefined ? { courseGrade: args.courseGrade } : {}),
         lastSyncedAt: now,
       });
       return existing._id;
@@ -187,6 +193,8 @@ export const upsertCourse = mutation({
       lastSyncedAt: now,
       pendingCount: 0,
       nextDueAt: undefined,
+      ...(args.courseScore !== undefined ? { courseScore: args.courseScore } : {}),
+      ...(args.courseGrade !== undefined ? { courseGrade: args.courseGrade } : {}),
     });
   },
 });

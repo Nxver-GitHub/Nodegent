@@ -79,6 +79,8 @@ export default defineSchema({
     tasJson: v.optional(v.string()),
     selectedTaEmail: v.optional(v.string()),
     calendarSync: v.optional(v.boolean()),
+    courseScore: v.optional(v.number()),
+    courseGrade: v.optional(v.string()),
   })
     .index("by_userId", ["userId"])
     .index("by_userId_canvasId", ["userId", "canvasId"]),
@@ -97,6 +99,9 @@ export default defineSchema({
     lastSyncedAt: v.number(),
     googleCalendarEventId: v.optional(v.string()),
     isNew: v.optional(v.boolean()),
+    submissionStatus: v.optional(v.string()),
+    score: v.optional(v.number()),
+    letterGrade: v.optional(v.string()),
   })
     .index("by_userId", ["userId"])
     .index("by_courseId", ["courseId"])

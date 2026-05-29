@@ -12,6 +12,7 @@ interface SnapshotAssignment {
   courseId: Id<"courses">;
   pointsPossible?: number;
   htmlUrl?: string;
+  submissionStatus?: string;
 }
 
 interface DailySnapshot {
@@ -99,20 +100,28 @@ function BucketSection({
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[12px] font-semibold text-gray-800 leading-tight truncate">
-                  {a.htmlUrl ? (
-                    <a
-                      href={a.htmlUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="hover:underline"
-                    >
-                      {a.title}
-                    </a>
-                  ) : (
-                    a.title
+                <div className="flex items-center gap-1.5">
+                  <p className="text-[12px] font-semibold text-gray-800 leading-tight truncate">
+                    {a.htmlUrl ? (
+                      <a
+                        href={a.htmlUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="hover:underline"
+                      >
+                        {a.title}
+                      </a>
+                    ) : (
+                      a.title
+                    )}
+                  </p>
+                  {a.submissionStatus === "graded" && (
+                    <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-green-500" title="Graded" />
                   )}
-                </p>
+                  {(a.submissionStatus === "submitted" || a.submissionStatus === "pending_review") && (
+                    <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-blue-400" title="Submitted" />
+                  )}
+                </div>
                 <div className="flex items-center gap-2 mt-0.5">
                   {courseMap.get(a.courseId) && (
                     <span className="text-[10px] text-gray-400">

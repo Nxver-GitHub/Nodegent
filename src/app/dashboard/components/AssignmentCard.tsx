@@ -56,6 +56,15 @@ const URGENCY_CONFIG: Record<
   },
 };
 
+type SubmissionStatus = "submitted" | "unsubmitted" | "graded" | "pending_review" | "excused";
+
+const SUBMISSION_BADGE: Record<Exclude<SubmissionStatus, "unsubmitted">, { bg: string; text: string; label: string }> = {
+  graded: { bg: "bg-green-100", text: "text-green-700", label: "Graded" },
+  submitted: { bg: "bg-blue-100", text: "text-blue-700", label: "Submitted" },
+  pending_review: { bg: "bg-blue-100", text: "text-blue-700", label: "Pending Review" },
+  excused: { bg: "bg-gray-100", text: "text-gray-500", label: "Excused" },
+};
+
 interface AssignmentCardProps {
   assignment: {
     _id: Id<"assignments">;
@@ -65,6 +74,9 @@ interface AssignmentCardProps {
     courseId: Id<"courses">;
     pointsPossible?: number;
     htmlUrl?: string;
+    submissionStatus?: string;
+    score?: number;
+    letterGrade?: string;
   };
   courseName?: string;
   onToggleComplete: (id: Id<"assignments">, done: boolean) => void;
@@ -74,6 +86,8 @@ export function AssignmentCard({ assignment, courseName, onToggleComplete }: Ass
   const urgency = getUrgency(assignment.dueAt);
   const config = URGENCY_CONFIG[urgency];
   const dueDateLabel = formatDueDate(assignment.dueAt);
+  const status = assignment.submissionStatus as SubmissionStatus | undefined;
+  const submissionBadge = status && status !== "unsubmitted" ? SUBMISSION_BADGE[status] ?? null : null;
 
   return (
     <div
@@ -99,13 +113,26 @@ export function AssignmentCard({ assignment, courseName, onToggleComplete }: Ass
               {config.badgeLabel}
             </span>
           )}
+          {submissionBadge && (
+            <span
+              className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-sm ${submissionBadge.bg} ${submissionBadge.text}`}
+            >
+              {submissionBadge.label}
+            </span>
+          )}
         </div>
+        {assignment.score !== undefined && (
+          <p className="text-[11px] text-gray-400 mt-0.5">
+            {assignment.score} / {assignment.pointsPossible ?? "?"}
+            {assignment.letterGrade ? ` · ${assignment.letterGrade}` : ""}
+          </p>
+        )}
         <div className="flex items-center gap-3 mt-0.5">
           {courseName && (
             <span className="text-[11px] text-gray-500 font-medium">{courseName}</span>
           )}
           <span className="text-[11px] font-mono text-gray-400">{dueDateLabel}</span>
-          {assignment.pointsPossible !== undefined && (
+          {assignment.score === undefined && assignment.pointsPossible !== undefined && (
             <span className="text-[11px] text-gray-400">{assignment.pointsPossible} pts</span>
           )}
         </div>

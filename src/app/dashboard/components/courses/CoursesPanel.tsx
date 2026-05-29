@@ -143,6 +143,8 @@ export function CoursesPanel({ onClose }: { onClose: () => void }) {
                     tasJson: course.tasJson,
                     selectedTaEmail: course.selectedTaEmail,
                     calendarSync: course.calendarSync,
+                    courseScore: course.courseScore,
+                    courseGrade: course.courseGrade,
                   })}
                 >
                   <div onClick={(e) => e.stopPropagation()}>

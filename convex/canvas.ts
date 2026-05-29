@@ -32,6 +32,24 @@ interface CanvasAssignment {
   html_url?: string | null;
 }
 
+interface CanvasSubmission {
+  assignment_id: number;
+  workflow_state: string;
+  score: number | null;
+  grade: string | null;
+  submitted_at: string | null;
+}
+
+interface CanvasEnrollmentGrades {
+  current_score: number | null;
+  current_grade: string | null;
+}
+
+interface CanvasEnrollment {
+  type: string;
+  grades: CanvasEnrollmentGrades;
+}
+
 interface PlaywrightCookie {
   name: string;
   value: string;
@@ -432,6 +450,25 @@ export const syncCanvas = action({
           // enrollment enrichment failure must not abort sync
         }
 
+        let courseScore: number | undefined;
+        let courseGrade: string | undefined;
+        try {
+          const enrollRes = await fetch(
+            `${baseUrl}/api/v1/courses/${course.id}/enrollments?user_id=self`,
+            { headers: { Cookie: cookieHeader, Accept: "application/json" } }
+          );
+          if (enrollRes.ok) {
+            const enrollments = (await enrollRes.json()) as CanvasEnrollment[];
+            const studentEnrollment = enrollments.find((e) => e.type === "StudentEnrollment");
+            if (studentEnrollment) {
+              courseScore = studentEnrollment.grades.current_score ?? undefined;
+              courseGrade = studentEnrollment.grades.current_grade ?? undefined;
+            }
+          }
+        } catch {
+          // grade fetch failure must not abort sync
+        }
+
         const courseId: Id<"courses"> = await ctx.runMutation(api.courses.upsertCourse, {
           canvasId: String(course.id),
           name: course.name,
@@ -441,15 +478,30 @@ export const syncCanvas = action({
           instructorEmail,
           officeHours: undefined,
           tasJson,
+          courseScore,
+          courseGrade,
         });
         coursesSynced++;
 
-        const assignments = await fetchAllPagesWithCookies<CanvasAssignment>(
-          `${baseUrl}/api/v1/courses/${course.id}/assignments?order_by=due_at&bucket=future&per_page=50`,
-          cookieHeader
-        );
+        const [assignments, submissions] = await Promise.all([
+          fetchAllPagesWithCookies<CanvasAssignment>(
+            `${baseUrl}/api/v1/courses/${course.id}/assignments?order_by=due_at&bucket=future&per_page=50`,
+            cookieHeader
+          ),
+          fetch(
+            `${baseUrl}/api/v1/courses/${course.id}/students/submissions?student_ids[]=self&per_page=100`,
+            { headers: { Cookie: cookieHeader, Accept: "application/json" } }
+          ).then((r) => (r.ok ? (r.json() as Promise<CanvasSubmission[]>) : Promise.resolve([] as CanvasSubmission[])))
+            .catch(() => [] as CanvasSubmission[]),
+        ]);
+
+        const submissionMap = new Map<number, CanvasSubmission>();
+        for (const sub of submissions) {
+          submissionMap.set(sub.assignment_id, sub);
+        }
 
         for (const assignment of assignments) {
+          const sub = submissionMap.get(assignment.id);
           await ctx.runMutation(api.assignments.upsertAssignment, {
             courseId,
             canvasId: String(assignment.id),
@@ -460,6 +512,9 @@ export const syncCanvas = action({
             submissionType: assignment.submission_types?.join(",") ?? undefined,
             htmlUrl: assignment.html_url ?? undefined,
             skipRecompute: true,
+            submissionStatus: sub?.workflow_state ?? undefined,
+            score: sub?.score ?? undefined,
+            letterGrade: sub?.grade ?? undefined,
           });
           assignmentsSynced++;
         }

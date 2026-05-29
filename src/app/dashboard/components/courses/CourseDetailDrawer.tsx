@@ -30,6 +30,8 @@ export interface CourseForDrawer {
   officeHours?: string;
   tasJson?: string;
   selectedTaEmail?: string;
+  courseScore?: number;
+  courseGrade?: string;
   calendarSync?: boolean;
 }
 
@@ -316,6 +318,31 @@ export function CourseDetailDrawer({
         </div>
 
         <div className="flex-1 overflow-y-auto p-5 space-y-6">
+          {/* Course Grade */}
+          {(course.courseScore !== undefined || course.courseGrade !== undefined) && (
+            <section>
+              <h3 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                Course Grade
+              </h3>
+              <div className="rounded-lg bg-gray-50 border border-gray-100 p-3 space-y-1">
+                <p className="text-sm font-semibold text-gray-800">
+                  {course.courseScore !== undefined && (
+                    <span>{course.courseScore}%</span>
+                  )}
+                  {course.courseScore !== undefined && course.courseGrade !== undefined && (
+                    <span className="text-gray-400 mx-1">&middot;</span>
+                  )}
+                  {course.courseGrade !== undefined && (
+                    <span>{course.courseGrade}</span>
+                  )}
+                </p>
+                <p className="text-[11px] text-gray-400 italic leading-relaxed">
+                  Grade sourced directly from Canvas and may not reflect recent changes or your course syllabus.
+                </p>
+              </div>
+            </section>
+          )}
+
           {/* Calendar Sync */}
           <section>
             <h3 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
