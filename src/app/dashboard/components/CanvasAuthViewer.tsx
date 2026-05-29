@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useQuery } from "convex/react";
+import { api } from "@convex/_generated/api";
 
 type AuthPhase =
   | "idle"          // showing the CruzID / password form
@@ -16,6 +18,7 @@ interface CanvasAuthViewerProps {
 }
 
 export function CanvasAuthViewer({ onConnected }: CanvasAuthViewerProps) {
+  const currentUser = useQuery(api.users.getCurrentUser);
   const [phase, setPhase] = useState<AuthPhase>("idle");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -123,7 +126,11 @@ export function CanvasAuthViewer({ onConnected }: CanvasAuthViewerProps) {
 
   async function saveCredentials() {
     try {
-      const res = await fetch("/api/canvas-auth/save", { method: "POST" });
+      const res = await fetch("/api/canvas-auth/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ university: currentUser?.university ?? null }),
+      });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(
