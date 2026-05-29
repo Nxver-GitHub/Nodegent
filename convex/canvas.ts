@@ -417,11 +417,11 @@ export const syncCanvas = action({
         try {
           const [teacherRes, taRes] = await Promise.all([
             fetch(
-              `${CANVAS_BASE_URL}/api/v1/courses/${course.id}/enrollments?type[]=TeacherEnrollment&per_page=5`,
+              `${baseUrl}/api/v1/courses/${course.id}/enrollments?type[]=TeacherEnrollment&per_page=5`,
               { headers: { Cookie: cookieHeader, Accept: "application/json" } }
             ),
             fetch(
-              `${CANVAS_BASE_URL}/api/v1/courses/${course.id}/enrollments?type[]=TaEnrollment&per_page=20`,
+              `${baseUrl}/api/v1/courses/${course.id}/enrollments?type[]=TaEnrollment&per_page=20`,
               { headers: { Cookie: cookieHeader, Accept: "application/json" } }
             ),
           ]);
