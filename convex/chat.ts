@@ -357,8 +357,17 @@ export const buildCampusContext = internalQuery({
 
     const eventLines = filteredEvents.map((e) => {
       const course = e.courseId ? courseById.get(e.courseId) : null;
-      const start = new Date(e.startAt).toISOString();
-      const end = e.endAt ? new Date(e.endAt).toISOString() : null;
+      const formatEventDate = (ts: number) =>
+        new Intl.DateTimeFormat("en-US", {
+          timeZone: "America/Los_Angeles",
+          month: "short",
+          day: "numeric",
+          hour: "numeric",
+          minute: "2-digit",
+          hour12: true,
+        }).format(new Date(ts));
+      const start = formatEventDate(e.startAt);
+      const end = e.endAt ? formatEventDate(e.endAt) : null;
       const title = clampText(stripHtml(e.title), 140);
       const courseLabel = course ? course.courseCode.replace(/-\d+$/, "") : e.eventType;
       contextRefs.push({
