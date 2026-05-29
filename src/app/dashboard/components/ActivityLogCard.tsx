@@ -6,6 +6,7 @@ import {
   ArrowsClockwise,
   CalendarCheck,
   ChatCircle,
+  Clock,
   Lock,
   PlugsConnected,
   Warning,
@@ -17,7 +18,8 @@ type AuditAction =
   | "ai_chat"
   | "access_toggle"
   | "canvas_connected"
-  | "canvas_disconnected";
+  | "canvas_disconnected"
+  | "office_hours_viewed";
 
 function formatRelative(ts: number): string {
   const diff = Date.now() - ts;
@@ -71,6 +73,21 @@ function actionLabel(action: AuditAction, details?: string): string {
     }
     case "canvas_connected": return "Canvas connected";
     case "canvas_disconnected": return "Canvas disconnected";
+    case "office_hours_viewed": {
+      if (details) {
+        try {
+          const d = JSON.parse(details) as { source?: string; courseCode?: string; courseCodes?: string[]; found?: boolean };
+          if (d.source === "chat") {
+            const codes = d.courseCodes?.join(", ") ?? "";
+            return `Office hours accessed via chat${codes ? ` — ${codes}` : ""}`;
+          }
+          const label = d.courseCode ? ` — ${d.courseCode}` : "";
+          if (d.source === "extraction") return `Office hours ${d.found ? "extracted" : "not found"}${label}`;
+          return `Office hours viewed${label}`;
+        } catch { /* fall through */ }
+      }
+      return "Office hours viewed";
+    }
     default: return action;
   }
 }
@@ -85,6 +102,7 @@ function ActionIcon({ action, status }: { action: AuditAction; status: "success"
     case "access_toggle": return <Lock size={14} weight="bold" className={cls} />;
     case "canvas_connected":
     case "canvas_disconnected": return <PlugsConnected size={14} weight="bold" className={cls} />;
+    case "office_hours_viewed": return <Clock size={14} weight="bold" className={cls} />;
     default: return <ArrowsClockwise size={14} weight="bold" className={cls} />;
   }
 }

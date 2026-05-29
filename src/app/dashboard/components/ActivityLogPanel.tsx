@@ -7,6 +7,7 @@ import {
   ArrowsClockwise,
   CalendarCheck,
   ChatCircle,
+  Clock,
   Lock,
   PlugsConnected,
   Warning,
@@ -22,7 +23,8 @@ type AuditAction =
   | "ai_chat"
   | "access_toggle"
   | "canvas_connected"
-  | "canvas_disconnected";
+  | "canvas_disconnected"
+  | "office_hours_viewed";
 
 interface ContextRef {
   type: "course" | "assignment" | "event";
@@ -84,6 +86,21 @@ function actionLabel(action: AuditAction, details?: string): string {
     }
     case "canvas_connected": return "Canvas connected";
     case "canvas_disconnected": return "Canvas disconnected";
+    case "office_hours_viewed": {
+      if (details) {
+        try {
+          const d = JSON.parse(details) as { source?: string; courseCode?: string; courseCodes?: string[]; found?: boolean };
+          if (d.source === "chat") {
+            const codes = d.courseCodes?.join(", ") ?? "";
+            return `Office hours accessed via chat${codes ? ` — ${codes}` : ""}`;
+          }
+          const label = d.courseCode ? ` — ${d.courseCode}` : "";
+          if (d.source === "extraction") return `Office hours ${d.found ? "extracted" : "not found"}${label}`;
+          return `Office hours viewed${label}`;
+        } catch { /* fall through */ }
+      }
+      return "Office hours viewed";
+    }
     default: return action;
   }
 }
@@ -98,6 +115,7 @@ function ActionIcon({ action, status }: { action: AuditAction; status: "success"
     case "access_toggle": return <Lock size={13} weight="bold" className={cls} />;
     case "canvas_connected":
     case "canvas_disconnected": return <PlugsConnected size={13} weight="bold" className={cls} />;
+    case "office_hours_viewed": return <Clock size={13} weight="bold" className={cls} />;
     default: return <ArrowsClockwise size={13} weight="bold" className={cls} />;
   }
 }
@@ -249,6 +267,36 @@ function EntryDetails({ action, status, details }: { action: AuditAction; status
               was {v ? "enabled" : "disabled"}
             </div>
           ))}
+        </div>
+      );
+    }
+    case "office_hours_viewed": {
+      const src = parsed.source as string | undefined;
+      const courseCode = parsed.courseCode as string | undefined;
+      const courseCodes = parsed.courseCodes as string[] | undefined;
+      const found = parsed.found as boolean | undefined;
+      if (src === "chat") {
+        return (
+          <div className="mt-2 text-[11px] text-gray-500 bg-gray-50 border border-gray-100 rounded px-2.5 py-1.5 leading-relaxed">
+            Office hours data for{" "}
+            <span className="font-semibold text-gray-700">{courseCodes?.join(", ") ?? "your courses"}</span>{" "}
+            was included in the AI chat context
+          </div>
+        );
+      }
+      if (src === "extraction") {
+        return (
+          <div className={`mt-2 text-[11px] rounded px-2.5 py-1.5 leading-relaxed border ${
+            found ? "text-gray-500 bg-gray-50 border-gray-100" : "text-amber-700 bg-amber-50 border-amber-100"
+          }`}>
+            {found
+              ? <>Office hours <span className="font-semibold text-gray-700">extracted from syllabus</span> for {courseCode}</>              : <>Office hours <span className="font-semibold">not found</span> in syllabus for {courseCode}</>}
+          </div>
+        );
+      }
+      return (
+        <div className="mt-2 text-[11px] text-gray-500 bg-gray-50 border border-gray-100 rounded px-2.5 py-1.5">
+          Student viewed office hours for <span className="font-semibold text-gray-700">{courseCode ?? "a course"}</span>
         </div>
       );
     }

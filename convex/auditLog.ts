@@ -8,6 +8,7 @@ const ACTION_UNION = v.union(
   v.literal("access_toggle"),
   v.literal("canvas_connected"),
   v.literal("canvas_disconnected"),
+  v.literal("office_hours_viewed"),
 );
 
 // Internal — called from Convex actions only (syncCanvas, sendMessage, saveCanvasCookies)
@@ -50,6 +51,31 @@ export const logCalendarSync = mutation({
       action: "calendar_sync",
       status: args.status,
       details: args.details,
+      timestamp: Date.now(),
+    });
+  },
+});
+
+// Public mutation — called from CourseDetailDrawer when cached office hours are viewed
+export const logOfficeHoursViewed = mutation({
+  args: {
+    courseCode: v.string(),
+    source: v.union(v.literal("drawer"), v.literal("extraction")),
+    found: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return;
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .unique();
+    if (!user) return;
+    await ctx.db.insert("auditLog", {
+      userId: user._id,
+      action: "office_hours_viewed",
+      status: "success",
+      details: JSON.stringify({ courseCode: args.courseCode, source: args.source, found: args.found }),
       timestamp: Date.now(),
     });
   },

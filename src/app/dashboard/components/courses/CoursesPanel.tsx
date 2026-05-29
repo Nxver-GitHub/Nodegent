@@ -1,12 +1,13 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { BookOpen, ArrowCounterClockwise } from "@phosphor-icons/react";
 import { useHiddenCourses } from "../../hooks/useHiddenCourses";
 import { useCourseColors } from "../../hooks/useCourseColors";
 import { buildCourseColorMap } from "@/lib/calendar-colors";
+import { CourseDetailDrawer, type CourseForDrawer } from "./CourseDetailDrawer";
 
 function formatDue(ts: number): string {
   const diffDays = Math.ceil((ts - Date.now()) / 86_400_000);
@@ -62,6 +63,7 @@ export function CoursesPanel({ onClose }: { onClose: () => void }) {
   const { colorOverrides, setColor, resetColor } = useCourseColors();
   const allSummaries = useQuery(api.courses.getCourseSummaries);
   const summaries = allSummaries?.filter((s) => !hiddenCourseIdSet.has(s._id));
+  const [selectedCourse, setSelectedCourse] = useState<CourseForDrawer | null>(null);
 
   const allIds = (allSummaries ?? []).map((s) => s._id);
   const defaultColorMap = buildCourseColorMap(allIds);
@@ -119,7 +121,7 @@ export function CoursesPanel({ onClose }: { onClose: () => void }) {
       {summaries !== undefined && summaries.length > 0 && (
         <>
           <p className="text-xs text-gray-400">
-            Click a course&apos;s color bar to customize its calendar color.
+            Click a course card to view professor details &middot; click the color bar to change its color.
           </p>
           <div className="grid grid-cols-2 gap-3">
             {summaries.map((course) => {
@@ -129,14 +131,27 @@ export function CoursesPanel({ onClose }: { onClose: () => void }) {
               return (
                 <div
                   key={course._id}
-                  className="rounded-lg border bg-white overflow-hidden hover:shadow-sm transition-shadow"
+                  className="rounded-lg border bg-white overflow-hidden hover:shadow-sm transition-shadow cursor-pointer"
+                  onClick={() => setSelectedCourse({
+                    _id: course._id,
+                    canvasId: course.canvasId,
+                    name: course.name,
+                    courseCode: course.courseCode,
+                    instructorName: course.instructorName,
+                    instructorEmail: course.instructorEmail,
+                    officeHours: course.officeHours,
+                    tasJson: course.tasJson,
+                    selectedTaEmail: course.selectedTaEmail,
+                  })}
                 >
-                  <ColorBar
-                    color={color}
-                    isCustom={isCustom}
-                    onPick={(c) => setColor(course._id, c)}
-                    onReset={() => resetColor(course._id)}
-                  />
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <ColorBar
+                      color={color}
+                      isCustom={isCustom}
+                      onPick={(c) => setColor(course._id, c)}
+                      onReset={() => resetColor(course._id)}
+                    />
+                  </div>
                   <div className="p-4 space-y-2.5">
                     <div className="flex items-start justify-between gap-2">
                       <span
@@ -165,25 +180,10 @@ export function CoursesPanel({ onClose }: { onClose: () => void }) {
                     >
                       {course.nextDueAt ? formatDue(course.nextDueAt) : "No upcoming work"}
                     </span>
-                    {(course.instructorName || course.instructorEmail) && (
-                      <div className="mt-2 border-t border-gray-100 pt-2 space-y-1">
-                        {course.instructorName && (
-                          <p className="text-xs text-gray-600">
-                            <span className="font-medium">Instructor:</span> {course.instructorName}
-                          </p>
-                        )}
-                        {course.instructorEmail && (
-                          <a href={`mailto:${course.instructorEmail}`}
-                             className="text-xs text-blue-600 hover:underline block">
-                            {course.instructorEmail}
-                          </a>
-                        )}
-                        {course.officeHours && (
-                          <p className="text-xs text-gray-600">
-                            <span className="font-medium">Office hours:</span> {course.officeHours}
-                          </p>
-                        )}
-                      </div>
+                    {course.instructorName && (
+                      <p className="text-xs text-gray-500 mt-1 truncate">
+                        {course.instructorName}
+                      </p>
                     )}
                   </div>
                 </div>
@@ -191,6 +191,13 @@ export function CoursesPanel({ onClose }: { onClose: () => void }) {
             })}
           </div>
         </>
+      )}
+
+      {selectedCourse && (
+        <CourseDetailDrawer
+          course={selectedCourse}
+          onClose={() => setSelectedCourse(null)}
+        />
       )}
     </div>
   );
