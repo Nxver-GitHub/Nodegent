@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ArrowRight, X } from "@phosphor-icons/react";
+import { ArrowRight, X, Graph } from "@phosphor-icons/react";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 
@@ -50,6 +50,16 @@ const STEPS: TourStep[] = [
       "Review exactly what Nodegent can access on your behalf and revoke any permission instantly.",
   },
 ];
+
+
+const UNIVERSITIES = [
+  { value: "ucsc",       label: "UC Santa Cruz"  },
+  { value: "ucberkeley", label: "UC Berkeley"    },
+  { value: "ucla",       label: "UCLA"           },
+  { value: "ucsd",       label: "UC San Diego"   },
+  { value: "ucdavis",   label: "UC Davis"        },
+  { value: "stanford",   label: "Stanford"       },
+] as const;
 
 const TOOLTIP_GAP = 12;
 const TOOLTIP_WIDTH = 300;
@@ -154,75 +164,89 @@ export function OnboardingTour({ onComplete, userUniversity }: OnboardingTourPro
 
   const isLast = step === STEPS.length - 1;
 
-  // University picker step (step === -1)
+  // University picker step (step === -1) — full-screen welcome modal
   if (step === -1) {
     return createPortal(
-      <>
-        <div
-          className="fixed inset-0 z-[9998]"
-          style={{ background: "rgba(0,0,0,0.5)" }}
-          onClick={onComplete}
-          aria-hidden="true"
-        />
+      <div
+        className="fixed inset-0 z-[9998] flex items-center justify-center p-4"
+        style={{ background: "rgba(0,0,0,0.6)" }}
+      >
         <div
           role="dialog"
           aria-modal="true"
           aria-label="University selection"
-          className="fixed z-[10000] bg-white rounded-xl shadow-2xl border border-gray-100 p-5 flex flex-col gap-3"
-          style={{ width: TOOLTIP_WIDTH, top: vpHeight / 2 - 120, left: vpWidth / 2 - TOOLTIP_WIDTH / 2 }}
+          className="bg-white rounded-2xl shadow-2xl border border-gray-100 p-8 flex flex-col gap-6 w-full"
+          style={{ maxWidth: 480 }}
         >
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-mono font-semibold text-gray-400 uppercase tracking-wider">
-              Setup
-            </span>
-            <button
-              onClick={onComplete}
-              className="text-gray-300 hover:text-gray-600 transition-colors"
-              aria-label="Skip tour"
-            >
-              <X size={16} />
-            </button>
+          {/* Branding */}
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-[#CD8407] flex items-center justify-center shadow-sm">
+              <Graph size={20} weight="bold" className="text-white" />
+            </div>
+            <span className="text-[16px] font-bold text-gray-900 tracking-tight">Nodegent</span>
           </div>
+
+          {/* Headline */}
           <div>
-            <h3 className="text-[14px] font-bold text-gray-900 mb-1">Which university do you attend?</h3>
-            <p className="text-[13px] text-gray-600 leading-relaxed mb-3">
-              This helps Nodegent connect to the right Canvas instance for your school.
+            <h2 className="text-[22px] font-bold text-gray-900 leading-tight mb-1.5">
+              Welcome! Let&apos;s get you set up.
+            </h2>
+            <p className="text-[14px] text-gray-500 leading-relaxed">
+              Nodegent connects to your university&apos;s Canvas to pull in your courses,
+              assignments, and deadlines automatically.
             </p>
-            <select
-              value={selectedUniversity}
-              onChange={(e) => { setSelectedUniversity(e.target.value); setUniversityError(""); }}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Select your university...</option>
-              <option value="ucsc">UC Santa Cruz</option>
-              <option value="ucberkeley">UC Berkeley</option>
-              <option value="ucla">UCLA</option>
-              <option value="ucsd">UC San Diego</option>
-              <option value="ucdavis">UC Davis</option>
-              <option value="stanford">Stanford</option>
-            </select>
-            {universityError && <p className="text-[12px] text-red-500 mt-1">{universityError}</p>}
           </div>
+
+          {/* University tiles */}
+          <div>
+            <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3">
+              Which university do you attend?
+            </p>
+            <div className="grid grid-cols-3 gap-2">
+              {UNIVERSITIES.map((u) => (
+                <button
+                  key={u.value}
+                  type="button"
+                  onClick={() => { setSelectedUniversity(u.value); setUniversityError(""); }}
+                  className={`flex items-center justify-center text-center px-2 py-3.5 rounded-xl border text-[13px] font-medium transition-all leading-tight ${
+                    selectedUniversity === u.value
+                      ? "border-blue-500 bg-blue-50 text-blue-700 ring-2 ring-blue-200"
+                      : "border-gray-200 text-gray-700 hover:border-gray-300 hover:bg-gray-50"
+                  }`}
+                >
+                  {u.label}
+                </button>
+              ))}
+            </div>
+            {universityError && (
+              <p className="text-[12px] text-red-500 mt-2">{universityError}</p>
+            )}
+          </div>
+
+          {/* Actions */}
           <div className="flex items-center justify-between pt-1">
             <button
               onClick={onComplete}
-              className="text-[12px] text-gray-400 hover:text-gray-700 transition-colors"
+              className="text-[13px] text-gray-400 hover:text-gray-600 transition-colors"
             >
-              Skip
+              Skip for now
             </button>
             <button
               onClick={async () => {
-                if (!selectedUniversity) { setUniversityError("Please select your university"); return; }
+                if (!selectedUniversity) {
+                  setUniversityError("Please select your university to continue.");
+                  return;
+                }
                 await updateUniversity({ university: selectedUniversity });
                 setStep(0);
               }}
-              className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[13px] font-semibold px-4 py-1.5 rounded-lg transition-colors"
+              className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[13px] font-semibold px-5 py-2 rounded-lg transition-colors"
             >
               Continue <ArrowRight size={14} weight="bold" />
             </button>
           </div>
         </div>
-      </>,
+      </div>,
       document.body
     );
   }
