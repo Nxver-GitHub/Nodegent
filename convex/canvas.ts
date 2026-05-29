@@ -395,17 +395,41 @@ export const syncCanvas = action({
 
       for (const course of courses) {
         let instructorEmail: string | undefined;
+        let tasJson: string | undefined;
         try {
-          const enrollRes = await fetch(
-            `${CANVAS_BASE_URL}/api/v1/courses/${course.id}/enrollments?type[]=TeacherEnrollment&per_page=5`,
-            { headers: { Cookie: cookieHeader, Accept: "application/json" } }
-          );
-          if (enrollRes.ok) {
-            const enrollData = await enrollRes.json() as Array<{ user: { id: number; name: string; email?: string } }>;
-            instructorEmail = enrollData[0]?.user?.email;
+          const [teacherRes, taRes] = await Promise.all([
+            fetch(
+              `${CANVAS_BASE_URL}/api/v1/courses/${course.id}/enrollments?type[]=TeacherEnrollment&per_page=5`,
+              { headers: { Cookie: cookieHeader, Accept: "application/json" } }
+            ),
+            fetch(
+              `${CANVAS_BASE_URL}/api/v1/courses/${course.id}/enrollments?type[]=TaEnrollment&per_page=20`,
+              { headers: { Cookie: cookieHeader, Accept: "application/json" } }
+            ),
+          ]);
+          if (teacherRes.ok) {
+            const teacherData = await teacherRes.json() as Array<{ user: { id: number; name: string; email?: string } }>;
+            instructorEmail = teacherData[0]?.user?.email;
+          }
+          if (taRes.ok) {
+            const taData = await taRes.json() as Array<{ user: { name: string; email?: string } }>;
+            // Deduplicate by email (primary) or name — Canvas returns one row per section enrollment
+            const seen = new Set<string>();
+            const tas = taData
+              .map((e) => ({
+                name: e.user.name,
+                ...(e.user.email ? { email: e.user.email } : {}),
+              }))
+              .filter((ta) => {
+                const key = ta.email ?? ta.name;
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+              });
+            if (tas.length > 0) tasJson = JSON.stringify(tas);
           }
         } catch {
-          // instructor enrichment failure must not abort sync
+          // enrollment enrichment failure must not abort sync
         }
 
         const courseId: Id<"courses"> = await ctx.runMutation(api.courses.upsertCourse, {
@@ -415,7 +439,8 @@ export const syncCanvas = action({
           term: course.term?.name ?? "Unknown Term",
           instructorName: course.teachers?.[0]?.display_name,
           instructorEmail,
-          officeHours: undefined, // officeHours not available via Canvas API; future: parse syllabus_body
+          officeHours: undefined,
+          tasJson,
         });
         coursesSynced++;
 
@@ -480,6 +505,155 @@ export const syncCanvas = action({
         details: JSON.stringify({ error: message }),
       });
       throw err;
+    }
+  },
+});
+
+// ---------------------------------------------------------------------------
+// extractOfficeHours action — lazy, cache-once syllabus extraction via Groq
+// Extracts both professor and TA office hours in one call.
+// Called from CourseDetailDrawer on first open when hours are unset.
+// ---------------------------------------------------------------------------
+
+export const extractOfficeHours = action({
+  args: {
+    courseId: v.id("courses"),
+    canvasId: v.string(),
+    courseCode: v.optional(v.string()),
+    // TA display names from tasJson — passed by client to avoid an extra DB read
+    taNames: v.optional(v.array(v.string())),
+  },
+  handler: async (ctx, args): Promise<{ professor: string | null; tas: string | null }> => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const user = await ctx.runQuery(api.users.getCurrentUser, {});
+    if (!user) return { professor: null, tas: null };
+
+    const creds = await ctx.runQuery(internal.canvas.getCredentialsForAction, {
+      userId: user._id,
+    });
+    if (!creds?.canvasCookies) return { professor: null, tas: null };
+
+    const baseUrl = creds.canvasBaseUrl ?? CANVAS_BASE_URL;
+    let cookies: PlaywrightCookie[];
+    try {
+      cookies = JSON.parse(creds.canvasCookies) as PlaywrightCookie[];
+    } catch {
+      return { professor: null, tas: null };
+    }
+    const cookieHeader = cookiesToHeader(cookies);
+
+    // Try syllabus_body first, fall back to the course front page
+    let sourceText: string | null = null;
+    try {
+      const res = await fetch(
+        `${baseUrl}/api/v1/courses/${args.canvasId}?include[]=syllabus_body`,
+        { headers: { Cookie: cookieHeader, Accept: "application/json" } }
+      );
+      if (res.ok) {
+        const data = (await res.json()) as { syllabus_body?: string | null };
+        if (data.syllabus_body) sourceText = data.syllabus_body;
+      }
+    } catch { /* fall through to front_page */ }
+
+    if (!sourceText) {
+      try {
+        const res = await fetch(
+          `${baseUrl}/api/v1/courses/${args.canvasId}/front_page`,
+          { headers: { Cookie: cookieHeader, Accept: "application/json" } }
+        );
+        if (res.ok) {
+          const data = (await res.json()) as { body?: string | null };
+          if (data.body) sourceText = data.body;
+        }
+      } catch { /* nothing */ }
+    }
+
+    if (!sourceText) return { professor: null, tas: null };
+
+    // Strip HTML tags, decode common entities, cap at 4 000 chars to save tokens
+    const plainText = sourceText
+      .replace(/<[^>]+>/g, " ")
+      .replace(/&nbsp;/g, " ")
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 4000);
+
+    const groqKey = process.env.GROQ_API_KEY;
+    if (!groqKey) return { professor: null, tas: null };
+
+    const hasTas = args.taNames && args.taNames.length > 0;
+    const taListStr = hasTas ? args.taNames!.join(", ") : "";
+
+    const systemPrompt = hasTas
+      ? `Extract office hours from this course syllabus. Return ONLY a valid JSON object: ` +
+        `{"professor":{"days":"...","time":"...","location":"...","zoomUrl":"URL or null","source":"auto"},` +
+        `"tas":[{"name":"TA name","days":"...","time":"...","location":"...","zoomUrl":"URL or null"}]}. ` +
+        `Set "professor" to null if not found. For "tas", only include TAs from this list: ${taListStr}. ` +
+        `Use [] if no TA hours found. No markdown, no explanation — only the JSON object.`
+      : `Extract the professor's office hours from this course syllabus. Return ONLY a valid JSON object: ` +
+        `{"professor":{"days":"...","time":"...","location":"...","zoomUrl":"URL or null","source":"auto"},"tas":[]}. ` +
+        `Set "professor" to null if not found. No markdown, no explanation — only the JSON object.`;
+
+    try {
+      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${groqKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: plainText },
+          ],
+          max_tokens: 400,
+          temperature: 0,
+        }),
+      });
+
+      if (!res.ok) return { professor: null, tas: null };
+      const data = (await res.json()) as {
+        choices: Array<{ message: { content: string } }>;
+      };
+      const raw = (data.choices[0]?.message?.content ?? "").trim();
+      if (!raw) return { professor: null, tas: null };
+
+      const parsed = JSON.parse(raw) as {
+        professor?: Record<string, unknown> | null;
+        tas?: Array<Record<string, unknown>>;
+      };
+
+      const professorStr = parsed.professor
+        ? JSON.stringify(parsed.professor)
+        : null;
+      const tasArr = Array.isArray(parsed.tas) && parsed.tas.length > 0
+        ? parsed.tas
+        : null;
+      const tasStr = tasArr ? JSON.stringify(tasArr) : null;
+
+      const found = professorStr !== null || tasStr !== null;
+      try {
+        await ctx.runMutation(internal.auditLog.logAction, {
+          userId: user._id,
+          action: "office_hours_viewed",
+          status: "success",
+          details: JSON.stringify({
+            courseCode: args.courseCode ?? args.canvasId,
+            source: "extraction",
+            found,
+          }),
+        });
+      } catch { /* log failure must not break extraction */ }
+
+      return { professor: professorStr, tas: tasStr };
+    } catch {
+      return { professor: null, tas: null };
     }
   },
 });

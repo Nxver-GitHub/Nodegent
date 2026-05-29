@@ -266,7 +266,55 @@ export const buildCampusContext = internalQuery({
         id: c._id,
         label: `${c.courseCode}: ${c.name}`,
       });
-      return `- ${c.courseCode}: ${c.name}`;
+
+      const lines: string[] = [`- ${c.courseCode}: ${c.name}`];
+
+      if (c.instructorName) {
+        const emailPart = c.instructorEmail ? ` <${c.instructorEmail}>` : "";
+        lines.push(`  Instructor: ${c.instructorName}${emailPart}`);
+      }
+
+      if (c.officeHours) {
+        try {
+          const oh = JSON.parse(c.officeHours) as {
+            days?: string; time?: string; location?: string; zoomUrl?: string | null;
+          };
+          const parts = [
+            oh.days, oh.time, oh.location,
+            oh.zoomUrl ? `Zoom: ${oh.zoomUrl}` : null,
+          ].filter(Boolean).join(", ");
+          if (parts) lines.push(`  Professor office hours: ${parts}`);
+        } catch { /* skip malformed */ }
+      }
+
+      if (c.tasJson) {
+        try {
+          const tas = JSON.parse(c.tasJson) as Array<{
+            name: string; email?: string; officeHours?: string;
+          }>;
+          for (const ta of tas) {
+            const emailPart = ta.email ? ` <${ta.email}>` : "";
+            lines.push(`  TA: ${ta.name}${emailPart}`);
+            if (ta.officeHours) {
+              try {
+                const oh = JSON.parse(ta.officeHours) as {
+                  days?: string; time?: string; location?: string; zoomUrl?: string | null;
+                };
+                const parts = [
+                  oh.days, oh.time, oh.location,
+                  oh.zoomUrl ? `Zoom: ${oh.zoomUrl}` : null,
+                ].filter(Boolean).join(", ");
+                if (parts) lines.push(`    TA office hours: ${parts}`);
+              } catch { /* skip */ }
+            }
+          }
+          if (c.selectedTaEmail) {
+            lines.push(`  Student's assigned TA email: ${c.selectedTaEmail}`);
+          }
+        } catch { /* skip malformed */ }
+      }
+
+      return lines.join("\n");
     });
 
     const assignmentLines = filteredAssignments.map((a) => {
@@ -335,9 +383,18 @@ export const buildCampusContext = internalQuery({
 
     const contextText = sections.join("\n");
 
+    // Track which courses had office hours data included in the context
+    const officeHoursCourses = courses
+      .filter((c) => c.officeHours || (c.tasJson && (() => {
+        try { return (JSON.parse(c.tasJson!) as Array<{officeHours?: string}>).some((t) => t.officeHours); }
+        catch { return false; }
+      })()))
+      .map((c) => c.courseCode);
+
     return {
       contextText,
       contextRefs,
+      officeHoursCourses,
       stats: {
         courses: courses.length,
         assignments: filteredAssignments.length,
@@ -614,7 +671,7 @@ export const sendMessage = action({
       limit: 16,
     });
 
-    const { contextText, contextRefs, stats } = await ctx.runQuery(
+    const { contextText, contextRefs, officeHoursCourses, stats } = await ctx.runQuery(
       internal.chat.buildCampusContext,
       { userId, message: content, now }
     );
@@ -675,6 +732,14 @@ export const sendMessage = action({
         status: "success",
         details: JSON.stringify({ preview: content.slice(0, 80), provider: llmResult.provider, contextRefs: contextRefs.slice(0, 60) }),
       });
+      if (officeHoursCourses.length > 0) {
+        await ctx.runMutation(internal.auditLog.logAction, {
+          userId,
+          action: "office_hours_viewed",
+          status: "success",
+          details: JSON.stringify({ source: "chat", courseCodes: officeHoursCourses }),
+        });
+      }
     } catch {
       // log failure must not break chat response
     }

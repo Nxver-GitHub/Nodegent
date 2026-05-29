@@ -3,6 +3,12 @@ import { v } from "convex/values";
 import { DatabaseWriter } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 
+export interface TaEntry {
+  name: string;
+  email?: string;
+  officeHours?: string;
+}
+
 // Recompute and persist the denormalized summary fields for a course.
 // Call this from any mutation that creates, updates, completes, or deletes
 // an assignment so getCourseSummaries can read summaries directly.
@@ -71,8 +77,6 @@ export const getCourseSummaries = query({
 
     if (!user) return [];
 
-    // Read summaries directly off the courses row — the denormalized fields
-    // are kept in sync by recomputeCourseSummary on every assignment write.
     const courses = await ctx.db
       .query("courses")
       .withIndex("by_userId", (q) => q.eq("userId", user._id))
@@ -81,6 +85,7 @@ export const getCourseSummaries = query({
     return courses
       .map((course) => ({
         _id: course._id,
+        canvasId: course.canvasId,
         courseCode: course.courseCode,
         name: course.name,
         pendingCount: course.pendingCount ?? 0,
@@ -88,6 +93,8 @@ export const getCourseSummaries = query({
         instructorName: course.instructorName,
         instructorEmail: course.instructorEmail,
         officeHours: course.officeHours,
+        tasJson: course.tasJson,
+        selectedTaEmail: course.selectedTaEmail,
       }))
       .sort((a, b) => {
         const aDate = a.nextDueAt ?? Number.MAX_SAFE_INTEGER;
@@ -107,6 +114,7 @@ export const upsertCourse = mutation({
     syllabusUrl: v.optional(v.string()),
     instructorEmail: v.optional(v.string()),
     officeHours: v.optional(v.string()),
+    tasJson: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -133,6 +141,21 @@ export const upsertCourse = mutation({
       .unique();
 
     if (existing) {
+      // Merge incoming TA list with existing: preserve officeHours for TAs matched by email
+      let mergedTasJson: string | undefined = undefined;
+      if (args.tasJson !== undefined) {
+        try {
+          const existingTas: TaEntry[] = existing.tasJson ? JSON.parse(existing.tasJson) : [];
+          const newTas: TaEntry[] = JSON.parse(args.tasJson);
+          const merged = newTas.map((ta) => {
+            const prev = existingTas.find((e) => e.email && e.email === ta.email);
+            return prev?.officeHours ? { ...ta, officeHours: prev.officeHours } : ta;
+          });
+          mergedTasJson = JSON.stringify(merged);
+        } catch {
+          mergedTasJson = args.tasJson;
+        }
+      }
       await ctx.db.patch(existing._id, {
         name: args.name,
         courseCode: args.courseCode,
@@ -140,7 +163,10 @@ export const upsertCourse = mutation({
         instructorName: args.instructorName,
         syllabusUrl: args.syllabusUrl,
         instructorEmail: args.instructorEmail,
-        officeHours: args.officeHours,
+        // Only overwrite officeHours when the caller explicitly provides a value —
+        // prevents Canvas re-sync from clobbering manually-entered or extracted hours.
+        ...(args.officeHours !== undefined ? { officeHours: args.officeHours } : {}),
+        ...(mergedTasJson !== undefined ? { tasJson: mergedTasJson } : {}),
         lastSyncedAt: now,
       });
       return existing._id;
@@ -156,6 +182,7 @@ export const upsertCourse = mutation({
       syllabusUrl: args.syllabusUrl,
       instructorEmail: args.instructorEmail,
       officeHours: args.officeHours,
+      tasJson: args.tasJson,
       lastSyncedAt: now,
       pendingCount: 0,
       nextDueAt: undefined,
@@ -163,9 +190,6 @@ export const upsertCourse = mutation({
   },
 });
 
-// Public wrapper for callers that batch assignment writes with
-// `skipRecompute: true` and need to refresh the summary once at the end.
-// Enforces ownership before delegating to the helper.
 export const recomputeCourseSummaryPublic = mutation({
   args: { courseId: v.id("courses") },
   handler: async (ctx, args) => {
@@ -187,8 +211,6 @@ export const recomputeCourseSummaryPublic = mutation({
   },
 });
 
-// One-shot backfill for the new denormalized summary fields. Run once after
-// deploying the schema change; safe to re-run (idempotent).
 export const backfillCourseSummaries = internalMutation({
   args: {},
   handler: async (ctx) => {
@@ -197,5 +219,70 @@ export const backfillCourseSummaries = internalMutation({
       await recomputeCourseSummary(ctx, course._id);
     }
     return { recomputed: courses.length };
+  },
+});
+
+// Update the selected TA for a course.
+export const updateSelectedTa = mutation({
+  args: {
+    courseId: v.id("courses"),
+    selectedTaEmail: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .unique();
+    if (!user) throw new Error("User not found");
+    const course = await ctx.db.get(args.courseId);
+    if (!course || course.userId !== user._id) throw new Error("Unauthorized");
+    await ctx.db.patch(args.courseId, { selectedTaEmail: args.selectedTaEmail });
+  },
+});
+
+// Overwrite the full TA list (with merged office hours) for a course.
+export const updateTaOfficeHours = mutation({
+  args: {
+    courseId: v.id("courses"),
+    tasJson: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .unique();
+    if (!user) throw new Error("User not found");
+    const course = await ctx.db.get(args.courseId);
+    if (!course || course.userId !== user._id) throw new Error("Unauthorized");
+    await ctx.db.patch(args.courseId, { tasJson: args.tasJson });
+  },
+});
+
+// Update or clear office hours for a single course.
+// This is the canonical write path — upsertCourse (called by Canvas sync)
+// deliberately skips this field so syncs never clobber manual/extracted data.
+export const updateOfficeHours = mutation({
+  args: {
+    courseId: v.id("courses"),
+    officeHours: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .unique();
+    if (!user) throw new Error("User not found");
+
+    const course = await ctx.db.get(args.courseId);
+    if (!course || course.userId !== user._id) throw new Error("Unauthorized");
+
+    await ctx.db.patch(args.courseId, { officeHours: args.officeHours });
   },
 });

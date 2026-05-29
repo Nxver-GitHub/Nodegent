@@ -76,6 +76,8 @@ export default defineSchema({
     nextDueAt: v.optional(v.number()),
     instructorEmail: v.optional(v.string()),
     officeHours: v.optional(v.string()),
+    tasJson: v.optional(v.string()),
+    selectedTaEmail: v.optional(v.string()),
   })
     .index("by_userId", ["userId"])
     .index("by_userId_canvasId", ["userId", "canvasId"]),
@@ -157,6 +159,7 @@ export default defineSchema({
       v.literal("access_toggle"),
       v.literal("canvas_connected"),
       v.literal("canvas_disconnected"),
+      v.literal("office_hours_viewed"),
     ),
     status: v.union(v.literal("success"), v.literal("error")),
     details: v.optional(v.string()),
