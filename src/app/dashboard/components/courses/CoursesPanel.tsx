@@ -165,6 +165,26 @@ export function CoursesPanel({ onClose }: { onClose: () => void }) {
                     >
                       {course.nextDueAt ? formatDue(course.nextDueAt) : "No upcoming work"}
                     </span>
+                    {(course.instructorName || course.instructorEmail) && (
+                      <div className="mt-2 border-t border-gray-100 pt-2 space-y-1">
+                        {course.instructorName && (
+                          <p className="text-xs text-gray-600">
+                            <span className="font-medium">Instructor:</span> {course.instructorName}
+                          </p>
+                        )}
+                        {course.instructorEmail && (
+                          <a href={`mailto:${course.instructorEmail}`}
+                             className="text-xs text-blue-600 hover:underline block">
+                            {course.instructorEmail}
+                          </a>
+                        )}
+                        {course.officeHours && (
+                          <p className="text-xs text-gray-600">
+                            <span className="font-medium">Office hours:</span> {course.officeHours}
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               );
