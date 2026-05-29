@@ -327,7 +327,18 @@ export const buildCampusContext = internalQuery({
         id: a._id,
         label: `${courseLabel} — ${title} (due ${due})`,
       });
-      return `- [${courseLabel}] ${title} — due ${due}${a.isCompleted ? " (completed)" : ""}`;
+      const isExam = /midterm|final|exam/i.test(a.title);
+      const isQuiz = !isExam && a.submissionType?.includes("online_quiz");
+      const typeTag = isExam ? " [EXAM]" : isQuiz ? " [QUIZ]" : "";
+      const metaParts: string[] = [];
+      if (a.isCompleted) metaParts.push("completed");
+      else if (a.submissionStatus && a.submissionStatus !== "unsubmitted") metaParts.push(a.submissionStatus);
+      if (a.score !== undefined) {
+        const gradeStr = a.letterGrade ? ` (${a.letterGrade})` : "";
+        metaParts.push(`score: ${a.score}/${a.pointsPossible ?? "?"}${gradeStr}`);
+      }
+      const suffix = metaParts.length ? ` — ${metaParts.join(", ")}` : "";
+      return `- [${courseLabel}] ${title}${typeTag} — due ${due}${suffix}`;
     });
 
     const eventLines = filteredEvents.map((e) => {
