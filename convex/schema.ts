@@ -16,6 +16,7 @@ export default defineSchema({
     calendarEnabled: v.optional(v.boolean()),
     onboardingCompleted: v.optional(v.boolean()),
     hiddenDefaultApps: v.optional(v.array(v.string())),
+    university: v.optional(v.string()),
   }).index("by_clerkId", ["clerkId"]),
 
   chatThreads: defineTable({

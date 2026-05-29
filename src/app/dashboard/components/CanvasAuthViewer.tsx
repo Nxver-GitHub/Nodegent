@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useQuery } from "convex/react";
+import { api } from "@convex/_generated/api";
 
 type AuthPhase =
   | "idle"          // showing the CruzID / password form
@@ -15,7 +17,17 @@ interface CanvasAuthViewerProps {
   onConnected: () => void;
 }
 
+const UNIVERSITY_COPY: Record<string, { name: string; usernameLabel: string; passwordLabel: string }> = {
+  ucsc:       { name: "UC Santa Cruz", usernameLabel: "CruzID",     passwordLabel: "Gold Password" },
+  ucberkeley: { name: "UC Berkeley",   usernameLabel: "CalNet ID",  passwordLabel: "Passphrase" },
+  ucla:       { name: "UCLA",          usernameLabel: "Login ID",   passwordLabel: "Password" },
+  ucsd:       { name: "UC San Diego",  usernameLabel: "SSO Username", passwordLabel: "Password" },
+  ucdavis:    { name: "UC Davis",      usernameLabel: "Login ID",   passwordLabel: "Password" },
+  stanford:   { name: "Stanford",      usernameLabel: "SUNet ID",   passwordLabel: "Password" },
+};
+
 export function CanvasAuthViewer({ onConnected }: CanvasAuthViewerProps) {
+  const currentUser = useQuery(api.users.getCurrentUser);
   const [phase, setPhase] = useState<AuthPhase>("idle");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -106,7 +118,7 @@ export function CanvasAuthViewer({ onConnected }: CanvasAuthViewerProps) {
         const { message } = JSON.parse((e as MessageEvent).data) as { message?: string };
         setErrorMsg(message ?? "Authentication failed");
       } catch {
-        setErrorMsg("Authentication failed — check your CruzID and password");
+        setErrorMsg("Authentication failed — check your username and password");
       }
       setPhase("error");
     });
@@ -123,7 +135,11 @@ export function CanvasAuthViewer({ onConnected }: CanvasAuthViewerProps) {
 
   async function saveCredentials() {
     try {
-      const res = await fetch("/api/canvas-auth/save", { method: "POST" });
+      const res = await fetch("/api/canvas-auth/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ university: currentUser?.university ?? null }),
+      });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(
@@ -165,31 +181,37 @@ export function CanvasAuthViewer({ onConnected }: CanvasAuthViewerProps) {
 
   // --- Render: credential form ---
   if (phase === "idle" || phase === "starting") {
+    const uniCopy = currentUser?.university
+      ? (UNIVERSITY_COPY[currentUser.university] ?? { name: currentUser.university, usernameLabel: "Username", passwordLabel: "Password" })
+      : { name: null, usernameLabel: "Username", passwordLabel: "Password" };
+
     return (
       <div className="rounded-lg border bg-white p-6">
-        <h3 className="font-semibold text-gray-900">Connect Canvas via UCSC SSO</h3>
+        <h3 className="font-semibold text-gray-900">
+          Connect Canvas via {uniCopy.name ? `${uniCopy.name} SSO` : "Campus SSO"}
+        </h3>
         <p className="mt-1 text-sm text-gray-500">
-          Enter your CruzID and Gold Password. A headless browser will log in on
-          your behalf — you&apos;ll see the screen live and can approve Duo MFA
-          when prompted.
+          Enter your {uniCopy.usernameLabel} and {uniCopy.passwordLabel}. A headless
+          browser will log in on your behalf — you&apos;ll see the screen live and
+          can approve Duo MFA when prompted.
         </p>
         <form onSubmit={handleSubmit} className="mt-4 space-y-3">
           <div>
-            <label className="block text-sm font-medium text-gray-700">CruzID</label>
+            <label className="block text-sm font-medium text-gray-700">{uniCopy.usernameLabel}</label>
             <input
               type="text"
               autoComplete="username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="jdoe"
+              placeholder={uniCopy.usernameLabel.toLowerCase()}
               required
               disabled={phase === "starting"}
             />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700">
-              Gold Password
+              {uniCopy.passwordLabel}
             </label>
             <input
               type="password"
@@ -197,7 +219,7 @@ export function CanvasAuthViewer({ onConnected }: CanvasAuthViewerProps) {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Gold Password"
+              placeholder={uniCopy.passwordLabel}
               required
               disabled={phase === "starting"}
             />

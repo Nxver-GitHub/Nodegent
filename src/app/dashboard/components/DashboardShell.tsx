@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import {
   Graph,
   ArrowLeft,
@@ -68,6 +68,15 @@ const TRAY_ICON_MAP: Record<string, Icon> = {
 };
 
 const CONNECT_CANVAS_DISMISSED_KEY = "nodegent-connect-canvas-banner-dismissed";
+
+const UNIVERSITIES = [
+  { value: "ucsc",       label: "UC Santa Cruz"  },
+  { value: "ucberkeley", label: "UC Berkeley"    },
+  { value: "ucla",       label: "UCLA"           },
+  { value: "ucsd",       label: "UC San Diego"   },
+  { value: "ucdavis",   label: "UC Davis"        },
+  { value: "stanford",   label: "Stanford"       },
+] as const;
 
 // ─── MinimizedTray ────────────────────────────────────────────────────────────
 
@@ -301,6 +310,9 @@ function SettingsPopover({
   const ref = useRef<HTMLDivElement>(null);
   const { theme, toggleTheme } = useTheme();
   const { autoSyncEnabled, setAutoSyncEnabled } = useAutoSyncPreference();
+  const currentUser = useQuery(api.users.getCurrentUser);
+  const updateUniversity = useMutation(api.users.updateUniversity);
+  const [univSaved, setUnivSaved] = useState(false);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -357,6 +369,33 @@ function SettingsPopover({
         <Compass size={15} className="text-blue-500 flex-shrink-0" />
         Restart onboarding tour
       </button>
+
+      <div className="mx-4 my-1 border-t border-gray-100" />
+
+      <div className="px-4 py-2.5">
+        <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2">
+          Profile
+        </p>
+        <div>
+          <label className="text-[11px] text-gray-500 mb-1 block">University</label>
+          <select
+            value={currentUser?.university ?? ""}
+            onChange={async (e) => {
+              if (!e.target.value) return;
+              await updateUniversity({ university: e.target.value });
+              setUnivSaved(true);
+              setTimeout(() => setUnivSaved(false), 2000);
+            }}
+            className="w-full text-[12px] rounded-md border border-gray-200 px-2 py-1.5 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
+          >
+            <option value="">Select university...</option>
+            {UNIVERSITIES.map((u) => (
+              <option key={u.value} value={u.value}>{u.label}</option>
+            ))}
+          </select>
+          {univSaved && <p className="text-[11px] text-green-600 mt-1">Saved ✓</p>}
+        </div>
+      </div>
 
       <div className="mx-4 my-1 border-t border-gray-100" />
 
