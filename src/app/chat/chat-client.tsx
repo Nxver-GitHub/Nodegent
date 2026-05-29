@@ -6,6 +6,7 @@ import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { CaretDown, Trash } from "@phosphor-icons/react";
+import ReactMarkdown from "react-markdown";
 
 type ContextRef = { type: "course" | "assignment" | "event"; id: string; label: string };
 
@@ -122,11 +123,25 @@ function MessageBubble({ message }: { message: ChatMessage }) {
     <div className={isUser ? "flex justify-end" : "flex justify-start"}>
       <div
         className={[
-          "max-w-[80%] rounded-lg px-3 py-2 text-sm whitespace-pre-wrap",
-          isUser ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-900",
+          "max-w-[80%] rounded-lg px-3 py-2 text-sm",
+          isUser ? "bg-blue-600 text-white whitespace-pre-wrap" : "bg-gray-100 text-gray-900",
         ].join(" ")}
       >
-        <div>{message.content}</div>
+        {isUser ? (
+          <div>{message.content}</div>
+        ) : (
+          <div className="prose prose-sm max-w-none prose-a:text-blue-600 prose-a:underline prose-p:my-1 prose-ul:my-1 prose-li:my-0">
+            <ReactMarkdown
+              components={{
+                a: ({ href, children }) => (
+                  <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>
+                ),
+              }}
+            >
+              {message.content}
+            </ReactMarkdown>
+          </div>
+        )}
         {!isUser && message.contextRefs && message.contextRefs.length > 0 && (
           <ContextUsed refs={message.contextRefs} />
         )}
