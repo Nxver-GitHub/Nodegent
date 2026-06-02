@@ -665,9 +665,10 @@ async function callGroq(args: {
   apiKey: string;
   model: string;
   system: string;
-  messages: { role: "user" | "assistant"; content: string }[];
+  messages: { role: string; content: string; tool_calls?: any[]; tool_call_id?: string }[];
   contextText: string;
-}): Promise<{ content: string; provider: string; model: string }> {
+  tools?: any[];
+}): Promise<{ content: string; provider: string; model: string; toolCalls?: any[] }> {
   const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -688,6 +689,7 @@ async function callGroq(args: {
         },
         ...args.messages,
       ],
+      ...(args.tools ? { tools: args.tools } : {}),
     }),
   });
 
@@ -703,7 +705,11 @@ async function callGroq(args: {
   }
 
   const json: any = await response.json();
-  const content: string | undefined = json?.choices?.[0]?.message?.content;
+  const msg = json?.choices?.[0]?.message;
+  if (msg?.tool_calls?.length) {
+    return { content: "", provider: "groq", model: args.model, toolCalls: msg.tool_calls };
+  }
+  const content: string | undefined = msg?.content;
   if (!content) {
     throw new Error("Groq API returned no message content");
   }
@@ -781,8 +787,24 @@ export const sendMessage = action({
       "Assignment and event items in the context are pre-formatted with bold course codes and italic dates — copy them exactly as given without reformatting. " +
       "Use bullet lists for multiple items. Never invent URLs — only use links that are explicitly present in the context.";
 
+    const browseTools = [{
+      type: "function" as const,
+      function: {
+        name: "browse_web",
+        description: "Fetch live data from an approved UCSC campus website. Use for real-time info: SCSk laundry/bike/dining availability, campus events, live schedules. Do NOT use for Canvas assignments or Google Calendar — those are already in your context.",
+        parameters: {
+          type: "object",
+          properties: {
+            url: { type: "string", description: "Full HTTPS URL to fetch" },
+            query: { type: "string", description: "What specific information to extract from the page" },
+          },
+          required: ["url", "query"],
+        },
+      },
+    }];
+
     const start = Date.now();
-    let llmResult: { content: string; provider: string; model: string };
+    let llmResult: { content: string; provider: string; model: string; toolCalls?: any[] };
 
     if (process.env.NODEGENT_LLM_MODE === "mock") {
       llmResult = { content: mockReply(content, stats), provider: "mock", model: "mock" };
@@ -793,7 +815,38 @@ export const sendMessage = action({
         system,
         contextText,
         messages: history.concat([{ role: "user", content }]),
+        tools: browseTools,
       });
+
+      // Handle browse_web tool call
+      if (llmResult.toolCalls?.length && process.env.NODEGENT_APP_URL) {
+        const tc = llmResult.toolCalls[0];
+        if (tc.function?.name === "browse_web") {
+          try {
+            const args2 = JSON.parse(tc.function.arguments ?? "{}");
+            const browseRes = await fetch(`${process.env.NODEGENT_APP_URL}/api/browse`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ url: args2.url, query: args2.query }),
+            });
+            const browseData: any = await browseRes.json();
+            llmResult = await callGroq({
+              apiKey: process.env.GROQ_API_KEY,
+              model: process.env.GROQ_MODEL ?? "meta-llama/llama-4-scout-17b-16e-instruct",
+              system,
+              contextText,
+              messages: [
+                ...history,
+                { role: "user", content },
+                { role: "assistant", content: "", tool_calls: llmResult.toolCalls },
+                { role: "tool", content: browseData.text ?? "No data retrieved", tool_call_id: tc.id },
+              ],
+            });
+          } catch {
+            // browse failed — fall through with empty content, let AI handle gracefully
+          }
+        }
+      }
     } else {
       llmResult = {
         content:
