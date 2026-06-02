@@ -152,6 +152,7 @@ export default defineSchema({
     icon: v.string(),
     color: v.optional(v.string()),
     order: v.number(),
+    aiQueryable: v.optional(v.boolean()),
   })
     .index("by_userId", ["userId"])
     .index("by_userId_order", ["userId", "order"]),

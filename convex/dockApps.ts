@@ -113,3 +113,19 @@ export const toggleHideDefaultApp = mutation({
     await ctx.db.patch(user._id, { hiddenDefaultApps: updated });
   },
 });
+
+export const toggleAiQueryable = mutation({
+  args: { id: v.id("dockApps"), aiQueryable: v.boolean() },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Not authenticated");
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .unique();
+    if (!user) throw new Error("User not found");
+    const app = await ctx.db.get(args.id);
+    if (!app || app.userId !== user._id) throw new Error("App not found");
+    await ctx.db.patch(args.id, { aiQueryable: args.aiQueryable });
+  },
+});
