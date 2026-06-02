@@ -443,6 +443,29 @@ export const buildCampusContext = internalQuery({
       sections.push(eventSectionLines.length ? eventSectionLines.join("\n") : "- (none)");
     }
 
+
+    // Course catalog from UCSC Schedule of Classes sync
+    const courseCatalog = await ctx.db
+      .query("courseListings")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .collect();
+
+    if (courseCatalog.length > 0) {
+      const catalogLines = courseCatalog.slice(0, 30).map((cl) => {
+        const seats =
+          cl.enrolled != null && cl.capacity != null
+            ? ` (${cl.enrolled}/${cl.capacity}${cl.status ? `, ${cl.status}` : ""})`
+            : "";
+        const time = [cl.meetingDays, cl.meetingTimes].filter(Boolean).join(" ");
+        const parts = [`**${cl.courseCode}** ${cl.title}${seats}`];
+        if (cl.instructor) parts.push(`Instructor: ${cl.instructor}`);
+        if (time) parts.push(time);
+        if (cl.geRequirements) parts.push(`GE: ${cl.geRequirements}`);
+        return `- ${parts.join(" | ")}`;
+      });
+      sections.push("**Course Catalog** (UCSC Schedule of Classes):\n" + catalogLines.join("\n"));
+    }
+
     const contextText = sections.join("\n");
 
     // Track which courses had office hours data included in the context

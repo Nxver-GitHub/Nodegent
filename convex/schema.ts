@@ -156,6 +156,28 @@ export default defineSchema({
     .index("by_userId", ["userId"])
     .index("by_userId_order", ["userId", "order"]),
 
+
+  courseListings: defineTable({
+    userId: v.id("users"),
+    term: v.string(),
+    courseCode: v.string(),
+    sectionNumber: v.string(),
+    title: v.string(),
+    instructor: v.optional(v.string()),
+    enrolled: v.optional(v.number()),
+    capacity: v.optional(v.number()),
+    status: v.optional(v.string()),
+    meetingDays: v.optional(v.string()),
+    meetingTimes: v.optional(v.string()),
+    location: v.optional(v.string()),
+    instructionMode: v.optional(v.string()),
+    geRequirements: v.optional(v.string()),
+    lastSyncedAt: v.number(),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_userId_term", ["userId", "term"])
+    .index("by_userId_courseCode", ["userId", "courseCode"]),
+
   auditLog: defineTable({
     userId: v.id("users"),
     action: v.union(
