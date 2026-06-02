@@ -809,14 +809,23 @@ export const sendMessage = action({
     if (process.env.NODEGENT_LLM_MODE === "mock") {
       llmResult = { content: mockReply(content, stats), provider: "mock", model: "mock" };
     } else if (process.env.GROQ_API_KEY) {
-      llmResult = await callGroq({
+      const groqCallArgs = {
         apiKey: process.env.GROQ_API_KEY,
         model: process.env.GROQ_MODEL ?? "meta-llama/llama-4-scout-17b-16e-instruct",
         system,
         contextText,
         messages: history.concat([{ role: "user", content }]),
-        tools: browseTools,
-      });
+      };
+      try {
+        llmResult = await callGroq({ ...groqCallArgs, tools: browseTools });
+      } catch (toolErr) {
+        // Groq returns 400 when the model fails to generate valid function-call JSON.
+        // Fall back to a plain call without tools so the user always gets a response.
+        const isToolGenFailure =
+          toolErr instanceof Error && toolErr.message.includes("400");
+        if (!isToolGenFailure) throw toolErr;
+        llmResult = await callGroq(groqCallArgs);
+      }
 
       // Handle browse_web tool call
       if (llmResult.toolCalls?.length && process.env.NODEGENT_APP_URL) {
