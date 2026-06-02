@@ -445,10 +445,12 @@ export const buildCampusContext = internalQuery({
 
 
     // Course catalog from UCSC Schedule of Classes sync
-    const courseCatalog = await ctx.db
-      .query("courseListings")
-      .withIndex("by_userId", (q) => q.eq("userId", user._id))
-      .collect();
+    const courseCatalog = user
+      ? await ctx.db
+          .query("courseListings")
+          .withIndex("by_userId", (q) => q.eq("userId", user._id))
+          .collect()
+      : [];
 
     if (courseCatalog.length > 0) {
       const catalogLines = courseCatalog.slice(0, 30).map((cl) => {
