@@ -1,8 +1,45 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { isAllowedUrl, isPrivateHost } from "@/lib/browse-allowlist";
+import type { Page } from "playwright";
 
 export const maxDuration = 30;
+
+// Pisa needs form-fill + AJAX submit — plain goto returns an empty shell.
+async function browsePisa(page: Page, params: URLSearchParams): Promise<string> {
+  await page.goto("https://pisa.ucsc.edu/class_search/index.php", {
+    waitUntil: "networkidle",
+    timeout: 20000,
+  });
+
+  const term = params.get("binds[:term]") ?? params.get("binds%5B%3Aterm%5D") ?? "2262";
+  const subject = params.get("binds[:subject]") ?? params.get("binds%5B%3Asubj%5D") ?? "";
+  const regStatus = params.get("binds[:reg_status]") ?? "all";
+
+  await page.evaluate(
+    ({ term, subject, regStatus }: { term: string; subject: string; regStatus: string }) => {
+      const sel = (name: string) =>
+        document.querySelector<HTMLSelectElement | HTMLInputElement>(`[name="${name}"]`);
+      const termEl = sel("binds[:term]");
+      const subjEl = sel("binds[:subject]");
+      const statusEl = sel("binds[:reg_status]");
+      if (termEl) termEl.value = term;
+      if (subjEl) subjEl.value = subject;
+      if (statusEl) statusEl.value = regStatus;
+    },
+    { term, subject, regStatus }
+  );
+
+  await page.evaluate(() => {
+    const form = document.getElementById("searchForm") as HTMLFormElement | null;
+    form?.submit();
+  });
+
+  // Wait up to 15 s for at least one result row to appear
+  await page.waitForSelector("[id^=rowpanel]", { timeout: 15000 }).catch(() => null);
+
+  return page.evaluate(() => document.body.innerText);
+}
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const { userId } = await auth();
@@ -41,20 +78,28 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();
 
-    // Intercept every request/redirect and abort if outside the allowlist.
+    // Only block document navigations (main-frame redirects) that leave the allowlist.
+    // Subresources (JS, CSS, XHR, fetch) are allowed so JS-heavy pages can load fully.
     await page.route("**/*", (route) => {
-      const reqUrl = route.request().url();
-      if (!guardRedirect(reqUrl)) {
+      const req = route.request();
+      const isNavigation = req.isNavigationRequest();
+      if (isNavigation && !guardRedirect(req.url())) {
         route.abort("blockedbyclient").catch(() => undefined);
       } else {
         route.continue().catch(() => undefined);
       }
     });
 
-    await page.goto(url, { waitUntil: "networkidle", timeout: 25000 });
-    const text = await page.evaluate(() => document.body.innerText);
+    const parsed = new URL(url);
+    const rawText =
+      parsed.hostname === "pisa.ucsc.edu"
+        ? await browsePisa(page, parsed.searchParams)
+        : await page
+            .goto(url, { waitUntil: "networkidle", timeout: 25000 })
+            .then(() => page.evaluate(() => document.body.innerText));
     await browser.close();
-    const trimmed = text.replace(/\s+/g, " ").trim().slice(0, 3000);
+    const text = rawText;
+    const trimmed = rawText.replace(/\s+/g, " ").trim().slice(0, 3000);
     return NextResponse.json({ text: trimmed, url });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Browse failed";
