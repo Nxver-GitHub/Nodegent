@@ -4,6 +4,7 @@ export const STATIC_ALLOWLIST = [
   "slugsurvival.com",
   "dining.ucsc.edu",
   "maps.ucsc.edu",
+  "pisa.ucsc.edu",
 ];
 
 // Matches private/loopback/link-local IPv4 and IPv6 ranges.

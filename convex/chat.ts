@@ -689,7 +689,7 @@ async function callGroq(args: {
         },
         ...args.messages,
       ],
-      ...(args.tools ? { tools: args.tools } : {}),
+      ...(args.tools ? { tools: args.tools, parallel_tool_calls: false } : {}),
     }),
   });
 
@@ -787,11 +787,22 @@ export const sendMessage = action({
       "Assignment and event items in the context are pre-formatted with bold course codes and italic dates — copy them exactly as given without reformatting. " +
       "Use bullet lists for multiple items. Never invent URLs — only use links that are explicitly present in the context.";
 
+    // Term codes: Spring=2__2, Summer=2__4, Fall=2__8, Winter=2__0  (e.g. Fall 2026 = 2268)
     const browseTools = [{
       type: "function" as const,
       function: {
         name: "browse_web",
-        description: "Fetch live data from an approved UCSC campus website. Use for real-time info: SCSk laundry/bike/dining availability, campus events, live schedules. Do NOT use for Canvas assignments or Google Calendar — those are already in your context.",
+        description:
+          "Fetch live data from an approved UCSC website. " +
+          "Use for: (1) real-time campus info — SCSk laundry/bikes/dining (santacruz-sidekick.vercel.app), " +
+          "(2) UCSC course catalog — pisa.ucsc.edu. " +
+          "DO NOT use for Canvas assignments or Google Calendar — those are already in your context. " +
+          "For course catalog queries, build the URL as: " +
+          "https://pisa.ucsc.edu/class_search/index.php?action=results" +
+          "&binds[:term]=TERM&binds[:reg_status]=all&binds[:subject]=DEPT" +
+          " where TERM = current quarter code (Spring 2026=2262, Summer 2026=2264, Fall 2026=2268) " +
+          "and DEPT = uppercase department code (e.g. CSE, CMPM, MATH, PHYS). " +
+          "'Next quarter' from June 2026 is Summer 2026 (2264); Fall 2026 is 2268.",
         parameters: {
           type: "object",
           properties: {
@@ -799,6 +810,7 @@ export const sendMessage = action({
             query: { type: "string", description: "What specific information to extract from the page" },
           },
           required: ["url", "query"],
+          additionalProperties: false,
         },
       },
     }];
