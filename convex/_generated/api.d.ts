@@ -17,6 +17,8 @@ import type * as courses from "../courses.js";
 import type * as dockApps from "../dockApps.js";
 import type * as events from "../events.js";
 import type * as googleCalendar from "../googleCalendar.js";
+import type * as mcpConnectors from "../mcpConnectors.js";
+import type * as mcpTools from "../mcpTools.js";
 import type * as users from "../users.js";
 
 import type {
@@ -35,6 +37,8 @@ declare const fullApi: ApiFromModules<{
   dockApps: typeof dockApps;
   events: typeof events;
   googleCalendar: typeof googleCalendar;
+  mcpConnectors: typeof mcpConnectors;
+  mcpTools: typeof mcpTools;
   users: typeof users;
 }>;
 

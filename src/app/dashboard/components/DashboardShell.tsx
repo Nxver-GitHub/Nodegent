@@ -41,6 +41,7 @@ import { NotificationBell } from "./NotificationBell";
 import { CalendarPanel } from "./calendar/CalendarPanel";
 import { SecurityPanel } from "./security/SecurityPanel";
 import { CampusSyncPanel } from "./campus-sync/CampusSyncPanel";
+import { ConnectorsPanel } from "./connectors/ConnectorsPanel";
 import { CoursesPanel } from "./courses/CoursesPanel";
 import dynamic from "next/dynamic";
 import { AppDock } from "./dock/AppDock";
@@ -558,6 +559,7 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [securityOpen, setSecurityOpen] = useState(false);
   const [campusSyncOpen, setCampusSyncOpen] = useState(false);
+  const [connectorsOpen, setConnectorsOpen] = useState(false);
   const [coursesOpen, setCoursesOpen] = useState(false);
   const [wallpaper, setWallpaper] = useWallpaper();
   const { layout: widgetLayout, setVisible: setWidgetVisible, moveUp: moveWidgetUp, moveDown: moveWidgetDown } = useWidgetLayout();
@@ -613,6 +615,7 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
     setCoursesOpen(true);
     setSecurityOpen(false);
     setCampusSyncOpen(false);
+    setConnectorsOpen(false);
     setCalendarOpen(false);
     openWindow("nodegent");
   }
@@ -621,6 +624,7 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
     setCampusSyncOpen(true);
     setCoursesOpen(false);
     setSecurityOpen(false);
+    setConnectorsOpen(false);
     setCalendarOpen(false);
     openWindow("nodegent");
   }
@@ -636,6 +640,16 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
     setSecurityOpen(true);
     setCampusSyncOpen(false);
     setCoursesOpen(false);
+    setConnectorsOpen(false);
+    setCalendarOpen(false);
+    openWindow("nodegent");
+  }
+
+  function openConnectors() {
+    setConnectorsOpen(true);
+    setSecurityOpen(false);
+    setCampusSyncOpen(false);
+    setCoursesOpen(false);
     setCalendarOpen(false);
     openWindow("nodegent");
   }
@@ -644,6 +658,7 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
     setSecurityOpen(false);
     setCampusSyncOpen(false);
     setCoursesOpen(false);
+    setConnectorsOpen(false);
     setCalendarOpen(false);
     openWindow("nodegent");
   }
@@ -664,7 +679,7 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
     openWindow(app.id);
   }
 
-  const isDashboard = !securityOpen && !campusSyncOpen && !coursesOpen;
+  const isDashboard = !securityOpen && !campusSyncOpen && !coursesOpen && !connectorsOpen;
   // All apps that are open or minimized — used for dock active indicators
   const allOpenApps = [...new Set([...openWindows, ...minimizedWindows])];
 
@@ -726,6 +741,16 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
               >
                 Security
               </button>
+              <button
+                type="button"
+                onClick={openConnectors}
+                className={[
+                  "hover:text-black hover:underline underline-offset-4 decoration-gray-400",
+                  connectorsOpen ? "text-black underline" : "",
+                ].join(" ")}
+              >
+                Connectors
+              </button>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -781,6 +806,8 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
                   <SecurityPanel onClose={() => setSecurityOpen(false)} />
                 ) : campusSyncOpen ? (
                   <CampusSyncPanel onClose={() => setCampusSyncOpen(false)} />
+                ) : connectorsOpen ? (
+                  <ConnectorsPanel onClose={() => setConnectorsOpen(false)} />
                 ) : coursesOpen ? (
                   <CoursesPanel onClose={() => setCoursesOpen(false)} />
                 ) : (
