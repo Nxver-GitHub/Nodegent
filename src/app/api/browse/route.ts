@@ -78,12 +78,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();
 
-    // Only block document navigations (main-frame redirects) that leave the allowlist.
-    // Subresources (JS, CSS, XHR, fetch) are allowed so JS-heavy pages can load fully.
+    // Private-IP block applies to ALL requests (navigation + subresources) to prevent
+    // JS on allowlisted pages from exfiltrating data via fetch/XHR to internal hosts.
+    // Allowlist is only enforced on navigation requests so subresource CDNs can load.
     await page.route("**/*", (route) => {
-      const req = route.request();
-      const isNavigation = req.isNavigationRequest();
-      if (isNavigation && !guardRedirect(req.url())) {
+      const reqUrl = route.request().url();
+      try {
+        const u = new URL(reqUrl);
+        if (isPrivateHost(u.hostname)) {
+          route.abort("blockedbyclient").catch(() => undefined);
+          return;
+        }
+      } catch {
+        route.abort("blockedbyclient").catch(() => undefined);
+        return;
+      }
+      const isNavigation = route.request().isNavigationRequest();
+      if (isNavigation && !guardRedirect(reqUrl)) {
         route.abort("blockedbyclient").catch(() => undefined);
       } else {
         route.continue().catch(() => undefined);
