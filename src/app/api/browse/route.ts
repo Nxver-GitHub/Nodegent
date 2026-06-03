@@ -42,8 +42,17 @@ async function browsePisa(page: Page, params: URLSearchParams): Promise<string> 
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // Accept either a Clerk browser session OR the shared internal secret
+  // (used when Convex actions call this endpoint server-to-server).
+  const internalSecret = process.env.CONVEX_INTERNAL_SECRET;
+  const callerSecret = request.headers.get("x-nodegent-internal");
+  const isInternalCall =
+    internalSecret && callerSecret && callerSecret === internalSecret;
+
+  if (!isInternalCall) {
+    const { userId } = await auth();
+    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   let body: unknown;
   try { body = await request.json(); } catch {

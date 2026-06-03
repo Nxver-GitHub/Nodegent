@@ -847,7 +847,12 @@ export const sendMessage = action({
             const args2 = JSON.parse(tc.function.arguments ?? "{}");
             const browseRes = await fetch(`${process.env.NODEGENT_APP_URL}/api/browse`, {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: {
+                "Content-Type": "application/json",
+                ...(process.env.CONVEX_INTERNAL_SECRET
+                  ? { "x-nodegent-internal": process.env.CONVEX_INTERNAL_SECRET }
+                  : {}),
+              },
               body: JSON.stringify({ url: args2.url, query: args2.query }),
             });
             const browseData: any = await browseRes.json();
@@ -864,9 +869,15 @@ export const sendMessage = action({
               ],
             });
           } catch {
-            // browse failed — fall through with empty content, let AI handle gracefully
+            // Browse failed — fall through to the plain retry below.
           }
         }
+      }
+
+      // If we still have empty content (tool call fired but browse was skipped/failed),
+      // retry without tools so the user always gets a text response.
+      if (!llmResult.content) {
+        llmResult = await callGroq(groqCallArgs);
       }
     } else {
       llmResult = {
