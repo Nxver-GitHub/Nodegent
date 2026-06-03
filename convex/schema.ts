@@ -179,6 +179,15 @@ export default defineSchema({
     .index("by_userId_term", ["userId", "term"])
     .index("by_userId_courseCode", ["userId", "courseCode"]),
 
+  mcpConnectors: defineTable({
+    userId: v.id("users"),
+    name: v.string(),
+    type: v.union(v.literal("builtin"), v.literal("http")),
+    endpoint: v.optional(v.string()),
+    enabled: v.boolean(),
+    tools: v.array(v.string()),
+  }).index("by_userId", ["userId"]),
+
   auditLog: defineTable({
     userId: v.id("users"),
     action: v.union(
