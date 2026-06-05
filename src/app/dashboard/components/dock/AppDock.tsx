@@ -27,6 +27,7 @@ import { ConfirmDialog } from "../ConfirmDialog";
 interface AppDockProps {
   openWindows: DockAppId[];
   onAppClick: (app: DockApp) => void;
+  visible?: boolean;
 }
 
 interface CustomApp {
@@ -69,7 +70,7 @@ function SortableDockIcon({ app, onRemove }: SortableDockIconProps) {
   );
 }
 
-export function AppDock({ openWindows, onAppClick }: AppDockProps) {
+export function AppDock({ openWindows, onAppClick, visible = true }: AppDockProps) {
   const currentUser = useQuery(api.users.getCurrentUser);
   const customApps = useQuery(api.dockApps.getDockApps);
   const deleteDockApp = useMutation(api.dockApps.deleteDockApp);
@@ -133,7 +134,13 @@ export function AppDock({ openWindows, onAppClick }: AppDockProps) {
 
   return (
     <>
-      <aside className="hidden md:flex flex-col gap-3 pt-20 px-3 w-[176px] flex-shrink-0 min-h-screen overflow-y-auto scrollbar-none">
+      <aside
+        className={[
+          "hidden md:flex flex-col gap-3 pt-20 px-3 w-[176px] flex-shrink-0 min-h-screen overflow-y-auto overflow-x-hidden scrollbar-none transition-[width,opacity,padding] duration-200 ease-out",
+          visible ? "opacity-100" : "w-0 px-0 opacity-0 pointer-events-none",
+        ].join(" ")}
+        aria-hidden={!visible}
+      >
         {/* Default apps — single column */}
         <div className="flex flex-col gap-4">
           {visibleDefaults.map((app) => (
