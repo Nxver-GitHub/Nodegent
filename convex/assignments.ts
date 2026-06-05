@@ -91,7 +91,6 @@ export const upsertAssignment = mutation({
     courseId: v.id("courses"),
     canvasId: v.string(),
     title: v.string(),
-    description: v.optional(v.string()),
     dueAt: v.optional(v.number()),
     pointsPossible: v.optional(v.number()),
     submissionType: v.optional(v.string()),
@@ -131,9 +130,30 @@ export const upsertAssignment = mutation({
       .unique();
 
     if (existing) {
+      // Skip the write when no synced field actually changed. A no-op patch
+      // still bills bandwidth and re-triggers every subscribed assignment
+      // query, so re-syncing unchanged data is the main amplifier we cut here.
+      // lastSyncedAt is intentionally excluded (it always differs); conditional
+      // fields only count as changed when the caller provides a value.
+      const unchanged =
+        existing.title === args.title &&
+        existing.dueAt === args.dueAt &&
+        existing.pointsPossible === args.pointsPossible &&
+        existing.submissionType === args.submissionType &&
+        existing.htmlUrl === args.htmlUrl &&
+        (args.submissionStatus === undefined ||
+          existing.submissionStatus === args.submissionStatus) &&
+        (args.score === undefined || existing.score === args.score) &&
+        (args.letterGrade === undefined || existing.letterGrade === args.letterGrade);
+
+      if (unchanged) {
+        // This assignment is identical, so it can't have changed the course
+        // summary either — safe to skip the recompute read as well.
+        return existing._id;
+      }
+
       await ctx.db.patch(existing._id, {
         title: args.title,
-        description: args.description,
         dueAt: args.dueAt,
         pointsPossible: args.pointsPossible,
         submissionType: args.submissionType,
@@ -154,7 +174,6 @@ export const upsertAssignment = mutation({
       courseId: args.courseId,
       canvasId: args.canvasId,
       title: args.title,
-      description: args.description,
       dueAt: args.dueAt,
       pointsPossible: args.pointsPossible,
       submissionType: args.submissionType,
