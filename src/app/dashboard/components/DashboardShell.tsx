@@ -274,9 +274,11 @@ function WindowTitleBar({ onClose, onMinimize, onMaximize, isMaximized }: Window
 interface WindowToolbarProps {
   calendarOpen: boolean;
   settingsOpen: boolean;
+  shortcutsOpen: boolean;
   onCalendarToggle: () => void;
   onSettingsToggle: () => void;
   onSettingsClose: () => void;
+  onShortcutsOpenChange: (open: boolean) => void;
   onBack: () => void;
   onHome: () => void;
   onCampusSync: () => void;
@@ -293,6 +295,8 @@ interface WindowToolbarProps {
 interface SettingsPopoverProps {
   onRestartTour: () => void;
   onClose: () => void;
+  shortcutsOpen: boolean;
+  onShortcutsOpenChange: (open: boolean) => void;
   wallpaper: string;
   onWallpaperChange: (id: string) => void;
   widgetLayout: WidgetConfig[];
@@ -304,6 +308,8 @@ interface SettingsPopoverProps {
 function SettingsPopover({
   onRestartTour,
   onClose,
+  shortcutsOpen,
+  onShortcutsOpenChange,
   wallpaper,
   onWallpaperChange,
   widgetLayout,
@@ -317,7 +323,6 @@ function SettingsPopover({
   const currentUser = useQuery(api.users.getCurrentUser);
   const updateUniversity = useMutation(api.users.updateUniversity);
   const [univSaved, setUnivSaved] = useState(false);
-  const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -326,22 +331,6 @@ function SettingsPopover({
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, [onClose]);
-
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      const target = e.target as HTMLElement | null;
-      if (target) {
-        const tag = target.tagName;
-        if (tag === "INPUT" || tag === "TEXTAREA" || target.isContentEditable) return;
-      }
-      if (e.key === "?" || (e.key === "/" && e.shiftKey)) {
-        e.preventDefault();
-        setShortcutsOpen(true);
-      }
-    }
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
 
   return (
     <div
@@ -445,11 +434,14 @@ function SettingsPopover({
 
       <details
         open={shortcutsOpen}
-        onToggle={(e) => setShortcutsOpen(e.currentTarget.open)}
+        onToggle={(e) => onShortcutsOpenChange(e.currentTarget.open)}
         className="px-4 py-2.5 text-[12px] text-gray-600"
       >
-        <summary className="cursor-pointer list-none text-[11px] font-bold text-gray-400 uppercase tracking-widest">
-          Keyboard Shortcuts
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-[11px] font-bold text-gray-400 uppercase tracking-widest">
+          <span>Keyboard Shortcuts</span>
+          <kbd className="rounded border border-gray-200 bg-gray-50 px-1.5 py-0.5 font-mono text-[10px] text-gray-500 normal-case tracking-normal">
+            ?
+          </kbd>
         </summary>
         <div className="mt-2 space-y-1.5">
           {[
@@ -472,7 +464,7 @@ function SettingsPopover({
   );
 }
 
-function WindowToolbar({ calendarOpen, settingsOpen, onCalendarToggle, onSettingsToggle, onSettingsClose, onBack, onHome, onCampusSync, onCourses, onRestartTour, wallpaper, onWallpaperChange, widgetLayout, onSetWidgetVisible, onMoveWidgetUp, onMoveWidgetDown }: WindowToolbarProps) {
+function WindowToolbar({ calendarOpen, settingsOpen, shortcutsOpen, onCalendarToggle, onSettingsToggle, onSettingsClose, onShortcutsOpenChange, onBack, onHome, onCampusSync, onCourses, onRestartTour, wallpaper, onWallpaperChange, widgetLayout, onSetWidgetVisible, onMoveWidgetUp, onMoveWidgetDown }: WindowToolbarProps) {
   return (
     <div className="h-12 border-b border-gray-200 bg-white flex items-center px-4 gap-2 flex-shrink-0">
       <Tooltip label="Back">
@@ -548,6 +540,8 @@ function WindowToolbar({ calendarOpen, settingsOpen, onCalendarToggle, onSetting
             <SettingsPopover
               onRestartTour={onRestartTour}
               onClose={onSettingsClose}
+              shortcutsOpen={shortcutsOpen}
+              onShortcutsOpenChange={onShortcutsOpenChange}
               wallpaper={wallpaper}
               onWallpaperChange={onWallpaperChange}
               widgetLayout={widgetLayout}
@@ -608,6 +602,7 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
   const [connectorsOpen, setConnectorsOpen] = useState(false);
   const [coursesOpen, setCoursesOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [dockVisible, setDockVisible] = useState(true);
   const [wallpaper, setWallpaper] = useWallpaper();
   const { layout: widgetLayout, setVisible: setWidgetVisible, moveUp: moveWidgetUp, moveDown: moveWidgetDown } = useWidgetLayout();
@@ -736,6 +731,12 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
       const mod = e.metaKey || e.ctrlKey;
       const key = e.key.toLowerCase();
 
+      if (settingsOpen && (e.key === "?" || (e.key === "/" && e.shiftKey))) {
+        e.preventDefault();
+        setShortcutsOpen(true);
+        return;
+      }
+
       if (mod && key === "k") {
         e.preventDefault();
         router.push("/chat");
@@ -762,7 +763,7 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [openCampusSync, router]);
+  }, [openCampusSync, router, settingsOpen]);
 
   const isDashboard = !securityOpen && !campusSyncOpen && !coursesOpen && !connectorsOpen;
   // All apps that are open or minimized — used for dock active indicators
@@ -873,9 +874,11 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
               <WindowToolbar
                 calendarOpen={calendarOpen}
                 settingsOpen={settingsOpen}
+                shortcutsOpen={shortcutsOpen}
                 onCalendarToggle={() => setCalendarOpen((prev) => !prev)}
                 onSettingsToggle={() => setSettingsOpen((prev) => !prev)}
                 onSettingsClose={() => setSettingsOpen(false)}
+                onShortcutsOpenChange={setShortcutsOpen}
                 onBack={handleBack}
                 onHome={goHome}
                 onCampusSync={openCampusSync}
