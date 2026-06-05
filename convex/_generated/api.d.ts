@@ -15,6 +15,7 @@ import type * as chat from "../chat.js";
 import type * as courseListings from "../courseListings.js";
 import type * as courseNotes from "../courseNotes.js";
 import type * as courses from "../courses.js";
+import type * as digest from "../digest.js";
 import type * as dockApps from "../dockApps.js";
 import type * as events from "../events.js";
 import type * as googleCalendar from "../googleCalendar.js";
@@ -36,6 +37,7 @@ declare const fullApi: ApiFromModules<{
   courseListings: typeof courseListings;
   courseNotes: typeof courseNotes;
   courses: typeof courses;
+  digest: typeof digest;
   dockApps: typeof dockApps;
   events: typeof events;
   googleCalendar: typeof googleCalendar;
