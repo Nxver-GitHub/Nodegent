@@ -34,6 +34,12 @@ export async function recomputeCourseSummary(
       undefined
     );
 
+  // Skip the write (and its reactive invalidation of getCourseSummaries) when
+  // nothing changed. lastSyncedAt is not touched here, so equality is exact.
+  if ((course.pendingCount ?? 0) === pending.length && course.nextDueAt === nextDueAt) {
+    return;
+  }
+
   await ctx.db.patch(courseId, {
     pendingCount: pending.length,
     nextDueAt,
@@ -161,6 +167,25 @@ export const upsertCourse = mutation({
           mergedTasJson = args.tasJson;
         }
       }
+      // Skip the write when nothing changed — a no-op patch still bills
+      // bandwidth and re-triggers getCourseSummaries for every subscriber.
+      // lastSyncedAt is excluded; conditional fields only count when provided.
+      const unchanged =
+        existing.name === args.name &&
+        existing.courseCode === args.courseCode &&
+        existing.term === args.term &&
+        existing.instructorName === args.instructorName &&
+        existing.syllabusUrl === args.syllabusUrl &&
+        existing.instructorEmail === args.instructorEmail &&
+        (args.officeHours === undefined || existing.officeHours === args.officeHours) &&
+        (mergedTasJson === undefined || existing.tasJson === mergedTasJson) &&
+        (args.courseScore === undefined || existing.courseScore === args.courseScore) &&
+        (args.courseGrade === undefined || existing.courseGrade === args.courseGrade);
+
+      if (unchanged) {
+        return existing._id;
+      }
+
       await ctx.db.patch(existing._id, {
         name: args.name,
         courseCode: args.courseCode,

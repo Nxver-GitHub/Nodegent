@@ -506,7 +506,6 @@ export const syncCanvas = action({
             courseId,
             canvasId: String(assignment.id),
             title: assignment.name,
-            description: assignment.description ?? undefined,
             dueAt: assignment.due_at ? new Date(assignment.due_at).getTime() : undefined,
             pointsPossible: assignment.points_possible ?? undefined,
             submissionType: assignment.submission_types?.join(",") ?? undefined,

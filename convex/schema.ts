@@ -90,7 +90,6 @@ export default defineSchema({
     courseId: v.id("courses"),
     canvasId: v.string(),
     title: v.string(),
-    description: v.optional(v.string()),
     dueAt: v.optional(v.number()),
     pointsPossible: v.optional(v.number()),
     submissionType: v.optional(v.string()),

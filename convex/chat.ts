@@ -19,6 +19,9 @@ const CONTEXT_WINDOW_DAYS = 14;
 const MAX_ASSIGNMENTS = 20;
 const MAX_EVENTS = 20;
 const MAX_COURSES = 40;
+// Cap on messages returned by listMessages — well beyond a normal session,
+// bounds the reactive query's bandwidth as a thread ages.
+const MAX_THREAD_MESSAGES = 100;
 
 type ContextRef = {
   type: "course" | "assignment" | "event";
@@ -564,11 +567,15 @@ export const listMessages = query({
     const thread = await ctx.db.get(args.threadId);
     if (!thread || thread.userId !== user._id) throw new Error("Chat thread not found");
 
-    return await ctx.db
+    // Cap the read at the most recent messages so an aging thread can't grow
+    // the bandwidth of this reactive query unbounded. Read newest-first via the
+    // index, then restore ascending order for rendering.
+    const recent = await ctx.db
       .query("chatMessages")
       .withIndex("by_threadId_createdAt", (q) => q.eq("threadId", args.threadId))
-      .order("asc")
-      .collect();
+      .order("desc")
+      .take(MAX_THREAD_MESSAGES);
+    return recent.reverse();
   },
 });
 

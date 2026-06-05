@@ -40,7 +40,6 @@ describe("chat (US-3.1)", () => {
         courseId,
         canvasId: "a_1",
         title: "Sprint 3 deliverable",
-        description: "<p>Build chat</p>",
         dueAt: now + 2 * 24 * 60 * 60 * 1000,
         pointsPossible: 100,
         submissionType: "online",
