@@ -335,7 +335,7 @@ function SettingsPopover({
   return (
     <div
       ref={ref}
-      className="absolute right-0 top-full mt-2 w-60 rounded-lg border border-gray-200 bg-white shadow-lg z-50 py-1"
+      className="absolute right-0 top-full mt-2 max-h-[calc(100vh-150px)] w-60 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg z-50 py-1"
     >
       <button
         onClick={toggleTheme}
@@ -418,20 +418,6 @@ function SettingsPopover({
 
       <div className="mx-4 my-1 border-t border-gray-100" />
 
-      <div className="px-4 py-2.5">
-        <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2">
-          Widgets
-        </p>
-        <WidgetLayoutSettings
-          layout={widgetLayout}
-          onSetVisible={onSetWidgetVisible}
-          onMoveUp={onMoveWidgetUp}
-          onMoveDown={onMoveWidgetDown}
-        />
-      </div>
-
-      <div className="mx-4 my-1 border-t border-gray-100" />
-
       <details
         open={shortcutsOpen}
         onToggle={(e) => onShortcutsOpenChange(e.currentTarget.open)}
@@ -460,6 +446,20 @@ function SettingsPopover({
           ))}
         </div>
       </details>
+
+      <div className="mx-4 my-1 border-t border-gray-100" />
+
+      <div className="px-4 py-2.5">
+        <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2">
+          Widgets
+        </p>
+        <WidgetLayoutSettings
+          layout={widgetLayout}
+          onSetVisible={onSetWidgetVisible}
+          onMoveUp={onMoveWidgetUp}
+          onMoveDown={onMoveWidgetDown}
+        />
+      </div>
     </div>
   );
 }
