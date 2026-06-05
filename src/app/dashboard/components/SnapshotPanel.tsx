@@ -34,6 +34,7 @@ export function SnapshotPanel() {
           <AssignmentBuckets
             snapshot={snapshot ?? { overdue: [], dueToday: [], dueThisWeek: [], noDueDate: [] }}
             courseMap={courseMap}
+            onFocus={() => {}}
           />
 
           {(courseSummaries ?? []).length > 0 && (
