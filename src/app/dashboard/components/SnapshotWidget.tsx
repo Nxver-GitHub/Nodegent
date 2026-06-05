@@ -94,7 +94,11 @@ export function SnapshotWidget() {
             </div>
           ) : (
             <>
-              <GreetingHeader name={currentUser?.name ?? "Student"} />
+              <GreetingHeader
+                name={currentUser?.name ?? "Student"}
+                streak={currentUser?.currentStreak ?? 0}
+                longestStreak={currentUser?.longestStreak ?? 0}
+              />
 
               <TodaySchedule events={todayEvents ?? []} />
 

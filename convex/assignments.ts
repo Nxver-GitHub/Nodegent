@@ -2,6 +2,11 @@ import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
 import { recomputeCourseSummary } from "./courses";
+import {
+  computeNextStreakState,
+  dayKey,
+  effectiveTimezone,
+} from "./streak.helpers";
 
 export const getAssignments = query({
   args: {
@@ -327,7 +332,33 @@ export const markComplete = mutation({
       throw new Error("Unauthorized");
     }
 
+    // US-8.3: bump streak on the false → true transition only. No rollback
+    // on true → false (would need per-day completion counts to be correct).
+    const isFalseToTrue =
+      args.isCompleted === true && assignment.isCompleted === false;
+
     await ctx.db.patch(args.assignmentId, { isCompleted: args.isCompleted });
     await recomputeCourseSummary(ctx, assignment.courseId);
+
+    if (isFalseToTrue) {
+      const tz = effectiveTimezone(user.timezone);
+      const todayKey = dayKey(Date.now(), tz);
+      const transition = computeNextStreakState(
+        {
+          currentStreak: user.currentStreak,
+          longestStreak: user.longestStreak,
+          lastCompletionDate: user.lastCompletionDate,
+        },
+        todayKey,
+        tz,
+      );
+      if (transition.changed) {
+        await ctx.db.patch(user._id, {
+          currentStreak: transition.next.currentStreak,
+          longestStreak: transition.next.longestStreak,
+          lastCompletionDate: transition.next.lastCompletionDate,
+        });
+      }
+    }
   },
 });

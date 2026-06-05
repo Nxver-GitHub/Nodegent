@@ -120,7 +120,15 @@ export function DashboardClient() {
   useEffect(() => {
     if (isLoaded && user && !hasSynced.current) {
       hasSynced.current = true;
-      ensureUser();
+      // US-8.3: pass the browser-detected IANA timezone so the server can
+      // bucket completion days in the user's local calendar.
+      let timezone: string | undefined;
+      try {
+        timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      } catch {
+        timezone = undefined;
+      }
+      ensureUser(timezone ? { timezone } : {});
     }
   }, [isLoaded, user, ensureUser]);
 

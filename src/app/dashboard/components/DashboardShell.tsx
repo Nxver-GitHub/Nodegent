@@ -28,6 +28,7 @@ import {
   Robot,
   IdentificationCard,
   Trophy,
+  Flame,
   type Icon,
 } from "@phosphor-icons/react";
 import { api } from "@convex/_generated/api";
@@ -494,6 +495,13 @@ function SettingsPopover({
 }
 
 function WindowToolbar({ calendarOpen, settingsOpen, shortcutsOpen, onCalendarToggle, onSettingsToggle, onSettingsClose, onShortcutsOpenChange, onBack, onHome, onCampusSync, onCourses, onRestartTour, wallpaper, onWallpaperChange, widgetLayout, onSetWidgetVisible, onMoveWidgetUp, onMoveWidgetDown }: WindowToolbarProps) {
+  // US-8.3: reuse the same getCurrentUser subscription already loaded elsewhere
+  // in the shell — Convex dedupes, so this costs nothing on the wire.
+  const currentUser = useQuery(api.users.getCurrentUser);
+  const streak = currentUser?.currentStreak ?? 0;
+  const longestStreak = currentUser?.longestStreak ?? 0;
+  const showStreak = streak >= 1;
+
   return (
     <div className="h-12 border-b border-gray-200 bg-white flex items-center px-4 gap-2 flex-shrink-0">
       <Tooltip label="Back">
@@ -552,6 +560,16 @@ function WindowToolbar({ calendarOpen, settingsOpen, shortcutsOpen, onCalendarTo
       </Tooltip>
 
       <div className="ml-auto flex items-center gap-2">
+        {showStreak && (
+          <span
+            title={`${streak} day streak · longest ${Math.max(streak, longestStreak)}`}
+            aria-label={`${streak} day assignment streak`}
+            className="inline-flex items-center gap-1 rounded-md bg-amber-50 border border-amber-200 px-1.5 py-0.5 text-[11px] font-semibold text-amber-700 leading-none h-6"
+          >
+            <Flame size={12} weight="fill" className="text-amber-500" />
+            {streak}
+          </span>
+        )}
         <div className="relative">
           <Tooltip label="Settings">
             <button
