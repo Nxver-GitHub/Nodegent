@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { CaretDown, CaretRight, Warning, BookBookmark } from "@phosphor-icons/react";
+import { CaretDown, CaretRight, Warning, BookBookmark, Timer } from "@phosphor-icons/react";
 import { Id } from "@convex/_generated/dataModel";
 
-interface SnapshotAssignment {
+export interface SnapshotAssignment {
   _id: Id<"assignments">;
   title: string;
   dueAt?: number;
@@ -25,6 +25,7 @@ interface DailySnapshot {
 interface AssignmentBucketsProps {
   snapshot: DailySnapshot;
   courseMap: Map<string, { courseCode: string }>;
+  onFocus: (assignment: SnapshotAssignment) => void;
 }
 
 type BucketKey = "overdue" | "dueToday" | "dueThisWeek";
@@ -55,11 +56,13 @@ function BucketSection({
   assignments,
   courseMap,
   defaultOpen,
+  onFocus,
 }: {
   bucketKey: BucketKey;
   assignments: SnapshotAssignment[];
   courseMap: Map<string, { courseCode: string }>;
   defaultOpen: boolean;
+  onFocus: (assignment: SnapshotAssignment) => void;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const config = BUCKET_CONFIG[bucketKey];
@@ -135,6 +138,15 @@ function BucketSection({
                   )}
                 </div>
               </div>
+              <button
+                onClick={() => onFocus(a)}
+                title="Start focus timer"
+                aria-label="Start focus timer"
+                className="flex-shrink-0 flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold text-gray-400 hover:text-[#CD8407] hover:bg-amber-50 transition-colors"
+              >
+                <Timer size={11} weight="bold" />
+                <span>Focus</span>
+              </button>
             </div>
           ))}
         </div>
@@ -143,7 +155,7 @@ function BucketSection({
   );
 }
 
-export function AssignmentBuckets({ snapshot, courseMap }: AssignmentBucketsProps) {
+export function AssignmentBuckets({ snapshot, courseMap, onFocus }: AssignmentBucketsProps) {
   const total =
     snapshot.overdue.length + snapshot.dueToday.length + snapshot.dueThisWeek.length;
 
@@ -169,18 +181,21 @@ export function AssignmentBuckets({ snapshot, courseMap }: AssignmentBucketsProp
           assignments={snapshot.overdue}
           courseMap={courseMap}
           defaultOpen
+          onFocus={onFocus}
         />
         <BucketSection
           bucketKey="dueToday"
           assignments={snapshot.dueToday}
           courseMap={courseMap}
           defaultOpen
+          onFocus={onFocus}
         />
         <BucketSection
           bucketKey="dueThisWeek"
           assignments={snapshot.dueThisWeek}
           courseMap={courseMap}
           defaultOpen
+          onFocus={onFocus}
         />
       </div>
     </div>

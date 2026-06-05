@@ -1,18 +1,30 @@
 "use client";
 
-import { useState } from "react";
-import { useQuery, useAction } from "convex/react";
+import { useState, useEffect, useCallback } from "react";
+import { useQuery, useAction, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { SunHorizon, X } from "@phosphor-icons/react";
 import { GreetingHeader } from "./snapshot/GreetingHeader";
 import { TodaySchedule } from "./snapshot/TodaySchedule";
-import { AssignmentBuckets } from "./snapshot/AssignmentBuckets";
+import { AssignmentBuckets, SnapshotAssignment } from "./snapshot/AssignmentBuckets";
 import { CourseSummaryRow } from "./snapshot/CourseSummaryRow";
 import { SyncStatusBar } from "./snapshot/SyncStatusBar";
+import { StudyTimerOverlay } from "./snapshot/StudyTimerOverlay";
+import {
+  WeeklyDigestBanner,
+  currentIsoWeekKey,
+  DIGEST_DISMISS_KEY_PREFIX,
+} from "./snapshot/WeeklyDigestBanner";
 
 export function SnapshotWidget() {
   const [open, setOpen] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [focusedAssignment, setFocusedAssignment] = useState<SnapshotAssignment | null>(null);
+
+  // Weekly digest state
+  const [digest, setDigest] = useState<string | null>(null);
+  const [digestDismissed, setDigestDismissed] = useState(false);
+  const [digestLoading, setDigestLoading] = useState(false);
 
   // Gate heavy reactive queries on `open` to avoid running them while the
   // panel is hidden behind a CSS transform. `currentUser` is left ungated
@@ -23,6 +35,71 @@ export function SnapshotWidget() {
   const courseSummaries = useQuery(api.courses.getCourseSummaries, open ? {} : "skip");
   const canvasStatus = useQuery(api.canvas.getCanvasStatus, open ? {} : "skip");
   const syncCanvas = useAction(api.canvas.syncCanvas);
+  const generateWeeklyDigest = useAction(api.digest.generateWeeklyDigest);
+  const markComplete = useMutation(api.assignments.markComplete);
+
+  // Trigger digest generation when the panel opens for the first time this week
+  useEffect(() => {
+    if (!open) return;
+
+    const weekKey = currentIsoWeekKey();
+    const dismissKey = `${DIGEST_DISMISS_KEY_PREFIX}${weekKey}`;
+
+    // If already dismissed this week, don't fetch
+    if (sessionStorage.getItem(dismissKey) === "true") {
+      setDigestDismissed(true);
+      return;
+    }
+
+    // If we already loaded the digest, don't refetch
+    if (digest !== null) return;
+
+    // Check if the stored digest is fresh (same ISO week)
+    const storedDigest = currentUser?.weeklyDigest;
+    const storedAt = currentUser?.lastDigestAt;
+    if (storedDigest && storedAt) {
+      const storedWeek = (() => {
+        const ts = storedAt;
+        const date = new Date(ts);
+        const thursday = new Date(date);
+        thursday.setUTCHours(0, 0, 0, 0);
+        thursday.setUTCDate(date.getUTCDate() + 3 - ((date.getUTCDay() + 6) % 7));
+        const yearStart = new Date(Date.UTC(thursday.getUTCFullYear(), 0, 4));
+        const week = Math.ceil(
+          ((thursday.getTime() - yearStart.getTime()) / 86400000 + 1) / 7
+        );
+        return `${thursday.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
+      })();
+
+      if (storedWeek === weekKey) {
+        setDigest(storedDigest);
+        return;
+      }
+    }
+
+    // Generate a fresh digest
+    setDigestLoading(true);
+    generateWeeklyDigest({})
+      .then((result) => {
+        if (result) setDigest(result);
+      })
+      .catch(() => {
+        // Fail silently — digest is non-critical
+      })
+      .finally(() => {
+        setDigestLoading(false);
+      });
+  // Run once when the panel opens and currentUser is available.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, currentUser?._id]);
+
+  const handleDismissDigest = useCallback(() => {
+    const weekKey = currentIsoWeekKey();
+    const dismissKey = `${DIGEST_DISMISS_KEY_PREFIX}${weekKey}`;
+    sessionStorage.setItem(dismissKey, "true");
+    setDigestDismissed(true);
+    setDigest(null);
+  }, []);
 
   const courseMap = new Map(
     (courseSummaries ?? []).map((c) => [c._id, { courseCode: c.courseCode }])
@@ -62,6 +139,29 @@ export function SnapshotWidget() {
         />
       )}
 
+      {/* Study timer overlay */}
+      {focusedAssignment !== null && (
+        <StudyTimerOverlay
+          assignment={{
+            _id: focusedAssignment._id,
+            title: focusedAssignment.title,
+            courseCode: courseMap.get(focusedAssignment.courseId)?.courseCode,
+          }}
+          onClose={() => setFocusedAssignment(null)}
+          onMarkDone={async () => {
+            try {
+              await markComplete({
+                assignmentId: focusedAssignment._id,
+                isCompleted: true,
+              });
+            } catch {
+              // ignore — assignment may already be gone
+            }
+            setFocusedAssignment(null);
+          }}
+        />
+      )}
+
       {/* Sliding panel */}
       <aside
         aria-label="Daily snapshot"
@@ -94,6 +194,17 @@ export function SnapshotWidget() {
             </div>
           ) : (
             <>
+              {/* Weekly digest banner */}
+              {digestLoading && (
+                <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3">
+                  <div className="w-3.5 h-3.5 border-2 border-amber-400 border-t-transparent rounded-full animate-spin shrink-0" />
+                  <span className="text-[11px] text-amber-700">Generating your weekly summary…</span>
+                </div>
+              )}
+              {!digestLoading && digest && !digestDismissed && (
+                <WeeklyDigestBanner digest={digest} onDismiss={handleDismissDigest} />
+              )}
+
               <GreetingHeader
                 name={currentUser?.name ?? "Student"}
                 streak={currentUser?.currentStreak ?? 0}
@@ -107,6 +218,7 @@ export function SnapshotWidget() {
                   snapshot ?? { overdue: [], dueToday: [], dueThisWeek: [], noDueDate: [] }
                 }
                 courseMap={courseMap}
+                onFocus={(a) => setFocusedAssignment(a)}
               />
 
               {(courseSummaries ?? []).length > 0 && (
