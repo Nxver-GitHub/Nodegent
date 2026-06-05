@@ -23,6 +23,9 @@ export default defineSchema({
     currentStreak: v.optional(v.number()),
     longestStreak: v.optional(v.number()),
     lastCompletionDate: v.optional(v.string()),
+    // US-8.1: weekly AI digest
+    lastDigestAt: v.optional(v.number()),
+    weeklyDigest: v.optional(v.string()),
   }).index("by_clerkId", ["clerkId"]),
 
   chatThreads: defineTable({

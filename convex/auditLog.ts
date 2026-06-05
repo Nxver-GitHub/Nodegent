@@ -81,6 +81,36 @@ export const logOfficeHoursViewed = mutation({
   },
 });
 
+// Public mutation — called from the study timer overlay after a completed Pomodoro session
+export const logPomodoroSession = mutation({
+  args: {
+    assignmentTitle: v.string(),
+    durationSeconds: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return;
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .unique();
+    if (!user) return;
+
+    await ctx.db.insert("auditLog", {
+      userId: user._id,
+      action: "ai_chat",
+      status: "success",
+      details: JSON.stringify({
+        type: "pomodoro_session",
+        assignmentTitle: args.assignmentTitle,
+        durationSeconds: args.durationSeconds,
+      }),
+      timestamp: Date.now(),
+    });
+  },
+});
+
 // Mutation — deletes all audit log entries for the authenticated user
 export const clearAuditLog = mutation({
   args: {},
