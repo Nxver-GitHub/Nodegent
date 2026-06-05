@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
@@ -273,7 +273,10 @@ function WindowTitleBar({ onClose, onMinimize, onMaximize, isMaximized }: Window
 
 interface WindowToolbarProps {
   calendarOpen: boolean;
+  settingsOpen: boolean;
   onCalendarToggle: () => void;
+  onSettingsToggle: () => void;
+  onSettingsClose: () => void;
   onBack: () => void;
   onHome: () => void;
   onCampusSync: () => void;
@@ -314,6 +317,7 @@ function SettingsPopover({
   const currentUser = useQuery(api.users.getCurrentUser);
   const updateUniversity = useMutation(api.users.updateUniversity);
   const [univSaved, setUnivSaved] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -322,6 +326,22 @@ function SettingsPopover({
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, [onClose]);
+
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      const target = e.target as HTMLElement | null;
+      if (target) {
+        const tag = target.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA" || target.isContentEditable) return;
+      }
+      if (e.key === "?" || (e.key === "/" && e.shiftKey)) {
+        e.preventDefault();
+        setShortcutsOpen(true);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   return (
     <div
@@ -420,13 +440,39 @@ function SettingsPopover({
           onMoveDown={onMoveWidgetDown}
         />
       </div>
+
+      <div className="mx-4 my-1 border-t border-gray-100" />
+
+      <details
+        open={shortcutsOpen}
+        onToggle={(e) => setShortcutsOpen(e.currentTarget.open)}
+        className="px-4 py-2.5 text-[12px] text-gray-600"
+      >
+        <summary className="cursor-pointer list-none text-[11px] font-bold text-gray-400 uppercase tracking-widest">
+          Keyboard Shortcuts
+        </summary>
+        <div className="mt-2 space-y-1.5">
+          {[
+            ["⌘/Ctrl K", "Open AI chat"],
+            ["⌘/Ctrl ⇧ S", "Open Campus Sync"],
+            ["⌘/Ctrl ,", "Toggle Settings"],
+            ["⌘/Ctrl B", "Toggle App Dock"],
+            ["?", "Show shortcuts"],
+          ].map(([keys, action]) => (
+            <div key={keys} className="flex items-center justify-between gap-3">
+              <span className="text-gray-600">{action}</span>
+              <kbd className="rounded border border-gray-200 bg-gray-50 px-1.5 py-0.5 font-mono text-[10px] text-gray-500">
+                {keys}
+              </kbd>
+            </div>
+          ))}
+        </div>
+      </details>
     </div>
   );
 }
 
-function WindowToolbar({ calendarOpen, onCalendarToggle, onBack, onHome, onCampusSync, onCourses, onRestartTour, wallpaper, onWallpaperChange, widgetLayout, onSetWidgetVisible, onMoveWidgetUp, onMoveWidgetDown }: WindowToolbarProps) {
-  const [settingsOpen, setSettingsOpen] = useState(false);
-
+function WindowToolbar({ calendarOpen, settingsOpen, onCalendarToggle, onSettingsToggle, onSettingsClose, onBack, onHome, onCampusSync, onCourses, onRestartTour, wallpaper, onWallpaperChange, widgetLayout, onSetWidgetVisible, onMoveWidgetUp, onMoveWidgetDown }: WindowToolbarProps) {
   return (
     <div className="h-12 border-b border-gray-200 bg-white flex items-center px-4 gap-2 flex-shrink-0">
       <Tooltip label="Back">
@@ -488,7 +534,7 @@ function WindowToolbar({ calendarOpen, onCalendarToggle, onBack, onHome, onCampu
         <div className="relative">
           <Tooltip label="Settings">
             <button
-              onClick={() => setSettingsOpen((prev) => !prev)}
+              onClick={onSettingsToggle}
               className={`w-7 h-7 flex items-center justify-center rounded transition-colors ${
                 settingsOpen ? "bg-gray-100 text-gray-800" : "hover:bg-gray-100 text-gray-500"
               }`}
@@ -501,7 +547,7 @@ function WindowToolbar({ calendarOpen, onCalendarToggle, onBack, onHome, onCampu
           {settingsOpen && (
             <SettingsPopover
               onRestartTour={onRestartTour}
-              onClose={() => setSettingsOpen(false)}
+              onClose={onSettingsClose}
               wallpaper={wallpaper}
               onWallpaperChange={onWallpaperChange}
               widgetLayout={widgetLayout}
@@ -561,6 +607,8 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
   const [campusSyncOpen, setCampusSyncOpen] = useState(false);
   const [connectorsOpen, setConnectorsOpen] = useState(false);
   const [coursesOpen, setCoursesOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [dockVisible, setDockVisible] = useState(true);
   const [wallpaper, setWallpaper] = useWallpaper();
   const { layout: widgetLayout, setVisible: setWidgetVisible, moveUp: moveWidgetUp, moveDown: moveWidgetDown } = useWidgetLayout();
 
@@ -574,12 +622,10 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
     setOpenWindows((prev) => [...prev.filter((w) => w !== id), id]);
   }
 
-  function openWindow(id: DockAppId) {
-    if (minimizedWindows.includes(id)) {
-      setMinimizedWindows((prev) => prev.filter((m) => m !== id));
-    }
+  const openWindow = useCallback((id: DockAppId) => {
+    setMinimizedWindows((prev) => (prev.includes(id) ? prev.filter((m) => m !== id) : prev));
     setOpenWindows((prev) => [...prev.filter((w) => w !== id), id]);
-  }
+  }, []);
 
   function closeWindow(id: DockAppId) {
     setOpenWindows((prev) => prev.filter((w) => w !== id));
@@ -620,14 +666,14 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
     openWindow("nodegent");
   }
 
-  function openCampusSync() {
+  const openCampusSync = useCallback(() => {
     setCampusSyncOpen(true);
     setCoursesOpen(false);
     setSecurityOpen(false);
     setConnectorsOpen(false);
     setCalendarOpen(false);
     openWindow("nodegent");
-  }
+  }, [openWindow]);
 
   function openCampusSyncForCanvas(mode: "connect" | "reconnect") {
     openCampusSync();
@@ -678,6 +724,45 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
     }
     openWindow(app.id);
   }
+
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      const target = e.target as HTMLElement | null;
+      if (target) {
+        const tag = target.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA" || target.isContentEditable) return;
+      }
+
+      const mod = e.metaKey || e.ctrlKey;
+      const key = e.key.toLowerCase();
+
+      if (mod && key === "k") {
+        e.preventDefault();
+        router.push("/chat");
+        return;
+      }
+
+      if (mod && e.shiftKey && key === "s") {
+        e.preventDefault();
+        openCampusSync();
+        return;
+      }
+
+      if (mod && e.key === ",") {
+        e.preventDefault();
+        setSettingsOpen((prev) => !prev);
+        return;
+      }
+
+      if (mod && key === "b") {
+        e.preventDefault();
+        setDockVisible((prev) => !prev);
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [openCampusSync, router]);
 
   const isDashboard = !securityOpen && !campusSyncOpen && !coursesOpen && !connectorsOpen;
   // All apps that are open or minimized — used for dock active indicators
@@ -762,7 +847,7 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
 
       {/* Desktop area — dock fills left, main fills rest */}
       <div className="flex flex-row min-h-screen">
-        <AppDock openWindows={allOpenApps} onAppClick={handleDockAppClick} />
+        <AppDock openWindows={allOpenApps} onAppClick={handleDockAppClick} visible={dockVisible} />
         <main className="flex-1 min-h-screen" />
       </div>
 
@@ -787,7 +872,10 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
               />
               <WindowToolbar
                 calendarOpen={calendarOpen}
+                settingsOpen={settingsOpen}
                 onCalendarToggle={() => setCalendarOpen((prev) => !prev)}
+                onSettingsToggle={() => setSettingsOpen((prev) => !prev)}
+                onSettingsClose={() => setSettingsOpen(false)}
                 onBack={handleBack}
                 onHome={goHome}
                 onCampusSync={openCampusSync}
