@@ -20,6 +20,8 @@ import {
   Sun,
   Moon,
   ArrowsClockwise,
+  ArrowsOut,
+  ArrowsIn,
   SquaresFour,
   Clock,
   BookOpen,
@@ -30,6 +32,7 @@ import {
 } from "@phosphor-icons/react";
 import { api } from "@convex/_generated/api";
 import { useTheme } from "@/hooks/useTheme";
+import { useFullscreen } from "@/hooks/useFullscreen";
 import { useAutoSyncPreference } from "@/hooks/useAutoSyncPreference";
 import { useWallpaper, getWallpaperStyle } from "@/hooks/useWallpaper";
 import { WallpaperPicker } from "./WallpaperPicker";
@@ -152,6 +155,32 @@ function MinimizedTray({
         </div>
       )}
     </div>
+  );
+}
+
+// ─── FullscreenButton ─────────────────────────────────────────────────────────
+
+function FullscreenButton({
+  isFullscreen,
+  onToggle,
+}: {
+  isFullscreen: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      onClick={onToggle}
+      aria-label={isFullscreen ? "Exit full screen" : "Enter full screen"}
+      aria-pressed={isFullscreen}
+      title={isFullscreen ? "Exit full screen (Esc)" : "Full screen (F)"}
+      className="w-8 h-8 rounded-lg flex items-center justify-center text-[#4D4F46] hover:bg-black/10 transition-colors"
+    >
+      {isFullscreen ? (
+        <ArrowsIn size={18} weight="bold" />
+      ) : (
+        <ArrowsOut size={18} weight="bold" />
+      )}
+    </button>
   );
 }
 
@@ -606,6 +635,35 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
   const [dockVisible, setDockVisible] = useState(true);
   const [wallpaper, setWallpaper] = useWallpaper();
   const { layout: widgetLayout, setVisible: setWidgetVisible, moveUp: moveWidgetUp, moveDown: moveWidgetDown } = useWidgetLayout();
+  const { isFullscreen, isSupported: fullscreenSupported, toggleFullscreen } = useFullscreen();
+
+  // Keyboard shortcut: "F" toggles full screen. Escape is handled natively by
+  // the browser. Ignore the key while typing in a field so it doesn't fire mid-input.
+  useEffect(() => {
+    if (!fullscreenSupported) return;
+
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key !== "f" && e.key !== "F") return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+
+      e.preventDefault();
+      toggleFullscreen();
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [fullscreenSupported, toggleFullscreen]);
 
   // Multi-window state: ordered array where last element = topmost (focused) window
   const [openWindows, setOpenWindows] = useState<DockAppId[]>(["nodegent"]);
@@ -840,6 +898,9 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
             </div>
           </div>
           <div className="flex items-center gap-3">
+            {fullscreenSupported && (
+              <FullscreenButton isFullscreen={isFullscreen} onToggle={toggleFullscreen} />
+            )}
             <MinimizedTray windows={minimizedEntries} onRestore={openWindow} />
             <UserButton />
           </div>
