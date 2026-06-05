@@ -335,7 +335,7 @@ function SettingsPopover({
   return (
     <div
       ref={ref}
-      className="absolute right-0 top-full mt-2 max-h-[calc(100vh-150px)] w-60 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg z-50 py-1"
+      className="absolute right-0 top-full mt-2 max-h-[min(560px,calc(100vh-240px))] w-60 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg z-50 py-1"
     >
       <button
         onClick={toggleTheme}
