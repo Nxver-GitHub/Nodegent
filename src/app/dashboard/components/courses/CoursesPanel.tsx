@@ -8,6 +8,7 @@ import { useHiddenCourses } from "../../hooks/useHiddenCourses";
 import { useCourseColors } from "../../hooks/useCourseColors";
 import { buildCourseColorMap } from "@/lib/calendar-colors";
 import { CourseDetailDrawer, type CourseForDrawer } from "./CourseDetailDrawer";
+import { CourseNotesSection } from "./CourseNotesSection";
 
 function formatDue(ts: number): string {
   const diffDays = Math.ceil((ts - Date.now()) / 86_400_000);
@@ -188,6 +189,10 @@ export function CoursesPanel({ onClose }: { onClose: () => void }) {
                         {course.instructorName}
                       </p>
                     )}
+                    <CourseNotesSection
+                      courseId={course._id}
+                      courseCode={course.courseCode}
+                    />
                   </div>
                 </div>
               );

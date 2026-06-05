@@ -17,6 +17,12 @@ export default defineSchema({
     onboardingCompleted: v.optional(v.boolean()),
     hiddenDefaultApps: v.optional(v.array(v.string())),
     university: v.optional(v.string()),
+    // US-8.3: streak tracking. Absence = 0 / 0 / null.
+    // lastCompletionDate is a YYYY-MM-DD calendar day in the user's timezone.
+    timezone: v.optional(v.string()), // IANA tz name, e.g. "America/Los_Angeles"
+    currentStreak: v.optional(v.number()),
+    longestStreak: v.optional(v.number()),
+    lastCompletionDate: v.optional(v.string()),
   }).index("by_clerkId", ["clerkId"]),
 
   chatThreads: defineTable({
@@ -186,6 +192,18 @@ export default defineSchema({
     enabled: v.boolean(),
     tools: v.array(v.string()),
   }).index("by_userId", ["userId"]),
+
+  // US-8.4: per-course plain-text notes. One row per (userId, courseId);
+  // uniqueness enforced in the upsertCourseNote mutation. Not included in
+  // getCourseSummaries — lazy-fetched only when the user expands Notes on a card.
+  courseNotes: defineTable({
+    userId: v.id("users"),
+    courseId: v.id("courses"),
+    content: v.string(),
+    updatedAt: v.number(),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_userId_courseId", ["userId", "courseId"]),
 
   auditLog: defineTable({
     userId: v.id("users"),

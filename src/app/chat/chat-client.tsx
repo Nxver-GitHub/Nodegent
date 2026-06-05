@@ -227,7 +227,7 @@ export function ChatClient() {
     didInit.current = true;
     (async () => {
       try {
-        await ensureUser();
+        await ensureUser({});
         const id = await ensureDefaultThread();
         setThreadId(id);
       } catch (e) {
