@@ -42,6 +42,13 @@ function clampText(input: string, maxLen: number): string {
   return input.slice(0, maxLen - 1) + "…";
 }
 
+function sanitizeForPrompt(s: string, maxLen = 256): string {
+  return s
+    .replace(/[<>`]/g, "")
+    .replace(/\[INST\]|<<SYS>>|<\/s>|###/g, "")
+    .slice(0, maxLen);
+}
+
 const EVENT_CATEGORIES = ["Office Hours", "Meetings & Remote", "Classes & Labs", "Exams", "Other"] as const;
 type EventCategory = typeof EVENT_CATEGORIES[number];
 
@@ -283,11 +290,11 @@ export const buildCampusContext = internalQuery({
         label: `${c.courseCode}: ${c.name}`,
       });
 
-      const lines: string[] = [`- ${c.courseCode}: ${c.name}`];
+      const lines: string[] = [`- ${sanitizeForPrompt(c.courseCode)}: ${sanitizeForPrompt(c.name)}`];
 
       if (c.instructorName) {
-        const emailPart = c.instructorEmail ? ` <${c.instructorEmail}>` : "";
-        lines.push(`  Instructor: ${c.instructorName}${emailPart}`);
+        const emailPart = c.instructorEmail ? ` <${sanitizeForPrompt(c.instructorEmail)}>` : "";
+        lines.push(`  Instructor: ${sanitizeForPrompt(c.instructorName)}${emailPart}`);
       }
 
       if (c.officeHours) {
@@ -296,8 +303,10 @@ export const buildCampusContext = internalQuery({
             days?: string; time?: string; location?: string; zoomUrl?: string | null;
           };
           const parts = [
-            oh.days, oh.time, oh.location,
-            oh.zoomUrl ? `Zoom: ${oh.zoomUrl}` : null,
+            oh.days ? sanitizeForPrompt(oh.days) : null,
+            oh.time ? sanitizeForPrompt(oh.time) : null,
+            oh.location ? sanitizeForPrompt(oh.location) : null,
+            oh.zoomUrl ? `Zoom: ${sanitizeForPrompt(oh.zoomUrl)}` : null,
           ].filter(Boolean).join(", ");
           if (parts) lines.push(`  Professor office hours: ${parts}`);
         } catch { /* skip malformed */ }
@@ -309,23 +318,25 @@ export const buildCampusContext = internalQuery({
             name: string; email?: string; officeHours?: string;
           }>;
           for (const ta of tas) {
-            const emailPart = ta.email ? ` <${ta.email}>` : "";
-            lines.push(`  TA: ${ta.name}${emailPart}`);
+            const emailPart = ta.email ? ` <${sanitizeForPrompt(ta.email)}>` : "";
+            lines.push(`  TA: ${sanitizeForPrompt(ta.name)}${emailPart}`);
             if (ta.officeHours) {
               try {
                 const oh = JSON.parse(ta.officeHours) as {
                   days?: string; time?: string; location?: string; zoomUrl?: string | null;
                 };
                 const parts = [
-                  oh.days, oh.time, oh.location,
-                  oh.zoomUrl ? `Zoom: ${oh.zoomUrl}` : null,
+                  oh.days ? sanitizeForPrompt(oh.days) : null,
+                  oh.time ? sanitizeForPrompt(oh.time) : null,
+                  oh.location ? sanitizeForPrompt(oh.location) : null,
+                  oh.zoomUrl ? `Zoom: ${sanitizeForPrompt(oh.zoomUrl)}` : null,
                 ].filter(Boolean).join(", ");
                 if (parts) lines.push(`    TA office hours: ${parts}`);
               } catch { /* skip */ }
             }
           }
           if (c.selectedTaEmail) {
-            lines.push(`  Student's assigned TA email: ${c.selectedTaEmail}`);
+            lines.push(`  Student's assigned TA email: ${sanitizeForPrompt(c.selectedTaEmail)}`);
           }
         } catch { /* skip malformed */ }
       }
@@ -345,7 +356,7 @@ export const buildCampusContext = internalQuery({
             hour12: true,
           }).format(new Date(a.dueAt))
         : "no due date";
-      const title = clampText(stripHtml(a.title), 140);
+      const title = sanitizeForPrompt(clampText(stripHtml(a.title), 140), 140);
       const courseLabel = course ? course.courseCode.replace(/-\d+$/, "") : "Unknown course";
       contextRefs.push({
         type: "assignment",
@@ -952,6 +963,25 @@ export const sendMessage = action({
         try {
           if (toolName === "browse_web" && process.env.NODEGENT_APP_URL) {
             const args2 = JSON.parse(tc.function.arguments ?? "{}");
+            const ALLOWED_BROWSE_ORIGINS = [
+              "pisa.ucsc.edu",
+              "santacruz-sidekick.vercel.app",
+              "cabalex.github.io",
+            ];
+            let browseUrlParsed: URL;
+            try {
+              browseUrlParsed = new URL(args2.url ?? "");
+            } catch {
+              throw new Error("Invalid URL for browse_web");
+            }
+            if (
+              browseUrlParsed.protocol !== "https:" ||
+              !ALLOWED_BROWSE_ORIGINS.some(
+                (h) => browseUrlParsed.hostname === h || browseUrlParsed.hostname.endsWith("." + h)
+              )
+            ) {
+              throw new Error("browse_web URL not in allowlist");
+            }
             const browseRes = await fetch(`${process.env.NODEGENT_APP_URL}/api/browse`, {
               method: "POST",
               headers: { "Content-Type": "application/json", ...internalHeaders },
@@ -1019,7 +1049,7 @@ export const sendMessage = action({
         userId,
         action: "ai_chat",
         status: "success",
-        details: JSON.stringify({ preview: content.slice(0, 80), provider: llmResult.provider, contextRefs: contextRefs.slice(0, 60) }),
+        details: JSON.stringify({ provider: llmResult.provider, contextRefs: contextRefs.slice(0, 60) }),
       });
       if (officeHoursCourses.length > 0) {
         await ctx.runMutation(internal.auditLog.logAction, {

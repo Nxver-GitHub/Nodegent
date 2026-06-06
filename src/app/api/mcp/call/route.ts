@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
+import { timingSafeEqual } from "node:crypto";
 import { dispatchMcpTool, isMcpTool } from "@/lib/slug-mcp/index";
 
 export const maxDuration = 30;
@@ -8,8 +9,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   // Accept either a browser Clerk session OR an internal Convex-to-Next call
   const internalSecret = process.env.CONVEX_INTERNAL_SECRET;
   const callerSecret = request.headers.get("x-nodegent-internal");
+
+  function secretsMatch(a: string, b: string): boolean {
+    try {
+      const ba = Buffer.from(a);
+      const bb = Buffer.from(b);
+      return ba.length === bb.length && timingSafeEqual(ba, bb);
+    } catch {
+      return false;
+    }
+  }
   const isInternalCall =
-    internalSecret && callerSecret && callerSecret === internalSecret;
+    Boolean(internalSecret) && Boolean(callerSecret) &&
+    secretsMatch(internalSecret!, callerSecret!);
 
   if (!isInternalCall) {
     const { userId } = await auth();

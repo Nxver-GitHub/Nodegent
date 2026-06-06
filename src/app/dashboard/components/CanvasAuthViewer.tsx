@@ -6,9 +6,8 @@ import { api } from "@convex/_generated/api";
 
 type AuthPhase =
   | "idle"          // showing the CruzID / password form
-  | "starting"      // POST /start in flight
+  | "starting"      // POST /stream request in flight (before first event)
   | "streaming"     // SSE connected, showing browser mirror
-  | "saving"        // POST /save in flight
   | "connected"     // done — Canvas is now connected
   | "error";        // terminal error
 
@@ -35,13 +34,13 @@ export function CanvasAuthViewer({ onConnected }: CanvasAuthViewerProps) {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [frameSrc, setFrameSrc] = useState<string | null>(null);
 
-  const esRef = useRef<EventSource | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
 
-  // Clean up SSE on unmount
+  // Clean up in-flight stream on unmount
   useEffect(() => {
     return () => {
-      esRef.current?.close();
+      abortRef.current?.abort();
     };
   }, []);
 
@@ -65,92 +64,105 @@ export function CanvasAuthViewer({ onConnected }: CanvasAuthViewerProps) {
     e.preventDefault();
     setErrorMsg(null);
     setPhase("starting");
+    setStatusMsg("Starting browser…");
 
+    const abortController = new AbortController();
+    abortRef.current = abortController;
+
+    let response: Response;
     try {
-      const startRes = await fetch("/api/canvas-auth/start", {
+      response = await fetch("/api/canvas-auth/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: username.trim(), password }),
+        body: JSON.stringify({
+          username: username.trim(),
+          password,
+          university: currentUser?.university ?? undefined,
+        }),
+        signal: abortController.signal,
       });
-
-      if (!startRes.ok) {
-        const data = await startRes.json().catch(() => ({}));
-        throw new Error((data as { error?: string }).error ?? "Failed to start auth");
-      }
     } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : "Failed to start session");
+      if ((err as { name?: string }).name === "AbortError") return;
+      setErrorMsg("Failed to connect to auth stream");
       setPhase("error");
       return;
     }
 
-    // Credentials staged — now open the SSE stream
-    setPhase("streaming");
-    setStatusMsg("Starting browser…");
-
-    const es = new EventSource("/api/canvas-auth/stream");
-    esRef.current = es;
-
-    es.addEventListener("status", (e) => {
+    if (!response.ok || !response.body) {
+      let errMsg = "Failed to start auth stream";
       try {
-        const { message } = JSON.parse(e.data) as { message: string };
-        if (message) setStatusMsg(message);
+        const data = await response.json() as { error?: string };
+        if (data.error) errMsg = data.error;
       } catch { /* ignore */ }
-    });
-
-    es.addEventListener("frame", (e) => {
-      // e.data is JSON-encoded (the server calls JSON.stringify on the base64 string)
-      const base64 = JSON.parse(e.data as string) as string;
-      setFrameSrc(`data:image/jpeg;base64,${base64}`);
-    });
-
-    es.addEventListener("done", () => {
-      es.close();
-      esRef.current = null;
-      setStatusMsg("Saving credentials…");
-      setPhase("saving");
-      saveCredentials();
-    });
-
-    es.addEventListener("error", (e) => {
-      es.close();
-      esRef.current = null;
-      try {
-        const { message } = JSON.parse((e as MessageEvent).data) as { message?: string };
-        setErrorMsg(message ?? "Authentication failed");
-      } catch {
-        setErrorMsg("Authentication failed — check your username and password");
-      }
+      setErrorMsg(errMsg);
       setPhase("error");
-    });
+      return;
+    }
 
-    // Network-level SSE error (e.g. server closed without sending error event)
-    es.onerror = () => {
+    setPhase("streaming");
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        let currentEvent = "message";
+        for (const line of lines) {
+          if (line.startsWith("event: ")) {
+            currentEvent = line.slice(7).trim();
+          } else if (line.startsWith("data: ")) {
+            let data: unknown;
+            try {
+              data = JSON.parse(line.slice(6));
+            } catch {
+              continue;
+            }
+            handleSseEvent(currentEvent, data);
+            currentEvent = "message";
+          }
+        }
+      }
+    } catch (err) {
+      if ((err as { name?: string }).name === "AbortError") return;
       if (phase === "streaming") {
         setErrorMsg("Connection to auth stream was lost");
         setPhase("error");
-        es.close();
       }
-    };
+    }
   }
 
-  async function saveCredentials() {
-    try {
-      const res = await fetch("/api/canvas-auth/save", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ university: currentUser?.university ?? null }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(
-          (data as { error?: string }).error ?? "Failed to save credentials"
-        );
+  function handleSseEvent(event: string, data: unknown) {
+    switch (event) {
+      case "status": {
+        const { message } = data as { message?: string };
+        if (message) setStatusMsg(message);
+        break;
       }
-      setPhase("connected");
-      onConnected();
-    } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : "Failed to save credentials");
-      setPhase("error");
+      case "frame": {
+        // data is JSON-encoded base64 string
+        const base64 = data as string;
+        setFrameSrc(`data:image/jpeg;base64,${base64}`);
+        break;
+      }
+      case "done": {
+        abortRef.current = null;
+        setPhase("connected");
+        onConnected();
+        break;
+      }
+      case "error": {
+        abortRef.current = null;
+        const { message } = data as { message?: string };
+        setErrorMsg(message ?? "Authentication failed");
+        setPhase("error");
+        break;
+      }
     }
   }
 
@@ -170,8 +182,8 @@ export function CanvasAuthViewer({ onConnected }: CanvasAuthViewerProps) {
   }
 
   function handleRetry() {
-    esRef.current?.close();
-    esRef.current = null;
+    abortRef.current?.abort();
+    abortRef.current = null;
     setErrorMsg(null);
     setFrameSrc(null);
     setUsername("");
@@ -241,7 +253,7 @@ export function CanvasAuthViewer({ onConnected }: CanvasAuthViewerProps) {
   }
 
   // --- Render: browser mirror ---
-  if (phase === "streaming" || phase === "saving") {
+  if (phase === "streaming") {
     return (
       <div className="rounded-lg border bg-white p-4">
         <div className="mb-2 flex items-center gap-2">

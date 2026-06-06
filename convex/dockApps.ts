@@ -36,6 +36,11 @@ export const addDockApp = mutation({
       .unique();
     if (!user) throw new Error("User not found");
 
+    if (args.url) {
+      if (!/^https?:\/\//i.test(args.url)) throw new Error("URL must use http or https");
+      if (args.url.length > 2048) throw new Error("URL too long");
+    }
+
     const existing = await ctx.db
       .query("dockApps")
       .withIndex("by_userId", (q) => q.eq("userId", user._id))
@@ -88,7 +93,11 @@ export const reorderDockApps = mutation({
     if (!user) throw new Error("User not found");
 
     await Promise.all(
-      args.ids.map((id, index) => ctx.db.patch(id, { order: index }))
+      args.ids.map(async (id, index) => {
+        const app = await ctx.db.get(id);
+        if (!app || app.userId !== user._id) throw new Error("Unauthorized");
+        await ctx.db.patch(id, { order: index });
+      })
     );
   },
 });

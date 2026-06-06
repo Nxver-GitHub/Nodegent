@@ -62,7 +62,7 @@ export function IframeWindow({
         style={{ pointerEvents: "auto" }}
       >
         {titleBar}
-        <iframe src={url} className="flex-1 w-full border-none" title={label} />
+        <iframe src={url} className="flex-1 w-full border-none" title={label} sandbox="allow-scripts allow-same-origin allow-forms allow-popups" referrerPolicy="no-referrer" />
       </div>
     );
   }
@@ -86,7 +86,7 @@ export function IframeWindow({
         }}
       >
         {titleBar}
-        <iframe src={url} className="flex-1 w-full border-none" title={label} />
+        <iframe src={url} className="flex-1 w-full border-none" title={label} sandbox="allow-scripts allow-same-origin allow-forms allow-popups" referrerPolicy="no-referrer" />
       </div>
     </Rnd>
   );

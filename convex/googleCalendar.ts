@@ -48,20 +48,21 @@ export const getAssignmentsForSync = query({
     const assignments = await ctx.db
       .query("assignments")
       .withIndex("by_userId", (q) => q.eq("userId", user._id))
-      .collect();
+      .filter((q) => q.eq(q.field("isCompleted"), false))
+      .take(500);
 
     // Only push incomplete assignments that have a due date
-    const pushable = assignments.filter((a) => !a.isCompleted && a.dueAt !== undefined);
+    const pushable = assignments.filter((a) => a.dueAt !== undefined);
 
-    // Fetch course names for event titles
-    const courseIds = [...new Set(pushable.map((a) => a.courseId))];
+    // Fetch course names for event titles — batch in parallel to avoid sequential N+1
+    const uniqueCourseIds = [...new Set(pushable.map((a) => a.courseId))];
+    const courseResults = await Promise.all(uniqueCourseIds.map((id) => ctx.db.get(id)));
     const courseMap = new Map<string, string>();
     const disabledCourseIds = new Set<string>();
-    for (const courseId of courseIds) {
-      const course = await ctx.db.get(courseId);
+    for (const course of courseResults) {
       if (course) {
-        courseMap.set(courseId, course.courseCode || course.name);
-        if (course.calendarSync === false) disabledCourseIds.add(courseId);
+        courseMap.set(course._id, course.courseCode || course.name);
+        if (course.calendarSync === false) disabledCourseIds.add(course._id);
       }
     }
 
@@ -222,14 +223,17 @@ export const revokeCalendarAccess = mutation({
         q.eq("userId", user._id).eq("source", "google_calendar")
       )
       .collect();
-    await Promise.all(gcalEvents.map((e) => ctx.db.delete(e._id)));
+    // Capped at 500; for large datasets this should be converted to a paginated internalAction
+    const toDeleteGcalEvents = gcalEvents.slice(0, 500);
+    await Promise.all(toDeleteGcalEvents.map((e) => ctx.db.delete(e._id)));
 
     // Clear googleCalendarEventId from all assignments (orphaned GCal event refs)
     const assignments = await ctx.db
       .query("assignments")
       .withIndex("by_userId", (q) => q.eq("userId", user._id))
       .collect();
-    const assignmentsWithGcal = assignments.filter((a) => a.googleCalendarEventId);
+    const assignmentsWithGcal = assignments.slice(0, 500).filter((a) => a.googleCalendarEventId);
+    // Capped at 500; for large datasets this should be converted to a paginated internalAction
     await Promise.all(
       assignmentsWithGcal.map((a) =>
         ctx.db.patch(a._id, { googleCalendarEventId: undefined })

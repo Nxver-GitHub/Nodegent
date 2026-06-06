@@ -248,7 +248,8 @@ export const recomputeCourseSummaryPublic = mutation({
 export const backfillCourseSummaries = internalMutation({
   args: {},
   handler: async (ctx) => {
-    const courses = await ctx.db.query("courses").collect();
+    // One-time migration helper — run manually, processes 200 courses per invocation
+    const courses = await ctx.db.query("courses").take(200);
     for (const course of courses) {
       await recomputeCourseSummary(ctx, course._id);
     }

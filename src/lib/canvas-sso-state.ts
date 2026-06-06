@@ -8,11 +8,11 @@
  * local dev (single process). Not suitable for multi-instance deployments.
  *
  * Security notes:
- *  - Credentials (username/password) are never stored here; they go straight
- *    to the worker via workerData and are cleared when the worker exits.
- *  - Extracted cookies are stored transiently in pendingCookies and consumed
- *    exactly once by the /api/canvas-auth/save route. They never reach the
- *    browser.
+ *  - Credentials (username/password) are passed directly to the worker via
+ *    workerData and are cleared when the worker exits. They are never stored
+ *    in this module.
+ *  - Cookies are saved to Convex via the onSave callback provided by the
+ *    route handler. They never reach the browser.
  */
 
 import { Worker } from "node:worker_threads";
@@ -24,6 +24,7 @@ import path from "node:path";
 
 type EnqueueFn = (event: string, data: unknown) => void;
 type CloseFn = () => void;
+type OnSaveFn = (cookies: object[]) => Promise<void>;
 
 interface AuthSession {
   worker: Worker;
@@ -33,38 +34,18 @@ interface AuthSession {
   createdAt: number;
 }
 
-interface PendingCredentials {
-  username: string;
-  password: string;
-  createdAt: number;
-}
-
 // ---------------------------------------------------------------------------
 // Module state
 // ---------------------------------------------------------------------------
 
 const activeSessions = new Map<string, AuthSession>();
-const pendingCredentials = new Map<string, PendingCredentials>();
-/**
- * Cookies extracted by the worker, keyed by userId.
- * Stored separately from activeSessions so they survive terminateSession()
- * (which may be called by the ReadableStream cancel() before /save fires).
- */
-const extractedCookies = new Map<string, object[]>();
 
-/** 30 s — unclaimed credentials expire if the SSE stream never connects */
-const PENDING_TTL_MS = 30_000;
 /** 10 min — session cleanup guard for stale entries */
 const SESSION_MAX_AGE_MS = 10 * 60 * 1000;
 
-// Prune stale entries periodically (every 5 min)
+// Prune stale sessions periodically (every 5 min)
 setInterval(() => {
   const now = Date.now();
-  for (const [userId, creds] of pendingCredentials) {
-    if (now - creds.createdAt > PENDING_TTL_MS) {
-      pendingCredentials.delete(userId);
-    }
-  }
   for (const [userId, session] of activeSessions) {
     if (now - session.createdAt > SESSION_MAX_AGE_MS) {
       terminateSession(userId);
@@ -99,78 +80,14 @@ function buildWorkerData(username: string, password: string) {
 }
 
 // ---------------------------------------------------------------------------
-// Public API
+// Internal helpers
 // ---------------------------------------------------------------------------
 
-/**
- * Stage credentials for a user. The actual worker is not started until
- * the SSE stream connects and calls startSession().
- */
-export function stageCredentials(userId: string, username: string, password: string): void {
-  if (activeSessions.has(userId)) {
-    throw new Error("An auth session is already in progress for this account.");
-  }
-  pendingCredentials.set(userId, { username, password, createdAt: Date.now() });
-}
-
-/**
- * Claim staged credentials and start the Playwright worker.
- * Must be called from the SSE stream route so messages arrive before any
- * frames are missed.
- *
- * Returns false if no staged credentials are found (expired or not staged).
- */
-export function startSession(
+function handleWorkerMessage(
   userId: string,
-  enqueue: EnqueueFn,
-  close: CloseFn
-): boolean {
-  const creds = pendingCredentials.get(userId);
-  if (!creds || Date.now() - creds.createdAt > PENDING_TTL_MS) {
-    pendingCredentials.delete(userId);
-    return false;
-  }
-  pendingCredentials.delete(userId);
-
-  // Overwrite any zombie session for this user
-  terminateSession(userId);
-
-  const abortController = new AbortController();
-  const workerData = buildWorkerData(creds.username, creds.password);
-
-  const worker = new Worker(WORKER_PATH, { workerData });
-
-  const session: AuthSession = {
-    worker,
-    enqueue,
-    close,
-    abortController,
-    createdAt: Date.now(),
-  };
-  activeSessions.set(userId, session);
-
-  worker.on("message", (msg: Record<string, unknown>) => {
-    handleWorkerMessage(userId, msg);
-  });
-
-  worker.on("error", (err: Error) => {
-    enqueue("error", { message: `Browser error: ${err.message}` });
-    terminateSession(userId);
-    close();
-  });
-
-  worker.on("exit", (code: number) => {
-    if (code !== 0 && activeSessions.has(userId)) {
-      enqueue("error", { message: "Browser process exited unexpectedly." });
-      terminateSession(userId);
-      close();
-    }
-  });
-
-  return true;
-}
-
-function handleWorkerMessage(userId: string, msg: Record<string, unknown>): void {
+  msg: Record<string, unknown>,
+  onSave: OnSaveFn
+): void {
   const session = activeSessions.get(userId);
   if (!session) return;
 
@@ -190,17 +107,24 @@ function handleWorkerMessage(userId: string, msg: Record<string, unknown>): void
       break;
 
     case "done": {
-      // Store cookies in the separate map so they survive terminateSession()
       const cookies = msg.cookies as object[] | undefined;
       if (Array.isArray(cookies) && cookies.length > 0) {
-        extractedCookies.set(userId, cookies);
-        enqueue?.("done", { success: true, sessionRestored: msg.sessionRestored ?? false });
+        terminateSession(userId);
+        // Save to Convex via the callback provided by the route handler
+        onSave(cookies)
+          .then(() => {
+            enqueue?.("done", { success: true, sessionRestored: msg.sessionRestored ?? false });
+            close?.();
+          })
+          .catch(() => {
+            enqueue?.("error", { message: "Failed to save Canvas session. Please try again." });
+            close?.();
+          });
       } else {
         enqueue?.("error", { message: "No Canvas session cookies were extracted." });
+        terminateSession(userId);
+        close?.();
       }
-      // Safe to terminate the session now — cookies are in extractedCookies
-      terminateSession(userId);
-      close?.();
       break;
     }
 
@@ -216,15 +140,61 @@ function handleWorkerMessage(userId: string, msg: Record<string, unknown>): void
   }
 }
 
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
 /**
- * Consume the extracted cookies for a user exactly once.
- * Returns null if no cookies are staged (already consumed or session gone).
+ * Start the Playwright worker directly with the provided credentials.
+ * The onSave callback is called with the extracted cookies when auth succeeds,
+ * saving them to Convex without ever exposing them to the browser.
+ *
+ * Returns false if a session is already active (should not happen as callers
+ * check hasActiveSession first).
  */
-export function consumePendingCookies(userId: string): object[] | null {
-  const cookies = extractedCookies.get(userId);
-  if (!cookies) return null;
-  extractedCookies.delete(userId);
-  return cookies;
+export function startSession(
+  userId: string,
+  username: string,
+  password: string,
+  enqueue: EnqueueFn,
+  close: CloseFn,
+  onSave: OnSaveFn
+): boolean {
+  // Overwrite any zombie session
+  terminateSession(userId);
+
+  const abortController = new AbortController();
+  const workerData = buildWorkerData(username, password);
+  const worker = new Worker(WORKER_PATH, { workerData });
+
+  const session: AuthSession = {
+    worker,
+    enqueue,
+    close,
+    abortController,
+    createdAt: Date.now(),
+  };
+  activeSessions.set(userId, session);
+
+  worker.on("message", (msg: Record<string, unknown>) => {
+    handleWorkerMessage(userId, msg, onSave);
+  });
+
+  worker.on("error", (err: Error) => {
+    enqueue("error", { message: `Browser error: ${err.message}` });
+    terminateSession(userId);
+    close();
+  });
+
+  worker.on("exit", (code: number) => {
+    if (code !== 0 && activeSessions.has(userId)) {
+      enqueue("error", { message: "Browser process exited unexpectedly." });
+      terminateSession(userId);
+      close();
+    }
+  });
+
+  return true;
 }
 
 /**

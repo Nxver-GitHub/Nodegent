@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
+import { timingSafeEqual } from "node:crypto";
 import { isAllowedUrl, isPrivateHost } from "@/lib/browse-allowlist";
 import type { Page } from "playwright";
 
@@ -46,8 +47,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   // (used when Convex actions call this endpoint server-to-server).
   const internalSecret = process.env.CONVEX_INTERNAL_SECRET;
   const callerSecret = request.headers.get("x-nodegent-internal");
+
+  function secretsMatch(a: string, b: string): boolean {
+    try {
+      const ba = Buffer.from(a);
+      const bb = Buffer.from(b);
+      return ba.length === bb.length && timingSafeEqual(ba, bb);
+    } catch {
+      return false;
+    }
+  }
   const isInternalCall =
-    internalSecret && callerSecret && callerSecret === internalSecret;
+    Boolean(internalSecret) && Boolean(callerSecret) &&
+    secretsMatch(internalSecret!, callerSecret!);
 
   if (!isInternalCall) {
     const { userId } = await auth();
@@ -122,7 +134,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const trimmed = rawText.replace(/\s+/g, " ").trim().slice(0, 3000);
     return NextResponse.json({ text: trimmed, url });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Browse failed";
-    return NextResponse.json({ error: msg }, { status: 500 });
+    console.error("[browse] error:", err);
+    return NextResponse.json({ error: "Browse request failed" }, { status: 500 });
   }
 }

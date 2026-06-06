@@ -88,6 +88,10 @@ export const logPomodoroSession = mutation({
     durationSeconds: v.number(),
   },
   handler: async (ctx, args) => {
+    if (args.assignmentTitle && args.assignmentTitle.length > 500) {
+      throw new Error("assignmentTitle too long");
+    }
+
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return;
 

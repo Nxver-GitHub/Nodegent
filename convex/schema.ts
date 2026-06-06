@@ -28,7 +28,9 @@ export default defineSchema({
     weeklyDigest: v.optional(v.string()),
     // US-8.5: browser push notifications — JSON-serialised PushSubscription
     pushSubscription: v.optional(v.string()),
-  }).index("by_clerkId", ["clerkId"]),
+  })
+    .index("by_clerkId", ["clerkId"])
+    .index("by_pushSubscription", ["pushSubscription"]),
 
   chatThreads: defineTable({
     userId: v.id("users"),

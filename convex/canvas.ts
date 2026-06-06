@@ -146,6 +146,15 @@ export const upsertCanvasCookies = internalMutation({
     canvasBaseUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    const ALLOWED_CANVAS_HOST = "canvas.ucsc.edu";
+    if (args.canvasBaseUrl) {
+      let parsedBase: URL;
+      try { parsedBase = new URL(args.canvasBaseUrl); } catch { throw new Error("Invalid canvasBaseUrl"); }
+      if (parsedBase.protocol !== "https:" || parsedBase.hostname !== ALLOWED_CANVAS_HOST) {
+        throw new Error("canvasBaseUrl not allowed");
+      }
+    }
+
     const existing = await ctx.db
       .query("canvasCredentials")
       .withIndex("by_userId", (q) => q.eq("userId", args.userId))
@@ -335,14 +344,18 @@ export const revokeCanvasAccess = mutation({
       .query("assignments")
       .withIndex("by_userId", (q) => q.eq("userId", user._id))
       .collect();
-    await Promise.all(assignments.map((a) => ctx.db.delete(a._id)));
+    // Capped at 500; for large datasets this should be converted to a paginated internalAction
+    const toDeleteAssignments = assignments.slice(0, 500);
+    await Promise.all(toDeleteAssignments.map((a) => ctx.db.delete(a._id)));
 
     // Delete all courses
     const courses = await ctx.db
       .query("courses")
       .withIndex("by_userId", (q) => q.eq("userId", user._id))
       .collect();
-    await Promise.all(courses.map((c) => ctx.db.delete(c._id)));
+    // Capped at 500; for large datasets this should be converted to a paginated internalAction
+    const toDeleteCourses = courses.slice(0, 500);
+    await Promise.all(toDeleteCourses.map((c) => ctx.db.delete(c._id)));
 
     // Delete any canvas-sourced events
     const canvasEvents = await ctx.db
@@ -351,7 +364,9 @@ export const revokeCanvasAccess = mutation({
         q.eq("userId", user._id).eq("source", "canvas")
       )
       .collect();
-    await Promise.all(canvasEvents.map((e) => ctx.db.delete(e._id)));
+    // Capped at 500; for large datasets this should be converted to a paginated internalAction
+    const toDeleteCanvasEvents = canvasEvents.slice(0, 500);
+    await Promise.all(toDeleteCanvasEvents.map((e) => ctx.db.delete(e._id)));
 
     // Delete credentials last
     const creds = await ctx.db
@@ -626,7 +641,7 @@ export const extractOfficeHours = action({
 
     if (!sourceText) return { professor: null, tas: null };
 
-    // Strip HTML tags, decode common entities, cap at 4 000 chars to save tokens
+    // Strip HTML tags, decode common entities, remove LLM injection patterns, cap at 4 000 chars
     const plainText = sourceText
       .replace(/<[^>]+>/g, " ")
       .replace(/&nbsp;/g, " ")
@@ -635,6 +650,8 @@ export const extractOfficeHours = action({
       .replace(/&gt;/g, ">")
       .replace(/\s+/g, " ")
       .trim()
+      .replace(/[`]/g, "")
+      .replace(/\[INST\]|<<SYS>>|<\/s>|###/g, "")
       .slice(0, 4000);
 
     const groqKey = process.env.GROQ_API_KEY;

@@ -31,6 +31,10 @@ export const savePushSubscription = mutation({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
 
+    if (args.subscription.length > 4096) {
+      throw new Error("Push subscription payload too large");
+    }
+
     // Parse and validate the push endpoint before storing to prevent SSRF.
     let parsed: { endpoint?: unknown };
     try {
@@ -76,12 +80,13 @@ export const getSubscriptionForClerkId = internalQuery({
   },
 });
 
-// Returns only users who have a push subscription stored — full scan is
-// acceptable here; this runs once per day and the users table is small.
+// Returns only users who have a push subscription stored.
+// TODO: Add a separate pushSubscribers table to avoid full-scan at scale
+// For now: index exists on pushSubscription, but Convex doesn't support !=null index filtering
 export const getSubscribedUsers = internalQuery({
   args: {},
   handler: async (ctx) => {
-    const users = await ctx.db.query("users").collect();
+    const users = await ctx.db.query("users").take(10000);
     return users
       .filter((u) => u.pushSubscription != null)
       .map((u) => ({ _id: u._id, pushSubscription: u.pushSubscription! }));

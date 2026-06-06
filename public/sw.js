@@ -28,7 +28,11 @@ self.addEventListener("notificationclick", (event) => {
           }
         }
         if (clients.openWindow) {
-          return clients.openWindow(event.notification.data?.url ?? "/dashboard");
+          const rawUrl = event.notification.data?.url;
+          const safeUrl = (typeof rawUrl === "string" && rawUrl.startsWith("/"))
+            ? rawUrl
+            : "/dashboard";
+          return clients.openWindow(safeUrl);
         }
       })
   );
