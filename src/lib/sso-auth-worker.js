@@ -293,14 +293,32 @@ async function handleDuoUniversal(page) {
 
   parentPort.postMessage({ type: 'status', message: 'Approve the Duo push on your phone...' });
 
-  const trustPageAppeared = await page
-    .waitForSelector(SEL.duoTrust, { timeout: ssoTimeoutMs })
-    .then(() => true)
-    .catch(() => false);
+  // Duo may require additional verification ("Additional Duo Push required") when
+  // the login comes from an unfamiliar location (Vercel's servers).  Auto-click
+  // "Try again" to send a fresh push; allow up to 3 total attempts.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const result = await Promise.race([
+      page.waitForSelector(SEL.duoTrust, { timeout: 55_000 }).then(() => 'trust'),
+      page.waitForSelector('button:has-text("Try again")', { timeout: 55_000 }).then(() => 'retry'),
+    ]).catch(() => null);
 
-  if (trustPageAppeared) {
-    parentPort.postMessage({ type: 'status', message: 'Trusting browser to skip Duo next time...' });
-    await page.click(SEL.duoTrust).catch(() => {});
+    if (result === 'trust') {
+      parentPort.postMessage({ type: 'status', message: 'Trusting browser to skip Duo next time...' });
+      await page.click(SEL.duoTrust).catch(() => {});
+      return;
+    }
+
+    if (result === 'retry') {
+      parentPort.postMessage({
+        type: 'status',
+        message: `Duo needs additional verification — approve the next push on your phone (attempt ${attempt + 2}/3)...`,
+      });
+      await page.click('button:has-text("Try again")').catch(() => {});
+      await page.waitForTimeout(1_500);
+      // loop continues for next attempt
+    } else {
+      break; // timeout — fall through to outer waitForURL
+    }
   }
 }
 
