@@ -37,10 +37,9 @@ export default function TosPage() {
 
         <Section title="Eligibility">
           <p>
-            Nodegent is intended for UC Santa Cruz students. By using the
-            service, you represent that you are a current UCSC student or an
-            authorized tester. You must be at least 13 years old to use
-            Nodegent.
+            Nodegent is intended for college students. By using the service, you
+            represent that you are a current college student or an authorized
+            tester. You must be at least 13 years old to use Nodegent.
           </p>
         </Section>
 

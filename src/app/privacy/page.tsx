@@ -44,10 +44,12 @@ export default function PrivacyPage() {
               Sign-In via Clerk. We do not store your Google password.
             </Item>
             <Item label="Google Calendar">
-              Calendar events from your connected Google account. This data is
-              fetched on demand to display upcoming deadlines alongside your
-              Canvas assignments. We do not modify or delete your calendar
-              events.
+              Calendar events from your connected Google account. Nodegent reads
+              your existing events to display them alongside your Canvas
+              assignments, and creates or updates events in your calendar when
+              syncing Canvas assignment due dates. Only events created by
+              Nodegent are modified; we do not alter events you created
+              yourself.
             </Item>
             <Item label="Canvas academic data">
               Courses, assignments, due dates, and grades, fetched via your
