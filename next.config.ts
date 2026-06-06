@@ -26,6 +26,7 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  serverExternalPackages: ["playwright", "playwright-core", "@sparticuz/chromium"],
   async headers() {
     return [
       {
