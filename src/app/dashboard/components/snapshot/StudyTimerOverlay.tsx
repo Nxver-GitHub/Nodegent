@@ -221,13 +221,13 @@ export function StudyTimerOverlay({
                   className={`transition-all duration-1000 ${ringColor}`}
                 />
               </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <div className="absolute inset-0 flex flex-col items-center justify-center px-3">
                 <span className="text-[28px] font-mono font-extrabold text-gray-900 leading-none tabular-nums">
                   {phase === "prompt" || phase === "idle"
                     ? "00:00"
                     : formatTime(timeLeft)}
                 </span>
-                <span className="text-[11px] font-semibold text-gray-400 mt-1 uppercase tracking-wider">
+                <span className="text-[10px] font-semibold text-gray-400 mt-1 uppercase tracking-normal text-center leading-tight max-w-[72px] break-words">
                   {phaseLabel}
                 </span>
               </div>

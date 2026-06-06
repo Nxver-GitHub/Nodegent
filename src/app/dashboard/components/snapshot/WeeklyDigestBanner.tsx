@@ -2,8 +2,15 @@
 
 import { X, Sparkle } from "@phosphor-icons/react";
 
+interface DigestLink {
+  title: string;
+  course: string;
+  url: string;
+}
+
 interface WeeklyDigestBannerProps {
   digest: string;
+  links?: DigestLink[];
   onDismiss: () => void;
 }
 
@@ -25,32 +32,63 @@ export function currentIsoWeekKey(): string {
 
 export const DIGEST_DISMISS_KEY_PREFIX = "nodegent-digest-dismissed-";
 
-export function WeeklyDigestBanner({ digest, onDismiss }: WeeklyDigestBannerProps) {
+export function WeeklyDigestBanner({ digest, links = [], onDismiss }: WeeklyDigestBannerProps) {
   return (
     <div
       role="status"
       aria-live="polite"
-      className="relative flex gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-amber-900"
+      data-testid="weekly-digest-banner"
+      className="relative flex flex-col gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-amber-900"
     >
-      {/* Icon */}
-      <Sparkle
-        size={15}
-        weight="fill"
-        className="mt-0.5 shrink-0 text-amber-500"
-        aria-hidden="true"
-      />
+      {/* Header row */}
+      <div className="flex gap-3">
+        <Sparkle
+          size={15}
+          weight="fill"
+          className="mt-0.5 shrink-0 text-amber-500"
+          aria-hidden="true"
+        />
+        <p className="flex-1 text-[12px] leading-relaxed">{digest}</p>
+        <button
+          onClick={onDismiss}
+          aria-label="Dismiss digest"
+          className="self-start ml-1 shrink-0 flex items-center justify-center w-5 h-5 rounded hover:bg-amber-100 text-amber-600 hover:text-amber-900 transition-colors"
+        >
+          <X size={12} weight="bold" />
+        </button>
+      </div>
 
-      {/* Digest text */}
-      <p className="flex-1 text-[12px] leading-relaxed">{digest}</p>
-
-      {/* Dismiss button */}
-      <button
-        onClick={onDismiss}
-        aria-label="Dismiss weekly digest"
-        className="self-start ml-1 shrink-0 flex items-center justify-center w-5 h-5 rounded hover:bg-amber-100 text-amber-600 hover:text-amber-900 transition-colors"
-      >
-        <X size={12} weight="bold" />
-      </button>
+      {/* Clickable assignment links */}
+      {links.length > 0 && (
+        <div className="pl-6 flex flex-wrap gap-1.5">
+          {links.map((link) => {
+            // Only allow http/https — blocks javascript: and data: URLs
+            let safeUrl: string | null = null;
+            try {
+              const u = new URL(link.url);
+              if (u.protocol === "https:" || u.protocol === "http:") safeUrl = u.toString();
+            } catch {
+              // malformed URL — skip
+            }
+            if (!safeUrl) return null;
+            return (
+              <a
+                key={link.url}
+                href={safeUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={link.title}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 hover:bg-amber-200 text-amber-800 text-[10px] font-semibold transition-colors max-w-[160px] truncate"
+              >
+                {link.course && (
+                  <span className="text-amber-500 shrink-0">{link.course}</span>
+                )}
+                <span className="truncate">{link.title}</span>
+              </a>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

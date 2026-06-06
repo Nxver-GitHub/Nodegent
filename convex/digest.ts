@@ -29,7 +29,10 @@ function isoWeekKey(ts: number): string {
 // ---------------------------------------------------------------------------
 
 export const getDigestContext = internalQuery({
-  args: { userId: v.id("users") },
+  args: {
+    userId: v.id("users"),
+    hiddenCourseIds: v.optional(v.array(v.string())),
+  },
   handler: async (ctx, args) => {
     const user = await ctx.db.get(args.userId);
     if (!user) return null;
@@ -37,35 +40,57 @@ export const getDigestContext = internalQuery({
     const now = Date.now();
     const weekEnd = now + 7 * 24 * 60 * 60 * 1000;
 
-    const courses = await ctx.db
+    const hiddenSet = new Set<string>(args.hiddenCourseIds ?? []);
+
+    const allCourses = await ctx.db
       .query("courses")
       .withIndex("by_userId", (q) => q.eq("userId", args.userId))
-      .take(20);
+      .take(50);
+
+    const courses = allCourses.filter((c) => !hiddenSet.has(c._id));
 
     const courseById = new Map<string, string>();
     for (const c of courses) {
       courseById.set(c._id, c.courseCode);
     }
 
-    // Overdue: not completed, has a due date in the past
-    const overdueAssignments = await ctx.db
-      .query("assignments")
-      .withIndex("by_userId_isCompleted", (q) =>
-        q.eq("userId", args.userId).eq("isCompleted", false)
-      )
-      .filter((q) => q.lt(q.field("dueAt"), now))
-      .take(10);
+    const recentWindow = now - 7 * 24 * 60 * 60 * 1000;
 
-    // Due this week: not completed, due within the next 7 days
-    const upcomingAssignments = await ctx.db
-      .query("assignments")
-      .withIndex("by_userId_dueAt", (q) =>
-        q.eq("userId", args.userId).gte("dueAt", now).lte("dueAt", weekEnd)
-      )
-      .order("asc")
-      .take(15);
+    // Upcoming: not completed, due within next 7 days — visible courses only
+    const upcomingAssignments = (
+      await ctx.db
+        .query("assignments")
+        .withIndex("by_userId_dueAt", (q) =>
+          q.eq("userId", args.userId).gte("dueAt", now).lte("dueAt", weekEnd)
+        )
+        .order("asc")
+        .take(50)
+    ).filter((a) => courseById.has(a.courseId) && !a.isCompleted).slice(0, 15);
 
-    // Upcoming exams (events of type exam) in the next 7 days
+    // Recently added to Canvas (isNew flag set by sync) — visible, not completed
+    const recentlyAdded = (
+      await ctx.db
+        .query("assignments")
+        .withIndex("by_userId_isNew", (q) =>
+          q.eq("userId", args.userId).eq("isNew", true)
+        )
+        .take(50)
+    ).filter((a) => courseById.has(a.courseId) && !a.isCompleted).slice(0, 8);
+
+    // Recently graded (has a score, due in last 14 days) — visible courses only
+    const recentlyGraded = (
+      await ctx.db
+        .query("assignments")
+        .withIndex("by_userId_dueAt", (q) =>
+          q.eq("userId", args.userId)
+            .gte("dueAt", now - 14 * 24 * 60 * 60 * 1000)
+            .lte("dueAt", now)
+        )
+        .order("desc")
+        .take(50)
+    ).filter((a) => courseById.has(a.courseId) && a.score !== undefined).slice(0, 5);
+
+    // Upcoming exams in next 7 days
     const upcomingExams = await ctx.db
       .query("events")
       .withIndex("by_userId_startAt", (q) =>
@@ -75,58 +100,71 @@ export const getDigestContext = internalQuery({
       .order("asc")
       .take(5);
 
-    const courseNames = courses.map((c) => `${c.courseCode}: ${c.name}`);
-
-    const overdueLines = overdueAssignments.map((a) => {
-      const code = courseById.get(a.courseId) ?? "Unknown";
-      return `  - [${code}] ${a.title}`;
-    });
-
-    const upcomingLines = upcomingAssignments.map((a) => {
-      const code = courseById.get(a.courseId) ?? "Unknown";
-      const due = a.dueAt
-        ? new Intl.DateTimeFormat("en-US", {
-            timeZone: "America/Los_Angeles",
-            month: "short",
-            day: "numeric",
-            hour: "numeric",
-            minute: "2-digit",
-            hour12: true,
-          }).format(new Date(a.dueAt))
-        : "no date";
-      return `  - [${code}] ${a.title} — due ${due}`;
-    });
-
-    const examLines = upcomingExams.map((e) => {
-      const start = new Intl.DateTimeFormat("en-US", {
+    const fmt = (ts: number) =>
+      new Intl.DateTimeFormat("en-US", {
         timeZone: "America/Los_Angeles",
         month: "short",
         day: "numeric",
         hour: "numeric",
         minute: "2-digit",
         hour12: true,
-      }).format(new Date(e.startAt));
-      return `  - ${e.title} — ${start}`;
+      }).format(new Date(ts));
+
+    const courseNames = courses.map((c) => `${c.courseCode}: ${c.name}`);
+
+    const upcomingLines = upcomingAssignments.map((a) => {
+      const code = courseById.get(a.courseId) ?? "Unknown";
+      return `  - [${code}] ${a.title} — due ${a.dueAt ? fmt(a.dueAt) : "no date"}`;
     });
 
+    const recentlyAddedLines = recentlyAdded.map((a) => {
+      const code = courseById.get(a.courseId) ?? "Unknown";
+      return `  - [${code}] ${a.title}${a.dueAt ? ` — due ${fmt(a.dueAt)}` : ""}`;
+    });
+
+    const recentlyGradedLines = recentlyGraded.map((a) => {
+      const code = courseById.get(a.courseId) ?? "Unknown";
+      return `  - [${code}] ${a.title} — scored ${a.score}`;
+    });
+
+    const examLines = upcomingExams.map((e) => `  - ${e.title} — ${fmt(e.startAt)}`);
+
     const contextText = [
-      `Courses enrolled: ${courseNames.join(", ") || "none"}`,
-      overdueLines.length > 0
-        ? `Overdue assignments (${overdueLines.length}):\n${overdueLines.join("\n")}`
-        : "No overdue assignments.",
+      `Courses: ${courseNames.join(", ") || "none"}`,
       upcomingLines.length > 0
-        ? `Due this week (${upcomingLines.length}):\n${upcomingLines.join("\n")}`
-        : "Nothing due this week.",
+        ? `Upcoming this week (${upcomingLines.length}):\n${upcomingLines.join("\n")}`
+        : "Nothing pending this week.",
+      recentlyAddedLines.length > 0
+        ? `Recently added to Canvas (${recentlyAddedLines.length}):\n${recentlyAddedLines.join("\n")}`
+        : "",
+      recentlyGradedLines.length > 0
+        ? `Recently graded (${recentlyGradedLines.length}):\n${recentlyGradedLines.join("\n")}`
+        : "",
       examLines.length > 0
-        ? `Upcoming exams (${examLines.length}):\n${examLines.join("\n")}`
-        : "No upcoming exams this week.",
-    ].join("\n\n");
+        ? `Upcoming exams:\n${examLines.join("\n")}`
+        : "No upcoming exams.",
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+
+    // Collect all assignment links for the banner
+    const linkSet = new Map<string, { title: string; course: string; url: string }>();
+    for (const a of [...upcomingAssignments, ...recentlyAdded, ...recentlyGraded]) {
+      if (a.htmlUrl && !linkSet.has(a._id)) {
+        linkSet.set(a._id, {
+          title: a.title,
+          course: courseById.get(a.courseId) ?? "",
+          url: a.htmlUrl,
+        });
+      }
+    }
 
     return {
       contextText,
-      overdueCount: overdueAssignments.length,
       upcomingCount: upcomingAssignments.length,
+      recentCount: recentlyAdded.length,
       examCount: upcomingExams.length,
+      links: [...linkSet.values()],
     };
   },
 });
@@ -168,8 +206,11 @@ export const getUserByClerkId = internalQuery({
 // ---------------------------------------------------------------------------
 
 export const generateWeeklyDigest = action({
-  args: {},
-  handler: async (ctx): Promise<string | null> => {
+  args: {
+    hiddenCourseIds: v.optional(v.array(v.string())),
+    force: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args): Promise<string | null> => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
 
@@ -182,22 +223,26 @@ export const generateWeeklyDigest = action({
     const currentWeek = isoWeekKey(now);
 
     // Idempotency: if we already generated a digest this ISO week, return it
-    if (user.lastDigestAt && user.weeklyDigest) {
+    // Skip if force=true (e.g. visible course set changed)
+    if (!args.force && user.lastDigestAt && user.weeklyDigest) {
       const lastWeek = isoWeekKey(user.lastDigestAt);
       if (lastWeek === currentWeek) {
         return user.weeklyDigest;
       }
     }
 
-    // Gather campus context
+    // Gather campus context, filtering to visible courses only
     const context = await ctx.runQuery(internal.digest.getDigestContext, {
       userId: user._id,
+      hiddenCourseIds: args.hiddenCourseIds,
     });
     if (!context) return null;
 
     const systemPrompt =
-      "You are a campus assistant. Write 3–5 sentences summarising this student's week: what's overdue, " +
-      "what's due soon, and any exams. Be warm and encouraging. Do not use markdown — plain sentences only.";
+      "You are a campus assistant. Write 3–5 sentences summarising the student's upcoming week: " +
+      "what assignments are coming up, any recently added work, and recent grades they should know about. " +
+      "Do NOT mention overdue assignments — focus only on what's ahead. Be warm and encouraging. " +
+      "Do not use markdown — plain sentences only.";
 
     const userMessage = `Here is the student's campus data for this week:\n\n${context.contextText}`;
 
@@ -260,17 +305,53 @@ export const generateWeeklyDigest = action({
             if (textBlock?.text) digest = textBlock.text.trim();
           }
         } catch {
-          // Both providers failed — fail silently
+          // Fall through to Groq
+        }
+      }
+    }
+
+    // Fall back to Groq (OpenAI-compatible) if prior providers unavailable
+    if (!digest) {
+      const groqKey = process.env.GROQ_API_KEY;
+      const groqModel = process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile";
+      if (groqKey) {
+        try {
+          const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${groqKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model: groqModel,
+              temperature: 0.4,
+              max_tokens: 200,
+              messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: userMessage },
+              ],
+            }),
+          });
+          if (response.ok) {
+            const json: any = await response.json();
+            const content: string | undefined = json?.choices?.[0]?.message?.content;
+            if (content) digest = content.trim();
+          }
+        } catch {
+          // All providers failed — fail silently
         }
       }
     }
 
     if (!digest) return null;
 
+    // Encode AI text + links as a single JSON string for storage and display
+    const payload = JSON.stringify({ text: digest, links: context.links ?? [] });
+
     // Persist to user record
     await ctx.runMutation(internal.digest.saveDigest, {
       userId: user._id,
-      digest,
+      digest: payload,
       generatedAt: now,
     });
 
@@ -283,8 +364,8 @@ export const generateWeeklyDigest = action({
         details: JSON.stringify({
           source: "weekly_digest",
           week: currentWeek,
-          overdueCount: context.overdueCount,
           upcomingCount: context.upcomingCount,
+          recentCount: context.recentCount,
           examCount: context.examCount,
         }),
       });
@@ -292,6 +373,6 @@ export const generateWeeklyDigest = action({
       // Audit log failure must not break digest generation
     }
 
-    return digest;
+    return payload;
   },
 });

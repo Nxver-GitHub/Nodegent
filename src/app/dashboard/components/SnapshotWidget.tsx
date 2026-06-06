@@ -15,14 +15,17 @@ import {
   currentIsoWeekKey,
   DIGEST_DISMISS_KEY_PREFIX,
 } from "./snapshot/WeeklyDigestBanner";
+import { useHiddenCourses } from "../hooks/useHiddenCourses";
 
 export function SnapshotWidget() {
   const [open, setOpen] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [focusedAssignment, setFocusedAssignment] = useState<SnapshotAssignment | null>(null);
+  const { hiddenCourseIds, loaded: hiddenLoaded } = useHiddenCourses();
 
   // Weekly digest state
   const [digest, setDigest] = useState<string | null>(null);
+  const [digestLinks, setDigestLinks] = useState<{ title: string; course: string; url: string }[]>([]);
   const [digestDismissed, setDigestDismissed] = useState(false);
   const [digestLoading, setDigestLoading] = useState(false);
 
@@ -38,50 +41,38 @@ export function SnapshotWidget() {
   const generateWeeklyDigest = useAction(api.digest.generateWeeklyDigest);
   const markComplete = useMutation(api.assignments.markComplete);
 
-  // Trigger digest generation when the panel opens for the first time this week
+  // Generate a fresh digest each time the panel opens (once per session open).
   useEffect(() => {
-    if (!open) return;
+    if (!open || !hiddenLoaded) return;
+    if (digest !== null) return; // already loaded this session
 
     const weekKey = currentIsoWeekKey();
     const dismissKey = `${DIGEST_DISMISS_KEY_PREFIX}${weekKey}`;
 
-    // If already dismissed this week, don't fetch
-    if (sessionStorage.getItem(dismissKey) === "true") {
+    // If dismissed this session and hidden courses unchanged, don't re-show
+    const currentHiddenKey = [...hiddenCourseIds].sort().join(",");
+    const storedHiddenKey = localStorage.getItem("nodegent.digestHiddenKey") ?? "";
+    if (sessionStorage.getItem(dismissKey) === "true" && currentHiddenKey === storedHiddenKey) {
       setDigestDismissed(true);
       return;
     }
 
-    // If we already loaded the digest, don't refetch
-    if (digest !== null) return;
-
-    // Check if the stored digest is fresh (same ISO week)
-    const storedDigest = currentUser?.weeklyDigest;
-    const storedAt = currentUser?.lastDigestAt;
-    if (storedDigest && storedAt) {
-      const storedWeek = (() => {
-        const ts = storedAt;
-        const date = new Date(ts);
-        const thursday = new Date(date);
-        thursday.setUTCHours(0, 0, 0, 0);
-        thursday.setUTCDate(date.getUTCDate() + 3 - ((date.getUTCDay() + 6) % 7));
-        const yearStart = new Date(Date.UTC(thursday.getUTCFullYear(), 0, 4));
-        const week = Math.ceil(
-          ((thursday.getTime() - yearStart.getTime()) / 86400000 + 1) / 7
-        );
-        return `${thursday.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
-      })();
-
-      if (storedWeek === weekKey) {
-        setDigest(storedDigest);
-        return;
-      }
-    }
-
-    // Generate a fresh digest
+    sessionStorage.removeItem(dismissKey);
+    setDigestDismissed(false);
     setDigestLoading(true);
-    generateWeeklyDigest({})
+
+    generateWeeklyDigest({ hiddenCourseIds, force: true })
       .then((result) => {
-        if (result) setDigest(result);
+        if (!result) return;
+        try {
+          const parsed = JSON.parse(result) as { text: string; links: { title: string; course: string; url: string }[] };
+          setDigest(parsed.text);
+          setDigestLinks(parsed.links ?? []);
+        } catch {
+          // Fallback: treat as plain text (backward compat)
+          setDigest(result);
+        }
+        localStorage.setItem("nodegent.digestHiddenKey", currentHiddenKey);
       })
       .catch(() => {
         // Fail silently — digest is non-critical
@@ -89,9 +80,8 @@ export function SnapshotWidget() {
       .finally(() => {
         setDigestLoading(false);
       });
-  // Run once when the panel opens and currentUser is available.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, currentUser?._id]);
+  }, [open, currentUser?._id, hiddenLoaded]);
 
   const handleDismissDigest = useCallback(() => {
     const weekKey = currentIsoWeekKey();
@@ -202,7 +192,7 @@ export function SnapshotWidget() {
                 </div>
               )}
               {!digestLoading && digest && !digestDismissed && (
-                <WeeklyDigestBanner digest={digest} onDismiss={handleDismissDigest} />
+                <WeeklyDigestBanner digest={digest} links={digestLinks} onDismiss={handleDismissDigest} />
               )}
 
               <GreetingHeader
