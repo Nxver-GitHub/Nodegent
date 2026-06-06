@@ -235,10 +235,22 @@ async function authenticate(browserContext, page, uname, pwd) {
   // Resume screenshot stream after submit — password no longer visible
   setStreamingPaused(false);
 
+  // UCSC routes Duo through its own SSO domain rather than redirecting to
+  // duosecurity.com directly, so content-based selectors are the reliable signal.
+  const DUO_DETECT_SEL = [
+    'button:has-text("Skip for now")',
+    'button:has-text("Send Me a Push")',
+    'button:has-text("Use Duo Mobile")',
+    'button:has-text("Other options")',
+  ].join(', ');
+
   const postLogin = await Promise.race([
-    page.waitForURL('**/duosecurity.com/**', { timeout: 20_000 }).then(() => 'duo-universal'),
+    // Content-based detection (works regardless of hosting domain)
+    page.waitForSelector(DUO_DETECT_SEL, { timeout: 20_000 }).then(() => 'duo-universal'),
     page.waitForSelector(SEL.duoLegacyFrame, { timeout: 20_000 }).then(() => 'duo-legacy'),
     page.waitForURL(`${canvasBaseUrl}/**`, { timeout: 20_000 }).then(() => 'canvas'),
+    // URL-based fallback for schools that do redirect to duosecurity.com
+    page.waitForURL(/duosecurity\.com/, { timeout: 20_000 }).then(() => 'duo-universal'),
   ]).catch(() => 'unknown');
 
   if (postLogin === 'duo-universal') {
@@ -248,10 +260,10 @@ async function authenticate(browserContext, page, uname, pwd) {
     parentPort.postMessage({ type: 'status', message: 'Waiting for Duo approval...' });
     await handleDuoLegacy(page);
   } else if (postLogin === 'unknown') {
-    // Redirect chain may still be in flight — re-check for Duo before giving up
-    const onDuo = await page.waitForURL('**/duosecurity.com/**', { timeout: 15_000 })
+    // Last chance: check by content before falling back to plain Canvas wait
+    const duoVisible = await page.waitForSelector(DUO_DETECT_SEL, { timeout: 10_000 })
       .then(() => true).catch(() => false);
-    if (onDuo) {
+    if (duoVisible) {
       parentPort.postMessage({ type: 'status', message: 'Waiting for Duo approval on your phone...' });
       await handleDuoUniversal(page);
     } else {
