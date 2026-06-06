@@ -300,12 +300,18 @@ async function handleDuoUniversal(page) {
     const result = await Promise.race([
       page.waitForSelector(SEL.duoTrust, { timeout: 55_000 }).then(() => 'trust'),
       page.waitForSelector('button:has-text("Try again")', { timeout: 55_000 }).then(() => 'retry'),
+      // Bail out immediately if the account has been disabled
+      page.waitForSelector(':text("Account disabled")', { timeout: 55_000 }).then(() => 'disabled'),
     ]).catch(() => null);
 
     if (result === 'trust') {
       parentPort.postMessage({ type: 'status', message: 'Trusting browser to skip Duo next time...' });
       await page.click(SEL.duoTrust).catch(() => {});
       return;
+    }
+
+    if (result === 'disabled') {
+      throw new Error('Your Duo account has been disabled. Contact UCSC ITS at https://slughub.ucsc.edu/its to re-enable it.');
     }
 
     if (result === 'retry') {
