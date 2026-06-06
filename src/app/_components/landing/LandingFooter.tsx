@@ -13,15 +13,29 @@ export function LandingFooter() {
           <span className="font-extrabold text-white">Nodegent</span>
           <span>· © {year} Built by students, at UCSC</span>
         </div>
-        <Link
-          href="https://github.com/"
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-1.5 py-2 font-semibold text-white/60 hover:text-white"
-        >
-          <GithubLogo size={14} weight="bold" />
-          GitHub
-        </Link>
+        <div className="flex items-center gap-4">
+          <Link
+            href="/privacy"
+            className="py-2 font-semibold text-white/60 hover:text-white"
+          >
+            Privacy
+          </Link>
+          <Link
+            href="/tos"
+            className="py-2 font-semibold text-white/60 hover:text-white"
+          >
+            Terms
+          </Link>
+          <Link
+            href="https://github.com/"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 py-2 font-semibold text-white/60 hover:text-white"
+          >
+            <GithubLogo size={14} weight="bold" />
+            GitHub
+          </Link>
+        </div>
       </div>
     </footer>
   );
