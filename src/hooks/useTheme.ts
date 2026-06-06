@@ -6,11 +6,11 @@ type Theme = "dark" | "light";
 const STORAGE_KEY = "nodegent-theme";
 
 export function useTheme(): { theme: Theme; toggleTheme: () => void } {
-  const [theme, setTheme] = useState<Theme>("dark");
+  const [theme, setTheme] = useState<Theme>("light");
 
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
-    const resolved: Theme = stored === "light" ? "light" : "dark";
+    const resolved: Theme = stored === "dark" ? "dark" : "light";
     setTheme(resolved);
     if (resolved === "light") {
       document.documentElement.classList.add("light");

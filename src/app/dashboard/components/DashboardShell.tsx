@@ -336,6 +336,8 @@ interface SettingsPopoverProps {
   onSetWidgetVisible: (id: WidgetId, visible: boolean) => void;
   onMoveWidgetUp: (id: WidgetId) => void;
   onMoveWidgetDown: (id: WidgetId) => void;
+  theme: "dark" | "light";
+  toggleTheme: () => void;
 }
 
 function SettingsPopover({
@@ -349,9 +351,10 @@ function SettingsPopover({
   onSetWidgetVisible,
   onMoveWidgetUp,
   onMoveWidgetDown,
+  theme,
+  toggleTheme,
 }: SettingsPopoverProps) {
   const ref = useRef<HTMLDivElement>(null);
-  const { theme, toggleTheme } = useTheme();
   const { autoSyncEnabled, setAutoSyncEnabled } = useAutoSyncPreference();
   const currentUser = useQuery(api.users.getCurrentUser);
   const updateUniversity = useMutation(api.users.updateUniversity);
@@ -665,6 +668,8 @@ function WindowToolbar({ calendarOpen, settingsOpen, shortcutsOpen, onCalendarTo
               onSetWidgetVisible={onSetWidgetVisible}
               onMoveWidgetUp={onMoveWidgetUp}
               onMoveWidgetDown={onMoveWidgetDown}
+              theme={theme}
+              toggleTheme={toggleTheme}
             />
           )}
         </div>
@@ -724,6 +729,7 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
   const [wallpaper, setWallpaper] = useWallpaper();
   const { layout: widgetLayout, setVisible: setWidgetVisible, moveUp: moveWidgetUp, moveDown: moveWidgetDown } = useWidgetLayout();
   const { isFullscreen, isSupported: fullscreenSupported, toggleFullscreen } = useFullscreen();
+  const { theme, toggleTheme } = useTheme();
 
   // Keyboard shortcut: "F" toggles full screen. Escape is handled natively by
   // the browser. Ignore the key while typing in a field so it doesn't fire mid-input.

@@ -35,7 +35,7 @@ export default function RootLayout({
           {/* Apply stored theme before first paint to prevent flash */}
           <script
             dangerouslySetInnerHTML={{
-              __html: `(function(){try{if(window.location.pathname==='/'){document.documentElement.classList.add('light');return;}var t=localStorage.getItem('nodegent-theme');if(t==='light')document.documentElement.classList.add('light');}catch(e){}})();`,
+              __html: `(function(){try{var t=localStorage.getItem('nodegent-theme');if(t!=='dark')document.documentElement.classList.add('light');}catch(e){}})();`,
             }}
           />
         </head>
