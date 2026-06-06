@@ -73,7 +73,7 @@ const SEL = {
     'button:has-text("Continue")',
   ].join(', '),
   canvasApp: '#application, #content, nav#main-nav',
-  duoTrust: 'button[aria-label*="trust" i], button:has-text("Yes, trust browser"), #trust-browser-label',
+  duoTrust: 'button[aria-label*="trust" i], button:has-text("Yes, trust browser"), button:has-text("Yes, this is my device"), #trust-browser-label',
   duoLegacyFrame: 'iframe[title*="Duo" i], iframe#duo_iframe',
   duoLegacyRememberMe: 'input[name="dampen_choice"]',
 };
