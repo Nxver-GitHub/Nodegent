@@ -323,6 +323,8 @@ interface WindowToolbarProps {
   onSetWidgetVisible: (id: WidgetId, visible: boolean) => void;
   onMoveWidgetUp: (id: WidgetId) => void;
   onMoveWidgetDown: (id: WidgetId) => void;
+  theme: "dark" | "light";
+  toggleTheme: () => void;
 }
 
 interface SettingsPopoverProps {
@@ -567,7 +569,7 @@ function SettingsPopover({
   );
 }
 
-function WindowToolbar({ calendarOpen, settingsOpen, shortcutsOpen, onCalendarToggle, onSettingsToggle, onSettingsClose, onShortcutsOpenChange, onBack, onHome, onCampusSync, onCourses, onRestartTour, wallpaper, onWallpaperChange, widgetLayout, onSetWidgetVisible, onMoveWidgetUp, onMoveWidgetDown }: WindowToolbarProps) {
+function WindowToolbar({ calendarOpen, settingsOpen, shortcutsOpen, onCalendarToggle, onSettingsToggle, onSettingsClose, onShortcutsOpenChange, onBack, onHome, onCampusSync, onCourses, onRestartTour, wallpaper, onWallpaperChange, widgetLayout, onSetWidgetVisible, onMoveWidgetUp, onMoveWidgetDown, theme, toggleTheme }: WindowToolbarProps) {
   // US-8.3: reuse the same getCurrentUser subscription already loaded elsewhere
   // in the shell — Convex dedupes, so this costs nothing on the wire.
   const currentUser = useQuery(api.users.getCurrentUser);
@@ -1045,6 +1047,8 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
                 onSetWidgetVisible={setWidgetVisible}
                 onMoveWidgetUp={moveWidgetUp}
                 onMoveWidgetDown={moveWidgetDown}
+                theme={theme}
+                toggleTheme={toggleTheme}
               />
               {calendarOpen && <CalendarPanel />}
               <div className={`flex-1 overflow-y-auto p-6 ${calendarOpen ? "" : "min-h-[300px]"}`}>
