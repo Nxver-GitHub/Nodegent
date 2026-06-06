@@ -106,13 +106,13 @@ export function CanvasAuthViewer({ onConnected }: CanvasAuthViewerProps) {
     let buffer = "";
 
     try {
+      let currentEvent = "message";
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n");
         buffer = lines.pop() ?? "";
-        let currentEvent = "message";
         for (const line of lines) {
           if (line.startsWith("event: ")) {
             currentEvent = line.slice(7).trim();
@@ -261,7 +261,7 @@ export function CanvasAuthViewer({ onConnected }: CanvasAuthViewerProps) {
           <span className="text-sm text-gray-600">{statusMsg}</span>
         </div>
         <p className="mb-3 text-xs text-gray-400">
-          Click anywhere on the browser below to interact (e.g. approve Duo MFA).
+          When Duo MFA appears, approve it on your phone. Clicking within the preview may not work on the hosted version.
         </p>
         <div className="relative overflow-hidden rounded border border-gray-200 bg-gray-50">
           {frameSrc ? (

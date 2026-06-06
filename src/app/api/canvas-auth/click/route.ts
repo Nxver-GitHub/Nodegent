@@ -53,10 +53,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       viewportHeight as number
     );
     return NextResponse.json({ ok: true });
-  } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Click forwarding failed" },
-      { status: 409 }
-    );
+  } catch {
+    // No active session on this instance (multi-instance serverless routing).
+    // Return 200 so the client doesn't log console errors; clicking is best-effort.
+    return NextResponse.json({ ok: false, reason: "no-session" });
   }
 }
