@@ -236,9 +236,9 @@ async function authenticate(browserContext, page, uname, pwd) {
   setStreamingPaused(false);
 
   const postLogin = await Promise.race([
-    page.waitForURL('**/duosecurity.com/**', { timeout: 8_000 }).then(() => 'duo-universal'),
-    page.waitForSelector(SEL.duoLegacyFrame, { timeout: 8_000 }).then(() => 'duo-legacy'),
-    page.waitForURL(`${canvasBaseUrl}/**`, { timeout: 8_000 }).then(() => 'canvas'),
+    page.waitForURL('**/duosecurity.com/**', { timeout: 20_000 }).then(() => 'duo-universal'),
+    page.waitForSelector(SEL.duoLegacyFrame, { timeout: 20_000 }).then(() => 'duo-legacy'),
+    page.waitForURL(`${canvasBaseUrl}/**`, { timeout: 20_000 }).then(() => 'canvas'),
   ]).catch(() => 'unknown');
 
   if (postLogin === 'duo-universal') {
@@ -248,7 +248,15 @@ async function authenticate(browserContext, page, uname, pwd) {
     parentPort.postMessage({ type: 'status', message: 'Waiting for Duo approval...' });
     await handleDuoLegacy(page);
   } else if (postLogin === 'unknown') {
-    parentPort.postMessage({ type: 'status', message: 'Waiting for Canvas redirect...' });
+    // Redirect chain may still be in flight — re-check for Duo before giving up
+    const onDuo = await page.waitForURL('**/duosecurity.com/**', { timeout: 15_000 })
+      .then(() => true).catch(() => false);
+    if (onDuo) {
+      parentPort.postMessage({ type: 'status', message: 'Waiting for Duo approval on your phone...' });
+      await handleDuoUniversal(page);
+    } else {
+      parentPort.postMessage({ type: 'status', message: 'Waiting for Canvas redirect...' });
+    }
   }
 
   await page.waitForURL(`${canvasBaseUrl}/**`, { timeout: ssoTimeoutMs });
@@ -259,6 +267,20 @@ async function authenticate(browserContext, page, uname, pwd) {
 }
 
 async function handleDuoUniversal(page) {
+  // Duo may show a "Desktop local network access" interstitial before sending a push.
+  // Click "Skip for now" automatically so the flow continues to the push screen.
+  try {
+    const skipBtn = page.locator('button', { hasText: /skip for now/i });
+    await skipBtn.waitFor({ state: 'visible', timeout: 8_000 });
+    parentPort.postMessage({ type: 'status', message: 'Skipping Duo Desktop network dialog...' });
+    await skipBtn.click();
+    await page.waitForTimeout(500);
+  } catch {
+    // Dialog not shown — already past this step
+  }
+
+  parentPort.postMessage({ type: 'status', message: 'Approve the Duo push on your phone...' });
+
   const trustPageAppeared = await page
     .waitForSelector(SEL.duoTrust, { timeout: ssoTimeoutMs })
     .then(() => true)
