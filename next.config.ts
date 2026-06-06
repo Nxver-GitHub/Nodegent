@@ -27,6 +27,12 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ["playwright", "playwright-core", "@sparticuz/chromium"],
+  outputFileTracingIncludes: {
+    "/**": [
+      "./node_modules/playwright-core/**",
+      "./node_modules/@sparticuz/chromium/**",
+    ],
+  },
   async headers() {
     return [
       {
