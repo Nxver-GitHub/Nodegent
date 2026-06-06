@@ -26,6 +26,8 @@ export default defineSchema({
     // US-8.1: weekly AI digest
     lastDigestAt: v.optional(v.number()),
     weeklyDigest: v.optional(v.string()),
+    // US-8.5: browser push notifications — JSON-serialised PushSubscription
+    pushSubscription: v.optional(v.string()),
   }).index("by_clerkId", ["clerkId"]),
 
   chatThreads: defineTable({
