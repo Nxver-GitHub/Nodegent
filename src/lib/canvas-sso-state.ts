@@ -67,7 +67,7 @@ function buildWorkerData(username: string, password: string) {
     canvasBaseUrl: "https://canvas.ucsc.edu",
     canvasSsoUrl:
       "https://canvas.ucsc.edu/login/instructure?authentication_provider=5",
-    sessionDir: path.join(process.cwd(), ".browser-session"),
+    sessionDir: "/tmp/.browser-session",
     ssoTimeoutMs: 90_000,
     sessionCheckMs: Number(process.env.SESSION_CHECK_MS ?? 2_000),
     playwrightOptions: {

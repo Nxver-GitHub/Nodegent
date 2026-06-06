@@ -128,11 +128,20 @@ async function main() {
 
 async function loadChromium() {
   parentPort.postMessage({ type: 'status', message: 'Loading browser engine...' });
-  // Use the playwright library directly — @playwright/test is the test runner
-  // and pulls in test-only internals (worker/testInfo) that aren't resolvable
-  // outside a `playwright test` run.
-  const mod = await import('playwright');
-  chromium = mod.chromium;
+  const isVercel = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+  if (isVercel) {
+    const chromiumPkg = (await import('@sparticuz/chromium')).default;
+    const { chromium: pwChromium } = await import('playwright-core');
+    // Wrap so the rest of the worker uses the same interface
+    chromium = {
+      _sparticuzPkg: chromiumPkg,
+      _pwChromium: pwChromium,
+      _isServerless: true,
+    };
+  } else {
+    const mod = await import('playwright');
+    chromium = mod.chromium;
+  }
   parentPort.postMessage({ type: 'playwright-ready' });
 }
 
@@ -142,11 +151,26 @@ async function loadChromium() {
 
 async function runAuth(uname, pwd) {
   throwIfAborted();
+  let browser = null;
   try {
     parentPort.postMessage({ type: 'status', message: 'Opening browser session...' });
-    context = await chromium.launchPersistentContext(sessionDir, playwrightOptions);
-    throwIfAborted();
 
+    if (chromium._isServerless) {
+      // Serverless: use @sparticuz/chromium + playwright-core
+      const chromiumPkg = chromium._sparticuzPkg;
+      const pwChromium = chromium._pwChromium;
+      browser = await pwChromium.launch({
+        args: chromiumPkg.args,
+        executablePath: await chromiumPkg.executablePath(),
+        headless: chromiumPkg.headless,
+      });
+      context = await browser.newContext();
+    } else {
+      // Local dev: use persistent context with session dir
+      context = await chromium.launchPersistentContext(sessionDir, playwrightOptions);
+    }
+
+    throwIfAborted();
     activePage = context.pages()[0] ?? await context.newPage();
     startScreenshotLoop(activePage);
 
@@ -158,6 +182,7 @@ async function runAuth(uname, pwd) {
     }
   } finally {
     if (context) await context.close().catch(() => {});
+    if (browser) await browser.close().catch(() => {});
   }
 }
 
