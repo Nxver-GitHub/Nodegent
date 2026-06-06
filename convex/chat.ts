@@ -861,14 +861,25 @@ export const sendMessage = action({
       { userId, message: content, now }
     );
 
-    // Ensure UCSC builtin connector is seeded for this user (no-op if already exists)
-    await ctx.runMutation(internal.mcpConnectors.ensureUcscBuiltinForUser, { userId });
+    // Ensure UCSC builtin connector is seeded for this user (no-op if already exists).
+    // Non-fatal: a seeding failure must not prevent the chat from responding.
+    try {
+      await ctx.runMutation(internal.mcpConnectors.ensureUcscBuiltinForUser, { userId });
+    } catch {
+      // Seeding failure is non-critical — MCP tools simply won't be available this turn.
+    }
 
-    // Single lightweight query for enabled MCP connectors — flat list, no per-message overhead
-    const enabledConnectors: { tools: string[] }[] = await ctx.runQuery(
-      internal.mcpConnectors.listEnabledByUserId,
-      { userId }
-    );
+    // Single lightweight query for enabled MCP connectors — flat list, no per-message overhead.
+    // Falls back to all built-in tools if the query fails (e.g. stale deployment).
+    let enabledConnectors: { tools: string[] }[] = [];
+    try {
+      enabledConnectors = await ctx.runQuery(
+        internal.mcpConnectors.listEnabledByUserId,
+        { userId }
+      );
+    } catch {
+      // Non-fatal: fall through to use default tool set below.
+    }
     // Default to all UCSC built-in tools when no connectors are configured —
     // robust against seeding races and lets the chat just work out of the box.
     // The connector table remains the opt-out mechanism for explicit disables.
