@@ -894,7 +894,15 @@ export const sendMessage = action({
       .filter((m) => m.role === "user" || m.role === "assistant")
       .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
 
+    const todayStr = new Date(now).toLocaleDateString("en-US", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+
     const system =
+      `Today is ${todayStr}. ` +
       "You are Nodegent, a campus-aware assistant for UCSC students. " +
       "For Canvas assignments, due dates, and Google Calendar events, use only the provided campus context. " +
       "You are read-only: do not claim you created calendar events, submitted assignments, or changed campus systems. " +

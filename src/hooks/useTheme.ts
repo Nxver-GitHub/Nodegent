@@ -10,7 +10,13 @@ export function useTheme(): { theme: Theme; toggleTheme: () => void } {
 
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored === "light") setTheme("light");
+    const resolved: Theme = stored === "light" ? "light" : "dark";
+    setTheme(resolved);
+    if (resolved === "light") {
+      document.documentElement.classList.add("light");
+    } else {
+      document.documentElement.classList.remove("light");
+    }
   }, []);
 
   function toggleTheme() {
