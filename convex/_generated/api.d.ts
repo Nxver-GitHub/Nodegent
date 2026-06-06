@@ -15,12 +15,15 @@ import type * as chat from "../chat.js";
 import type * as courseListings from "../courseListings.js";
 import type * as courseNotes from "../courseNotes.js";
 import type * as courses from "../courses.js";
+import type * as crons from "../crons.js";
 import type * as digest from "../digest.js";
 import type * as dockApps from "../dockApps.js";
 import type * as events from "../events.js";
 import type * as googleCalendar from "../googleCalendar.js";
 import type * as mcpConnectors from "../mcpConnectors.js";
 import type * as mcpTools from "../mcpTools.js";
+import type * as push from "../push.js";
+import type * as pushSend from "../pushSend.js";
 import type * as users from "../users.js";
 
 import type {
@@ -37,12 +40,15 @@ declare const fullApi: ApiFromModules<{
   courseListings: typeof courseListings;
   courseNotes: typeof courseNotes;
   courses: typeof courses;
+  crons: typeof crons;
   digest: typeof digest;
   dockApps: typeof dockApps;
   events: typeof events;
   googleCalendar: typeof googleCalendar;
   mcpConnectors: typeof mcpConnectors;
   mcpTools: typeof mcpTools;
+  push: typeof push;
+  pushSend: typeof pushSend;
   users: typeof users;
 }>;
 

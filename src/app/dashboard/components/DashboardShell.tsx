@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import {
   Graph,
   ArrowLeft,
@@ -29,6 +29,8 @@ import {
   IdentificationCard,
   Trophy,
   Flame,
+  Bell,
+  BellSlash,
   type Icon,
 } from "@phosphor-icons/react";
 import { api } from "@convex/_generated/api";
@@ -38,6 +40,7 @@ import { useAutoSyncPreference } from "@/hooks/useAutoSyncPreference";
 import { useWallpaper, getWallpaperStyle } from "@/hooks/useWallpaper";
 import { WallpaperPicker } from "./WallpaperPicker";
 import { useWidgetLayout, type WidgetId, type WidgetConfig } from "@/hooks/useWidgetLayout";
+import { usePushNotifications } from "../hooks/usePushNotifications";
 import { WidgetLayoutSettings } from "./WidgetLayoutSettings";
 import { SnapshotWidget } from "./SnapshotWidget";
 import { ActivityLogPanel } from "./ActivityLogPanel";
@@ -353,6 +356,10 @@ function SettingsPopover({
   const currentUser = useQuery(api.users.getCurrentUser);
   const updateUniversity = useMutation(api.users.updateUniversity);
   const [univSaved, setUnivSaved] = useState(false);
+  const { permission, subscribed, loading: pushLoading, subscribe, unsubscribe } =
+    usePushNotifications(currentUser?.pushSubscription);
+  const sendTestPush = useAction(api.pushSend.sendTestPushToSelf);
+  const [testPushState, setTestPushState] = useState<"idle" | "sending" | "sent" | "error">("idle");
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -401,6 +408,69 @@ function SettingsPopover({
           />
         </button>
       </div>
+
+      {permission !== "unsupported" && (
+        <div className="flex items-center justify-between gap-2.5 px-4 py-2.5 text-[13px] text-gray-700">
+          <div className="flex items-center gap-2.5 min-w-0">
+            {subscribed ? (
+              <Bell size={15} weight="bold" className="text-violet-500 flex-shrink-0" />
+            ) : (
+              <BellSlash size={15} weight="bold" className="text-gray-400 flex-shrink-0" />
+            )}
+            <span className="truncate">
+              {permission === "denied" ? "Notifications blocked" : "Deadline notifications"}
+            </span>
+          </div>
+          {permission === "denied" ? (
+            <span className="text-[11px] text-gray-400 shrink-0">Allow in browser</span>
+          ) : (
+            <button
+              type="button"
+              role="switch"
+              aria-checked={subscribed}
+              aria-label="Toggle deadline push notifications"
+              disabled={pushLoading}
+              onClick={() => (subscribed ? unsubscribe() : subscribe())}
+              className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
+                subscribed ? "bg-violet-500" : "bg-gray-300"
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                  subscribed ? "translate-x-[18px]" : "translate-x-0.5"
+                }`}
+              />
+            </button>
+          )}
+        </div>
+      )}
+
+      {subscribed && (
+        <button
+          type="button"
+          disabled={testPushState === "sending"}
+          onClick={async () => {
+            setTestPushState("sending");
+            try {
+              const result = await sendTestPush({});
+              setTestPushState(result.sent ? "sent" : "error");
+            } catch {
+              setTestPushState("error");
+            }
+            setTimeout(() => setTestPushState("idle"), 3000);
+          }}
+          className="w-full flex items-center gap-2.5 px-4 py-2 text-[12px] text-violet-600 hover:bg-violet-50 transition-colors text-left disabled:opacity-50"
+        >
+          <Bell size={13} className="flex-shrink-0" />
+          {testPushState === "sending"
+            ? "Sending…"
+            : testPushState === "sent"
+              ? "Sent! Check your notifications ✓"
+              : testPushState === "error"
+                ? "Failed — check console"
+                : "Send test notification"}
+        </button>
+      )}
 
       <button
         onClick={() => { onRestartTour(); onClose(); }}
