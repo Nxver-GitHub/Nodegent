@@ -32,6 +32,7 @@ import {
 } from "@/lib/canvas-sso-state";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 300; // 5 min — allows time for Playwright + Duo MFA
 
 const MAX_INPUT_LEN = 256;
 
@@ -52,11 +53,9 @@ export async function POST(request: NextRequest): Promise<Response> {
   if (!tokenResult) return new Response("Unauthorized", { status: 401 });
   const token: string = tokenResult;
 
+  // Terminate any zombie session from a prior timed-out or disconnected attempt
   if (hasActiveSession(userId)) {
-    return new Response(
-      JSON.stringify({ error: "An auth session is already in progress." }),
-      { status: 409, headers: { "Content-Type": "application/json" } }
-    );
+    terminateSession(userId);
   }
 
   let body: unknown;
