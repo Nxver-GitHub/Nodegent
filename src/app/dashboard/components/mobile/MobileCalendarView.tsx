@@ -9,15 +9,6 @@ import { DayDetail } from "../calendar/DayDetail";
 import { useHiddenCourses } from "../../hooks/useHiddenCourses";
 import { useCourseColors } from "../../hooks/useCourseColors";
 
-const MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
-
-function formatSheetHeader(day: Date): string {
-  return `${MONTH_NAMES[day.getMonth()]} ${day.getDate()}, ${day.getFullYear()}`;
-}
-
 export function MobileCalendarView() {
   const [currentMonth, setCurrentMonth] = useState(() => {
     const now = new Date();
@@ -96,26 +87,22 @@ export function MobileCalendarView() {
         }}
         aria-hidden={!sheetOpen}
       >
-        {/* Drag handle */}
-        <div className="flex justify-center pt-3 pb-1 flex-shrink-0 sticky top-0 bg-white">
+        {/* Drag handle + close */}
+        <div className="flex items-center justify-between pt-3 pb-1 px-4 flex-shrink-0 sticky top-0 bg-white">
+          <div className="flex-1" />
           <div className="w-10 h-1 rounded-full bg-gray-300" />
+          <div className="flex-1 flex justify-end">
+            <button
+              onClick={() => setSelectedDay(null)}
+              aria-label="Close day detail"
+              className="w-7 h-7 flex items-center justify-center rounded-full bg-gray-100 text-gray-500"
+            >
+              <X size={14} weight="bold" />
+            </button>
+          </div>
         </div>
 
-        {/* Sheet header */}
-        <div className="flex items-center justify-between px-4 py-2 sticky top-6 bg-white border-b border-gray-100">
-          <p className="text-sm font-bold text-gray-900">
-            {selectedDay ? formatSheetHeader(selectedDay) : ""}
-          </p>
-          <button
-            onClick={() => setSelectedDay(null)}
-            aria-label="Close day detail"
-            className="w-7 h-7 flex items-center justify-center rounded-full bg-gray-100 text-gray-500"
-          >
-            <X size={14} weight="bold" />
-          </button>
-        </div>
-
-        {/* Day detail content */}
+        {/* Day detail content — DayDetail already renders its own date header */}
         <div className="px-4 pt-3 pb-2">
           {selectedDay && (
             <DayDetail
