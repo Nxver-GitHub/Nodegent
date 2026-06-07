@@ -421,7 +421,7 @@ export function ActivityLogPanel() {
       <button
         onClick={() => setOpen(true)}
         aria-label="Open activity log"
-        className="fixed bottom-6 right-6 z-40 flex items-center gap-2 bg-gray-900 text-white px-3 py-2 rounded-full shadow-lg hover:bg-gray-700 transition-colors text-[12px] font-bold"
+        className="hidden md:flex fixed bottom-6 right-6 z-40 items-center gap-2 bg-gray-900 text-white px-3 py-2 rounded-full shadow-lg hover:bg-gray-700 transition-colors text-[12px] font-bold"
       >
         <ClockCounterClockwise size={15} weight="bold" />
         Log

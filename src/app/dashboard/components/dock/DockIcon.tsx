@@ -30,7 +30,7 @@ import {
 } from "@phosphor-icons/react";
 import type { PhosphorIconOption } from "./dockConfig";
 
-const ICON_MAP: Record<PhosphorIconOption | string, Icon> = {
+export const ICON_MAP: Record<PhosphorIconOption | string, Icon> = {
   House,
   ChatCircle,
   CalendarCheck,

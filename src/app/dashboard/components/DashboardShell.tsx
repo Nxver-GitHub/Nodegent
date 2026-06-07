@@ -34,6 +34,7 @@ import {
   type Icon,
 } from "@phosphor-icons/react";
 import { api } from "@convex/_generated/api";
+import { useIsMobile } from "@/hooks/useIsMobile";
 import { useTheme } from "@/hooks/useTheme";
 import { useFullscreen } from "@/hooks/useFullscreen";
 import { useAutoSyncPreference } from "@/hooks/useAutoSyncPreference";
@@ -51,6 +52,8 @@ import { CoursesPanel } from "./courses/CoursesPanel";
 import dynamic from "next/dynamic";
 import { AppDock } from "./dock/AppDock";
 import { DEFAULT_APPS, type DockApp, type DockAppId } from "./dock/dockConfig";
+import { ConnectCanvasBanner } from "./ConnectCanvasBanner";
+import { MobileShell } from "./mobile/MobileShell";
 
 const IframeWindow = dynamic(
   () => import("./dock/IframeWindow").then((m) => m.IframeWindow),
@@ -72,8 +75,6 @@ const TRAY_ICON_MAP: Record<string, Icon> = {
   IdentificationCard,
   Trophy,
 };
-
-const CONNECT_CANVAS_DISMISSED_KEY = "nodegent-connect-canvas-banner-dismissed";
 
 const UNIVERSITIES = [
   { value: "ucsc",       label: "UC Santa Cruz"  },
@@ -183,61 +184,6 @@ function FullscreenButton({
         <ArrowsOut size={18} weight="bold" />
       )}
     </button>
-  );
-}
-
-// ─── ConnectCanvasBanner ──────────────────────────────────────────────────────
-
-function ConnectCanvasBanner({ onConnect }: { onConnect: (mode: "connect" | "reconnect") => void }) {
-  const status = useQuery(api.canvas.getCanvasStatus);
-  const user = useQuery(api.users.getCurrentUser);
-  const [dismissed, setDismissed] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    return sessionStorage.getItem(CONNECT_CANVAS_DISMISSED_KEY) === "1";
-  });
-
-  function handleDismiss() {
-    sessionStorage.setItem(CONNECT_CANVAS_DISMISSED_KEY, "1");
-    setDismissed(true);
-  }
-
-  if (dismissed) return null;
-  if (status === undefined || user === undefined) return null;
-  if (user?.canvasEnabled === false) return null;
-
-  const isNotConnected = status === null;
-  const needsReconnect = status !== null && status.needsReconnect === true;
-  if (!isNotConnected && !needsReconnect) return null;
-
-  const title = isNotConnected ? "Connect Canvas" : "Canvas session expired";
-  const subtitle = isNotConnected
-    ? "Sign in once with your CruzID to pull in your courses and assignments."
-    : "Sign back in with your CruzID to keep your courses and assignments in sync.";
-  const buttonLabel = isNotConnected ? "Connect" : "Reconnect";
-  const mode: "connect" | "reconnect" = isNotConnected ? "connect" : "reconnect";
-
-  return (
-    <div className="mb-4 flex items-center justify-between gap-3 rounded-md border border-amber-300 bg-amber-50 px-4 py-3">
-      <div className="min-w-0">
-        <p className="text-sm font-semibold text-amber-900">{title}</p>
-        <p className="text-xs text-amber-800 mt-0.5">{subtitle}</p>
-      </div>
-      <div className="flex items-center gap-2 flex-shrink-0">
-        <button
-          onClick={() => onConnect(mode)}
-          className="rounded-sm bg-[#CD8407] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#A86A05] transition-colors"
-        >
-          {buttonLabel}
-        </button>
-        <button
-          onClick={handleDismiss}
-          aria-label="Dismiss banner"
-          className="rounded p-1 text-amber-700 hover:bg-amber-100 transition-colors"
-        >
-          <X size={14} weight="bold" />
-        </button>
-      </div>
-    </div>
   );
 }
 
@@ -890,6 +836,33 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
   const isDashboard = !securityOpen && !campusSyncOpen && !coursesOpen;
   // All apps that are open or minimized — used for dock active indicators
   const allOpenApps = [...new Set([...openWindows, ...minimizedWindows])];
+
+  // ── Mobile gate — all hooks above still run; only the render differs ────────
+  const isMobile = useIsMobile();
+
+  if (isMobile && pathname === "/chat") {
+    return (
+      <div className="flex flex-col min-h-screen bg-white">
+        <header className="fixed top-0 left-0 right-0 h-14 bg-white border-b border-gray-200 z-50 flex items-center px-4 gap-3">
+          <button
+            onClick={() => router.push("/dashboard")}
+            aria-label="Back to dashboard"
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-600 hover:bg-gray-100 transition-colors"
+          >
+            <ArrowLeft size={20} weight="bold" />
+          </button>
+          <span className="font-semibold text-gray-900 text-sm">AI Chat</span>
+        </header>
+        <main className="flex-1 pt-14 overflow-y-auto">{children}</main>
+      </div>
+    );
+  }
+
+  if (isMobile) {
+    return (
+      <MobileShell onRestartTour={onRestartTour}>{children}</MobileShell>
+    );
+  }
 
   return (
     <div
