@@ -7,7 +7,7 @@ import { UserButton } from "@clerk/nextjs";
 import { Graph, Gear, X } from "@phosphor-icons/react";
 import { useWallpaper, getWallpaperStyle } from "@/hooks/useWallpaper";
 import { ConnectCanvasBanner } from "../ConnectCanvasBanner";
-import { CalendarPanel } from "../calendar/CalendarPanel";
+import { MobileCalendarView } from "./MobileCalendarView";
 import { CampusSyncPanel } from "../campus-sync/CampusSyncPanel";
 import { SecurityPanel } from "../security/SecurityPanel";
 import { CoursesPanel } from "../courses/CoursesPanel";
@@ -91,7 +91,7 @@ export function MobileShell({ children, onRestartTour }: MobileShellProps) {
             {children}
           </div>
         )}
-        {activeTab === "calendar" && <CalendarPanel />}
+        {activeTab === "calendar" && <MobileCalendarView />}
         {activeTab === "sync" && (
           <div className="p-4">
             <CampusSyncPanel onClose={() => setActiveTab("dashboard")} />
