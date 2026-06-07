@@ -21,6 +21,10 @@ const caveat = Caveat({
 export const metadata: Metadata = {
   title: "Nodegent",
   description: "Your campus-aware AI assistant",
+  icons: {
+    icon: "/icon.svg",
+    apple: "/apple-icon.png",
+  },
   ...(process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION && {
     verification: {
       google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION,
