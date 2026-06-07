@@ -154,6 +154,17 @@
 .drift { animation: drift 5.5s ease-in-out infinite; }
 
 /* =========================================================================
+   MACBOOK FRAME — scale down on mobile so proportions match desktop.
+   zoom (not transform) is used because it affects layout space too,
+   keeping the surrounding hero layout correct at every breakpoint.
+   ========================================================================= */
+@media (max-width: 639px) {
+  .macbook-frame-outer {
+    zoom: 0.55;
+  }
+}
+
+/* =========================================================================
    MACBOOK FRAME — wraps the dashboard mockup as a stylized laptop:
    silver lid + black bezel with camera notch + curved keyboard deck.
    ========================================================================= */

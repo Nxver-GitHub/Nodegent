@@ -83,7 +83,8 @@ export function LandingHero() {
         {/* Right column — MacBook + sticky notes below */}
         <div className="relative z-10 flex w-full flex-col items-center justify-center gap-6 lg:items-end">
           <div className="relative w-full max-w-xl">
-            <div className="float-slow">
+            {/* text-center centers the inline-block MacBook on mobile after zoom shrinks it */}
+            <div className="float-slow text-center sm:text-left">
               <MacBookFrame>
                 <DashboardMockup />
               </MacBookFrame>

@@ -8,7 +8,7 @@ import type { ReactNode } from "react";
  */
 export function MacBookFrame({ children }: { children: ReactNode }) {
   return (
-    <div className="relative inline-block w-full max-w-[640px]">
+    <div className="macbook-frame-outer relative inline-block w-[576px]">
       <div className="macbook-lid">
         <div className="macbook-bezel">
           <div className="macbook-screen">{children}</div>
