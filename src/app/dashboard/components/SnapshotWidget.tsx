@@ -209,7 +209,7 @@ export function SnapshotWidget() {
               )}
 
               <GreetingHeader
-                name={currentUser?.name ?? clerkUser?.firstName ?? clerkUser?.fullName ?? "Student"}
+                name={clerkUser?.firstName ?? clerkUser?.fullName ?? currentUser?.name ?? "Student"}
                 streak={currentUser?.currentStreak ?? 0}
                 longestStreak={currentUser?.longestStreak ?? 0}
               />

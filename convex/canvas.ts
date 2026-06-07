@@ -427,6 +427,26 @@ export const syncCanvas = action({
     const cookieHeader = cookiesToHeader(cookies);
 
     try {
+      // Fetch the student's own Canvas profile to get their real name, then
+      // patch the user record if it still holds the "Student" placeholder.
+      try {
+        const profileRes = await fetch(`${baseUrl}/api/v1/users/self/profile`, {
+          headers: { Cookie: cookieHeader, Accept: "application/json" },
+        });
+        if (profileRes.ok) {
+          const profile = await profileRes.json() as { name?: string; short_name?: string };
+          const canvasName = profile.short_name ?? profile.name;
+          if (canvasName && (!user.name || user.name === "Student")) {
+            await ctx.runMutation(internal.users.patchName, {
+              userId: user._id,
+              name: canvasName,
+            });
+          }
+        }
+      } catch {
+        // Non-fatal: profile fetch failure shouldn't block the rest of sync
+      }
+
       const courses = await fetchAllPagesWithCookies<CanvasCourse>(
         `${baseUrl}/api/v1/courses?enrollment_state=active&include[]=term&include[]=teachers&per_page=50`,
         cookieHeader

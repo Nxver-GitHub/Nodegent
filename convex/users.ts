@@ -1,4 +1,4 @@
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import {
   DEFAULT_TIMEZONE,
@@ -139,6 +139,13 @@ export const updateAccessToggles = mutation({
         timestamp: Date.now(),
       });
     }
+  },
+});
+
+export const patchName = internalMutation({
+  args: { userId: v.id("users"), name: v.string() },
+  handler: async (ctx, { userId, name }) => {
+    await ctx.db.patch(userId, { name });
   },
 });
 
