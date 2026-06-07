@@ -40,6 +40,7 @@ import { useAutoSyncPreference } from "@/hooks/useAutoSyncPreference";
 import { useWallpaper, getWallpaperStyle } from "@/hooks/useWallpaper";
 import { WallpaperPicker } from "./WallpaperPicker";
 import { usePushNotifications } from "../hooks/usePushNotifications";
+import { SnapshotWidget } from "./SnapshotWidget";
 import { ActivityLogPanel } from "./ActivityLogPanel";
 import { NotificationBell } from "./NotificationBell";
 import { CalendarPanel } from "./calendar/CalendarPanel";
@@ -895,6 +896,7 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
       className="desktop-bg min-h-screen overflow-hidden"
       style={wallpaper !== "default" ? getWallpaperStyle(wallpaper) : undefined}
     >
+      <SnapshotWidget />
       <ActivityLogPanel />
 
       {/* Top Navigation — hidden when any window is maximized */}
