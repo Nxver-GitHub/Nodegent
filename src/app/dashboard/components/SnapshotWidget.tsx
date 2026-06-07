@@ -21,7 +21,7 @@ export function SnapshotWidget() {
   const [open, setOpen] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [focusedAssignment, setFocusedAssignment] = useState<SnapshotAssignment | null>(null);
-  const { hiddenCourseIds, loaded: hiddenLoaded } = useHiddenCourses();
+  const { hiddenCourseIds, hiddenCourseIdSet, loaded: hiddenLoaded } = useHiddenCourses();
 
   // Weekly digest state
   const [digest, setDigest] = useState<string | null>(null);
@@ -94,6 +94,17 @@ export function SnapshotWidget() {
   const courseMap = new Map(
     (courseSummaries ?? []).map((c) => [c._id, { courseCode: c.courseCode }])
   );
+
+  const visibleCourseSummaries = (courseSummaries ?? []).filter(
+    (c) => !hiddenCourseIdSet.has(c._id)
+  );
+
+  const filteredSnapshot = {
+    overdue: (snapshot?.overdue ?? []).filter((a) => !hiddenCourseIdSet.has(a.courseId)),
+    dueToday: (snapshot?.dueToday ?? []).filter((a) => !hiddenCourseIdSet.has(a.courseId)),
+    dueThisWeek: (snapshot?.dueThisWeek ?? []).filter((a) => !hiddenCourseIdSet.has(a.courseId)),
+    noDueDate: (snapshot?.noDueDate ?? []).filter((a) => !hiddenCourseIdSet.has(a.courseId)),
+  };
 
   async function handleSync() {
     setIsSyncing(true);
@@ -204,20 +215,18 @@ export function SnapshotWidget() {
               <TodaySchedule events={todayEvents ?? []} />
 
               <AssignmentBuckets
-                snapshot={
-                  snapshot ?? { overdue: [], dueToday: [], dueThisWeek: [], noDueDate: [] }
-                }
+                snapshot={isLoading ? { overdue: [], dueToday: [], dueThisWeek: [], noDueDate: [] } : filteredSnapshot}
                 courseMap={courseMap}
                 onFocus={(a) => setFocusedAssignment(a)}
               />
 
-              {(courseSummaries ?? []).length > 0 && (
+              {visibleCourseSummaries.length > 0 && (
                 <div>
                   <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">
                     Courses
                   </h3>
                   <div className="flex flex-col gap-0.5">
-                    {(courseSummaries ?? []).map((course) => (
+                    {visibleCourseSummaries.map((course) => (
                       <CourseSummaryRow
                         key={course._id}
                         course={course}
