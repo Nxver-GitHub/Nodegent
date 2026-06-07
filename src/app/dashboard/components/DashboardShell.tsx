@@ -887,7 +887,7 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [openCampusSync, router, settingsOpen]);
 
-  const isDashboard = !securityOpen && !campusSyncOpen && !coursesOpen && !connectorsOpen;
+  const isDashboard = !securityOpen && !campusSyncOpen && !coursesOpen;
   // All apps that are open or minimized — used for dock active indicators
   const allOpenApps = [...new Set([...openWindows, ...minimizedWindows])];
 
@@ -948,16 +948,6 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
                 ].join(" ")}
               >
                 Security
-              </button>
-              <button
-                type="button"
-                onClick={openConnectors}
-                className={[
-                  "hover:text-black hover:underline underline-offset-4 decoration-gray-400",
-                  connectorsOpen ? "text-black underline" : "",
-                ].join(" ")}
-              >
-                Connectors
               </button>
             </div>
           </div>
@@ -1020,8 +1010,6 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
                   <SecurityPanel onClose={() => setSecurityOpen(false)} />
                 ) : campusSyncOpen ? (
                   <CampusSyncPanel onClose={() => setCampusSyncOpen(false)} />
-                ) : connectorsOpen ? (
-                  <ConnectorsPanel onClose={() => setConnectorsOpen(false)} />
                 ) : coursesOpen ? (
                   <CoursesPanel onClose={() => setCoursesOpen(false)} />
                 ) : (

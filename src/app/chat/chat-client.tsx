@@ -5,7 +5,8 @@ import { useUser } from "@clerk/nextjs";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
-import { CaretDown, Trash } from "@phosphor-icons/react";
+import { CaretDown, Trash, Gear } from "@phosphor-icons/react";
+import { ConnectorsPanel } from "@/app/dashboard/components/connectors/ConnectorsPanel";
 import ReactMarkdown from "react-markdown";
 
 type ContextRef = { type: "course" | "assignment" | "event"; id: string; label: string };
@@ -219,6 +220,7 @@ export function ChatClient() {
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [connectorsOpen, setConnectorsOpen] = useState(false);
 
   const didInit = useRef(false);
 
@@ -265,20 +267,42 @@ export function ChatClient() {
   }
 
   return (
-    <div className="flex h-[520px] flex-col rounded-lg border bg-white">
-      <div className="border-b px-4 py-3 flex items-start justify-between">
-        <div>
-          <h2 className="text-sm font-semibold text-gray-900">Campus-Aware AI Chat</h2>
-          <p className="mt-0.5 text-xs text-gray-500">
-            Ask about what's due, your schedule, or course workload. (Read-only)
-          </p>
-        </div>
-        {threadId && ordered.length > 0 && (
-          <div className="flex-shrink-0 ml-4 mt-0.5">
-            <ClearConversationButton threadId={threadId} />
+    <>
+      {connectorsOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setConnectorsOpen(false)}
+        >
+          <div
+            className="w-full max-w-lg rounded-xl bg-white shadow-2xl p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <ConnectorsPanel onClose={() => setConnectorsOpen(false)} />
           </div>
-        )}
-      </div>
+        </div>
+      )}
+      <div className="flex h-[520px] flex-col rounded-lg border bg-white">
+        <div className="border-b px-4 py-3 flex items-start justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-900">Campus-Aware AI Chat</h2>
+            <p className="mt-0.5 text-xs text-gray-500">
+              Ask about what&apos;s due, your schedule, or course workload. (Read-only)
+            </p>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0 ml-4 mt-0.5">
+            {threadId && ordered.length > 0 && (
+              <ClearConversationButton threadId={threadId} />
+            )}
+            <button
+              onClick={() => setConnectorsOpen(true)}
+              className="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors"
+              aria-label="AI Connector settings"
+              title="AI Connectors"
+            >
+              <Gear size={15} weight="bold" />
+            </button>
+          </div>
+        </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {error && (
@@ -332,9 +356,10 @@ export function ChatClient() {
           </button>
         </div>
         <p className="mt-2 text-[11px] text-gray-500">
-          Nodegent's AI is powered by llama-4-scout-17b-16e-instruct from Groq.
+          Nodegent&apos;s AI is powered by llama-4-scout-17b-16e-instruct from Groq.
         </p>
       </div>
     </div>
+    </>
   );
 }
