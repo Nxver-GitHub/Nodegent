@@ -1,4 +1,4 @@
-import { mutation, query } from "./_generated/server";
+import { internalMutation, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
 import { recomputeCourseSummary } from "./courses";
@@ -104,6 +104,7 @@ export const upsertAssignment = mutation({
     submissionStatus: v.optional(v.string()),
     score: v.optional(v.number()),
     letterGrade: v.optional(v.string()),
+    hasDescription: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -149,7 +150,8 @@ export const upsertAssignment = mutation({
         (args.submissionStatus === undefined ||
           existing.submissionStatus === args.submissionStatus) &&
         (args.score === undefined || existing.score === args.score) &&
-        (args.letterGrade === undefined || existing.letterGrade === args.letterGrade);
+        (args.letterGrade === undefined || existing.letterGrade === args.letterGrade) &&
+        (args.hasDescription === undefined || existing.hasDescription === args.hasDescription);
 
       if (unchanged) {
         // This assignment is identical, so it can't have changed the course
@@ -167,6 +169,7 @@ export const upsertAssignment = mutation({
         ...(args.submissionStatus !== undefined ? { submissionStatus: args.submissionStatus } : {}),
         ...(args.score !== undefined ? { score: args.score } : {}),
         ...(args.letterGrade !== undefined ? { letterGrade: args.letterGrade } : {}),
+        ...(args.hasDescription !== undefined ? { hasDescription: args.hasDescription } : {}),
       });
       if (!args.skipRecompute) {
         await recomputeCourseSummary(ctx, args.courseId);
@@ -189,6 +192,7 @@ export const upsertAssignment = mutation({
       ...(args.submissionStatus !== undefined ? { submissionStatus: args.submissionStatus } : {}),
       ...(args.score !== undefined ? { score: args.score } : {}),
       ...(args.letterGrade !== undefined ? { letterGrade: args.letterGrade } : {}),
+      ...(args.hasDescription !== undefined ? { hasDescription: args.hasDescription } : {}),
     });
     if (!args.skipRecompute) {
       await recomputeCourseSummary(ctx, args.courseId);
@@ -360,5 +364,63 @@ export const markComplete = mutation({
         });
       }
     }
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Assignment descriptions — stored in a separate table so list queries on
+// `assignments` never carry the HTML payload. Fetched lazily on card expand.
+// ---------------------------------------------------------------------------
+
+export const internalUpsertAssignmentDescription = internalMutation({
+  args: {
+    userId: v.id("users"),
+    assignmentId: v.id("assignments"),
+    description: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("assignmentDescriptions")
+      .withIndex("by_assignmentId", (q) => q.eq("assignmentId", args.assignmentId))
+      .unique();
+
+    if (existing) {
+      if (existing.description === args.description) return;
+      await ctx.db.patch(existing._id, {
+        description: args.description,
+        lastSyncedAt: Date.now(),
+      });
+    } else {
+      await ctx.db.insert("assignmentDescriptions", {
+        userId: args.userId,
+        assignmentId: args.assignmentId,
+        description: args.description,
+        lastSyncedAt: Date.now(),
+      });
+    }
+  },
+});
+
+export const getAssignmentDescription = query({
+  args: { assignmentId: v.id("assignments") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .unique();
+    if (!user) return null;
+
+    const assignment = await ctx.db.get(args.assignmentId);
+    if (!assignment || assignment.userId !== user._id) return null;
+
+    const row = await ctx.db
+      .query("assignmentDescriptions")
+      .withIndex("by_assignmentId", (q) => q.eq("assignmentId", args.assignmentId))
+      .unique();
+
+    return row?.description ?? null;
   },
 });

@@ -114,6 +114,7 @@ export default defineSchema({
     submissionStatus: v.optional(v.string()),
     score: v.optional(v.number()),
     letterGrade: v.optional(v.string()),
+    hasDescription: v.optional(v.boolean()),
   })
     .index("by_userId", ["userId"])
     .index("by_courseId", ["courseId"])
@@ -122,6 +123,18 @@ export default defineSchema({
     .index("by_userId_courseId", ["userId", "courseId"])
     .index("by_userId_isNew", ["userId", "isNew"])
     .index("by_userId_isCompleted", ["userId", "isCompleted"]),
+
+  // Lazy-fetched assignment descriptions — stored separately so list queries
+  // on `assignments` never carry the (potentially large) HTML payload.
+  // One row per (userId, assignmentId); fetched only when the user expands a card.
+  assignmentDescriptions: defineTable({
+    userId: v.id("users"),
+    assignmentId: v.id("assignments"),
+    description: v.string(),
+    lastSyncedAt: v.number(),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_assignmentId", ["assignmentId"]),
 
   events: defineTable({
     userId: v.id("users"),

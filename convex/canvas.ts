@@ -339,7 +339,16 @@ export const revokeCanvasAccess = mutation({
       .unique();
     if (!user) throw new Error("User not found");
 
-    // Delete assignments first (they reference courses via courseId)
+    // Delete assignment descriptions before assignments (foreign key dependency)
+    const assignmentDescriptions = await ctx.db
+      .query("assignmentDescriptions")
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
+      .collect();
+    // Capped at 500; for large datasets this should be converted to a paginated internalAction
+    const toDeleteDescriptions = assignmentDescriptions.slice(0, 500);
+    await Promise.all(toDeleteDescriptions.map((d) => ctx.db.delete(d._id)));
+
+    // Delete assignments (they reference courses via courseId)
     const assignments = await ctx.db
       .query("assignments")
       .withIndex("by_userId", (q) => q.eq("userId", user._id))
@@ -517,7 +526,13 @@ export const syncCanvas = action({
 
         for (const assignment of assignments) {
           const sub = submissionMap.get(assignment.id);
-          await ctx.runMutation(api.assignments.upsertAssignment, {
+          const strippedDescription = (assignment.description ?? "")
+            .replace(/<[^>]+>/g, " ")
+            .replace(/\s+/g, " ")
+            .trim();
+          const hasDescription = strippedDescription.length > 0;
+
+          const assignmentId = await ctx.runMutation(api.assignments.upsertAssignment, {
             courseId,
             canvasId: String(assignment.id),
             title: assignment.name,
@@ -529,7 +544,16 @@ export const syncCanvas = action({
             submissionStatus: sub?.workflow_state ?? undefined,
             score: sub?.score ?? undefined,
             letterGrade: sub?.grade ?? undefined,
+            hasDescription,
           });
+
+          if (hasDescription && assignment.description) {
+            await ctx.runMutation(internal.assignments.internalUpsertAssignmentDescription, {
+              userId: user._id,
+              assignmentId,
+              description: assignment.description,
+            });
+          }
           assignmentsSynced++;
         }
 

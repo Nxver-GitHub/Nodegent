@@ -1,7 +1,11 @@
 "use client";
 
-import { BookBookmark, Warning, CheckCircle, PencilSimple, ClipboardText } from "@phosphor-icons/react";
+import { useState } from "react";
+import { useQuery } from "convex/react";
+import { api } from "@convex/_generated/api";
+import { BookBookmark, Warning, CheckCircle, PencilSimple, ClipboardText, CaretRight, CaretDown } from "@phosphor-icons/react";
 import { Id } from "@convex/_generated/dataModel";
+import DOMPurify from "dompurify";
 
 export type Urgency = "overdue" | "today" | "soon" | "upcoming";
 
@@ -86,6 +90,7 @@ interface AssignmentCardProps {
     submissionStatus?: string;
     score?: number;
     letterGrade?: string;
+    hasDescription?: boolean;
   };
   courseName?: string;
   onToggleComplete: (id: Id<"assignments">, done: boolean) => void;
@@ -98,73 +103,116 @@ export function AssignmentCard({ assignment, courseName, onToggleComplete }: Ass
   const status = assignment.submissionStatus as SubmissionStatus | undefined;
   const submissionBadge = status && status !== "unsubmitted" ? SUBMISSION_BADGE[status] ?? null : null;
 
+  const [expanded, setExpanded] = useState(false);
+  const descriptionHtml = useQuery(
+    api.assignments.getAssignmentDescription,
+    expanded && assignment.hasDescription ? { assignmentId: assignment._id } : "skip"
+  );
+
+  const descriptionId = `desc-${assignment._id}`;
+
   return (
     <div
-      className={`border rounded-sm p-3 flex items-center gap-3 ${config.cardBg} hover:opacity-90 transition-opacity`}
+      className={`border rounded-sm p-3 flex flex-col gap-0 ${config.cardBg} hover:opacity-90 transition-opacity`}
     >
-      {/* Type icon — exam/quiz always; regular falls back to urgency icon */}
-      <div className={`flex-shrink-0 ${config.iconColor}`}>
-        {(() => {
-          const type = getAssignmentType(assignment.title, assignment.submissionType);
-          if (type === "exam") return <ClipboardText size={20} weight="fill" />;
-          if (type === "quiz") return <PencilSimple size={20} weight="fill" />;
-          return urgency === "overdue" || urgency === "today" ? (
-            <Warning size={20} weight="bold" />
+      <div className="flex items-center gap-3">
+        {/* Type icon — exam/quiz always; regular falls back to urgency icon */}
+        <div className={`flex-shrink-0 ${config.iconColor}`}>
+          {(() => {
+            const type = getAssignmentType(assignment.title, assignment.submissionType);
+            if (type === "exam") return <ClipboardText size={20} weight="fill" />;
+            if (type === "quiz") return <PencilSimple size={20} weight="fill" />;
+            return urgency === "overdue" || urgency === "today" ? (
+              <Warning size={20} weight="bold" />
+            ) : (
+              <BookBookmark size={20} weight="fill" />
+            );
+          })()}
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Chevron — only when a description exists */}
+            {assignment.hasDescription && (
+              <button
+                onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }}
+                aria-expanded={expanded}
+                aria-controls={descriptionId}
+                aria-label={expanded ? "Hide description" : "Show description"}
+                className="flex-shrink-0 text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                {expanded
+                  ? <CaretDown size={11} weight="bold" />
+                  : <CaretRight size={11} weight="bold" />
+                }
+              </button>
+            )}
+            <span className="text-[13px] font-bold text-[#4D4F46] truncate">{assignment.title}</span>
+            {urgency !== "upcoming" && (
+              <span
+                className={`text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-sm ${config.badgeBg} ${config.badgeText}`}
+              >
+                {config.badgeLabel}
+              </span>
+            )}
+            {submissionBadge && (
+              <span
+                className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-sm ${submissionBadge.bg} ${submissionBadge.text}`}
+              >
+                {submissionBadge.label}
+              </span>
+            )}
+          </div>
+          {assignment.score !== undefined && (
+            <p className="text-[11px] text-gray-400 mt-0.5">
+              {assignment.score} / {assignment.pointsPossible ?? "?"}
+              {assignment.letterGrade ? ` · ${assignment.letterGrade}` : ""}
+            </p>
+          )}
+          <div className="flex items-center gap-3 mt-0.5">
+            {courseName && (
+              <span className="text-[11px] text-gray-500 font-medium">{courseName}</span>
+            )}
+            <span className="text-[11px] font-mono text-gray-400">{dueDateLabel}</span>
+            {assignment.score === undefined && assignment.pointsPossible !== undefined && (
+              <span className="text-[11px] text-gray-400">{assignment.pointsPossible} pts</span>
+            )}
+          </div>
+        </div>
+
+        {/* Complete toggle */}
+        <button
+          onClick={() => onToggleComplete(assignment._id, !assignment.isCompleted)}
+          className="flex-shrink-0 w-7 h-7 flex items-center justify-center border border-gray-300 rounded-sm bg-white hover:bg-gray-50 hover:border-gray-500 transition-colors"
+          title={assignment.isCompleted ? "Mark incomplete" : "Mark complete"}
+          aria-label={assignment.isCompleted ? "Mark incomplete" : "Mark complete"}
+        >
+          {assignment.isCompleted ? (
+            <CheckCircle size={16} weight="fill" className="text-[#CD8407]" />
           ) : (
-            <BookBookmark size={20} weight="fill" />
-          );
-        })()}
+            <span className="w-3 h-3 border border-gray-400 rounded-sm inline-block" />
+          )}
+        </button>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[13px] font-bold text-[#4D4F46] truncate">{assignment.title}</span>
-          {urgency !== "upcoming" && (
-            <span
-              className={`text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-sm ${config.badgeBg} ${config.badgeText}`}
-            >
-              {config.badgeLabel}
-            </span>
-          )}
-          {submissionBadge && (
-            <span
-              className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-sm ${submissionBadge.bg} ${submissionBadge.text}`}
-            >
-              {submissionBadge.label}
-            </span>
-          )}
+      {/* Description panel — only rendered when expanded and hasDescription */}
+      {expanded && assignment.hasDescription && (
+        <div id={descriptionId} className="mt-2">
+          {descriptionHtml === undefined ? (
+            /* Loading skeleton */
+            <div className="bg-white rounded border border-gray-100 p-2 space-y-1.5">
+              <div className="h-2.5 bg-gray-200 rounded animate-pulse" />
+              <div className="h-2.5 bg-gray-200 rounded animate-pulse w-3/4" />
+            </div>
+          ) : descriptionHtml ? (
+            <div
+              className="bg-white rounded border border-gray-100 p-2 text-[12px] text-gray-700 leading-relaxed prose prose-sm max-w-none [&_a]:text-blue-600 [&_a]:underline [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4"
+              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(descriptionHtml) }}
+            />
+          ) : null}
         </div>
-        {assignment.score !== undefined && (
-          <p className="text-[11px] text-gray-400 mt-0.5">
-            {assignment.score} / {assignment.pointsPossible ?? "?"}
-            {assignment.letterGrade ? ` · ${assignment.letterGrade}` : ""}
-          </p>
-        )}
-        <div className="flex items-center gap-3 mt-0.5">
-          {courseName && (
-            <span className="text-[11px] text-gray-500 font-medium">{courseName}</span>
-          )}
-          <span className="text-[11px] font-mono text-gray-400">{dueDateLabel}</span>
-          {assignment.score === undefined && assignment.pointsPossible !== undefined && (
-            <span className="text-[11px] text-gray-400">{assignment.pointsPossible} pts</span>
-          )}
-        </div>
-      </div>
-
-      {/* Complete toggle */}
-      <button
-        onClick={() => onToggleComplete(assignment._id, !assignment.isCompleted)}
-        className="flex-shrink-0 w-7 h-7 flex items-center justify-center border border-gray-300 rounded-sm bg-white hover:bg-gray-50 hover:border-gray-500 transition-colors"
-        title={assignment.isCompleted ? "Mark incomplete" : "Mark complete"}
-        aria-label={assignment.isCompleted ? "Mark incomplete" : "Mark complete"}
-      >
-        {assignment.isCompleted ? (
-          <CheckCircle size={16} weight="fill" className="text-[#CD8407]" />
-        ) : (
-          <span className="w-3 h-3 border border-gray-400 rounded-sm inline-block" />
-        )}
-      </button>
+      )}
     </div>
   );
 }

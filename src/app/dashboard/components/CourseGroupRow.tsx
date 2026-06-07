@@ -16,6 +16,7 @@ interface Assignment {
   submissionStatus?: string;
   score?: number;
   letterGrade?: string;
+  hasDescription?: boolean;
 }
 
 interface CourseGroupRowProps {
