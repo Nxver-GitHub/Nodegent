@@ -102,6 +102,9 @@ export const getCurrentUser = query({
 
     return {
       ...user,
+      // Prefer the live Clerk identity name so users who got the "Student"
+      // fallback on first insert see their real name without a DB migration.
+      name: identity.name ?? user.name,
       currentStreak: resolvedStreak,
     };
   },
