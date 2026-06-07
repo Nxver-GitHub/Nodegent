@@ -967,6 +967,21 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
         <main className="flex-1 min-h-screen" />
       </div>
 
+      {/* Desktop footer — privacy/terms/github, behind all windows */}
+      <div className="fixed bottom-0 left-0 right-0 h-6 z-30 flex items-center justify-center gap-3 pointer-events-none">
+        <Link href="/privacy" className="pointer-events-auto text-[10px] text-[#4D4F46]/50 hover:text-[#4D4F46] transition-colors">
+          Privacy
+        </Link>
+        <span className="text-[10px] text-[#4D4F46]/30">·</span>
+        <Link href="/tos" className="pointer-events-auto text-[10px] text-[#4D4F46]/50 hover:text-[#4D4F46] transition-colors">
+          Terms
+        </Link>
+        <span className="text-[10px] text-[#4D4F46]/30">·</span>
+        <a href="https://github.com/Nxver-GitHub/Nodegent" target="_blank" rel="noreferrer" className="pointer-events-auto text-[10px] text-[#4D4F46]/50 hover:text-[#4D4F46] transition-colors">
+          GitHub
+        </a>
+      </div>
+
       {/* All open windows rendered in z-order; last in array = topmost */}
       {openWindows.map((id, index) => {
         const app = DEFAULT_APPS.find((a) => a.id === id);
