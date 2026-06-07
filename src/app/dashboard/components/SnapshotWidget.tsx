@@ -16,8 +16,10 @@ import {
   DIGEST_DISMISS_KEY_PREFIX,
 } from "./snapshot/WeeklyDigestBanner";
 import { useHiddenCourses } from "../hooks/useHiddenCourses";
+import { useUser } from "@clerk/nextjs";
 
 export function SnapshotWidget() {
+  const { user: clerkUser } = useUser();
   const [open, setOpen] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [focusedAssignment, setFocusedAssignment] = useState<SnapshotAssignment | null>(null);
@@ -207,7 +209,7 @@ export function SnapshotWidget() {
               )}
 
               <GreetingHeader
-                name={currentUser?.name ?? "Student"}
+                name={currentUser?.name ?? clerkUser?.firstName ?? clerkUser?.fullName ?? "Student"}
                 streak={currentUser?.currentStreak ?? 0}
                 longestStreak={currentUser?.longestStreak ?? 0}
               />
