@@ -27,7 +27,7 @@ export function LandingFooter() {
             Terms
           </Link>
           <Link
-            href="https://github.com/"
+            href="https://github.com/Nxver-GitHub/Nodegent"
             target="_blank"
             rel="noreferrer"
             className="inline-flex items-center gap-1.5 py-2 font-semibold text-white/60 hover:text-white"
