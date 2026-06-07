@@ -39,10 +39,7 @@ import { useFullscreen } from "@/hooks/useFullscreen";
 import { useAutoSyncPreference } from "@/hooks/useAutoSyncPreference";
 import { useWallpaper, getWallpaperStyle } from "@/hooks/useWallpaper";
 import { WallpaperPicker } from "./WallpaperPicker";
-import { useWidgetLayout, type WidgetId, type WidgetConfig } from "@/hooks/useWidgetLayout";
 import { usePushNotifications } from "../hooks/usePushNotifications";
-import { WidgetLayoutSettings } from "./WidgetLayoutSettings";
-import { SnapshotWidget } from "./SnapshotWidget";
 import { ActivityLogPanel } from "./ActivityLogPanel";
 import { NotificationBell } from "./NotificationBell";
 import { CalendarPanel } from "./calendar/CalendarPanel";
@@ -319,10 +316,6 @@ interface WindowToolbarProps {
   onRestartTour: () => void;
   wallpaper: string;
   onWallpaperChange: (id: string) => void;
-  widgetLayout: WidgetConfig[];
-  onSetWidgetVisible: (id: WidgetId, visible: boolean) => void;
-  onMoveWidgetUp: (id: WidgetId) => void;
-  onMoveWidgetDown: (id: WidgetId) => void;
   theme: "dark" | "light";
   toggleTheme: () => void;
 }
@@ -334,10 +327,6 @@ interface SettingsPopoverProps {
   onShortcutsOpenChange: (open: boolean) => void;
   wallpaper: string;
   onWallpaperChange: (id: string) => void;
-  widgetLayout: WidgetConfig[];
-  onSetWidgetVisible: (id: WidgetId, visible: boolean) => void;
-  onMoveWidgetUp: (id: WidgetId) => void;
-  onMoveWidgetDown: (id: WidgetId) => void;
   theme: "dark" | "light";
   toggleTheme: () => void;
 }
@@ -349,10 +338,6 @@ function SettingsPopover({
   onShortcutsOpenChange,
   wallpaper,
   onWallpaperChange,
-  widgetLayout,
-  onSetWidgetVisible,
-  onMoveWidgetUp,
-  onMoveWidgetDown,
   theme,
   toggleTheme,
 }: SettingsPopoverProps) {
@@ -552,24 +537,11 @@ function SettingsPopover({
         </div>
       </details>
 
-      <div className="mx-4 my-1 border-t border-gray-100" />
-
-      <div className="px-4 py-2.5">
-        <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2">
-          Widgets
-        </p>
-        <WidgetLayoutSettings
-          layout={widgetLayout}
-          onSetVisible={onSetWidgetVisible}
-          onMoveUp={onMoveWidgetUp}
-          onMoveDown={onMoveWidgetDown}
-        />
-      </div>
     </div>
   );
 }
 
-function WindowToolbar({ calendarOpen, settingsOpen, shortcutsOpen, onCalendarToggle, onSettingsToggle, onSettingsClose, onShortcutsOpenChange, onBack, onHome, onCampusSync, onCourses, onRestartTour, wallpaper, onWallpaperChange, widgetLayout, onSetWidgetVisible, onMoveWidgetUp, onMoveWidgetDown, theme, toggleTheme }: WindowToolbarProps) {
+function WindowToolbar({ calendarOpen, settingsOpen, shortcutsOpen, onCalendarToggle, onSettingsToggle, onSettingsClose, onShortcutsOpenChange, onBack, onHome, onCampusSync, onCourses, onRestartTour, wallpaper, onWallpaperChange, theme, toggleTheme }: WindowToolbarProps) {
   // US-8.3: reuse the same getCurrentUser subscription already loaded elsewhere
   // in the shell — Convex dedupes, so this costs nothing on the wire.
   const currentUser = useQuery(api.users.getCurrentUser);
@@ -666,10 +638,6 @@ function WindowToolbar({ calendarOpen, settingsOpen, shortcutsOpen, onCalendarTo
               onShortcutsOpenChange={onShortcutsOpenChange}
               wallpaper={wallpaper}
               onWallpaperChange={onWallpaperChange}
-              widgetLayout={widgetLayout}
-              onSetWidgetVisible={onSetWidgetVisible}
-              onMoveWidgetUp={onMoveWidgetUp}
-              onMoveWidgetDown={onMoveWidgetDown}
               theme={theme}
               toggleTheme={toggleTheme}
             />
@@ -713,7 +681,7 @@ function WindowStatusBar() {
 // ─── DashboardShell ───────────────────────────────────────────────────────────
 
 interface DashboardShellProps {
-  children: ReactNode | ((layout: WidgetConfig[]) => ReactNode);
+  children: ReactNode;
   onRestartTour?: () => void;
 }
 
@@ -729,7 +697,6 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [dockVisible, setDockVisible] = useState(true);
   const [wallpaper, setWallpaper] = useWallpaper();
-  const { layout: widgetLayout, setVisible: setWidgetVisible, moveUp: moveWidgetUp, moveDown: moveWidgetDown } = useWidgetLayout();
   const { isFullscreen, isSupported: fullscreenSupported, toggleFullscreen } = useFullscreen();
   const { theme, toggleTheme } = useTheme();
 
@@ -928,7 +895,6 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
       className="desktop-bg min-h-screen overflow-hidden"
       style={wallpaper !== "default" ? getWallpaperStyle(wallpaper) : undefined}
     >
-      <SnapshotWidget />
       <ActivityLogPanel />
 
       {/* Top Navigation — hidden when any window is maximized */}
@@ -1043,10 +1009,6 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
                 onRestartTour={onRestartTour ?? (() => {})}
                 wallpaper={wallpaper}
                 onWallpaperChange={setWallpaper}
-                widgetLayout={widgetLayout}
-                onSetWidgetVisible={setWidgetVisible}
-                onMoveWidgetUp={moveWidgetUp}
-                onMoveWidgetDown={moveWidgetDown}
                 theme={theme}
                 toggleTheme={toggleTheme}
               />
@@ -1063,7 +1025,7 @@ export function DashboardShell({ children, onRestartTour }: DashboardShellProps)
                 ) : (
                   <>
                     <ConnectCanvasBanner onConnect={openCampusSyncForCanvas} />
-                    {typeof children === "function" ? children(widgetLayout) : children}
+                    {children}
                   </>
                 )}
               </div>
