@@ -106,6 +106,7 @@ export function OnboardingTour({ onComplete, userUniversity }: OnboardingTourPro
   const [mounted, setMounted] = useState(false);
   const [selectedUniversity, setSelectedUniversity] = useState<string>("");
   const [universityError, setUniversityError] = useState<string>("");
+  const [submitting, setSubmitting] = useState(false);
   const rafRef = useRef<number | null>(null);
 
   const current = step >= 0 ? STEPS[step] : null;
@@ -150,6 +151,20 @@ export function OnboardingTour({ onComplete, userUniversity }: OnboardingTourPro
       setStep((s) => s + 1);
     } else {
       onComplete();
+    }
+  }
+
+  async function handleUniversitySelect(value: string) {
+    setSelectedUniversity(value);
+    setUniversityError("");
+    setSubmitting(true);
+    try {
+      await updateUniversity({ university: value });
+    } catch {
+      // Non-blocking — proceed to tour even if save fails
+    } finally {
+      setSubmitting(false);
+      setStep(0);
     }
   }
 
@@ -207,14 +222,15 @@ export function OnboardingTour({ onComplete, userUniversity }: OnboardingTourPro
                 <button
                   key={u.value}
                   type="button"
-                  onClick={() => { setSelectedUniversity(u.value); setUniversityError(""); }}
-                  className={`flex items-center justify-center text-center px-2 py-3.5 rounded-xl border text-[13px] font-medium transition-all leading-tight ${
+                  disabled={submitting}
+                  onClick={() => handleUniversitySelect(u.value)}
+                  className={`flex items-center justify-center text-center px-2 py-3.5 rounded-xl border text-[13px] font-medium transition-all leading-tight disabled:opacity-50 disabled:cursor-wait ${
                     selectedUniversity === u.value
                       ? "border-blue-500 bg-blue-50 text-blue-700 ring-2 ring-blue-200"
                       : "border-gray-200 text-gray-700 hover:border-gray-300 hover:bg-gray-50"
                   }`}
                 >
-                  {u.label}
+                  {submitting && selectedUniversity === u.value ? "..." : u.label}
                 </button>
               ))}
             </div>
@@ -232,17 +248,17 @@ export function OnboardingTour({ onComplete, userUniversity }: OnboardingTourPro
               Skip for now
             </button>
             <button
-              onClick={async () => {
+              disabled={submitting}
+              onClick={() => {
                 if (!selectedUniversity) {
                   setUniversityError("Please select your university to continue.");
                   return;
                 }
-                await updateUniversity({ university: selectedUniversity });
-                setStep(0);
+                void handleUniversitySelect(selectedUniversity);
               }}
-              className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-[13px] font-semibold px-5 py-2 rounded-lg transition-colors"
+              className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-wait text-white text-[13px] font-semibold px-5 py-2 rounded-lg transition-colors"
             >
-              Continue <ArrowRight size={14} weight="bold" />
+              {submitting ? "Saving..." : <><span>Continue</span><ArrowRight size={14} weight="bold" /></>}
             </button>
           </div>
         </div>
