@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useQuery } from "convex/react";
+import { useUser } from "@clerk/nextjs";
 import { api } from "@convex/_generated/api";
 import { CaretDown, Warning, BookBookmark } from "@phosphor-icons/react";
 import { GreetingHeader } from "../snapshot/GreetingHeader";
@@ -11,6 +12,7 @@ import { useHiddenCourses } from "../../hooks/useHiddenCourses";
 
 export function MobileSnapshotCard() {
   const [expanded, setExpanded] = useState(false);
+  const { user: clerkUser } = useUser();
 
   const currentUser = useQuery(api.users.getCurrentUser);
   const snapshot = useQuery(api.assignments.getDailySnapshot);
@@ -42,7 +44,7 @@ export function MobileSnapshotCard() {
         aria-expanded={expanded}
       >
         <GreetingHeader
-          name={currentUser?.name ?? ""}
+          name={clerkUser?.firstName ?? clerkUser?.fullName ?? currentUser?.name ?? ""}
           streak={currentUser?.currentStreak ?? 0}
           longestStreak={currentUser?.longestStreak ?? 0}
         />
