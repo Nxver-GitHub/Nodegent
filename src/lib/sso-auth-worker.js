@@ -76,6 +76,25 @@ const SEL = {
   duoTrust: 'button[aria-label*="trust" i], button:has-text("Yes, trust browser"), button:has-text("Yes, this is my device"), #trust-browser-label',
   duoLegacyFrame: 'iframe[title*="Duo" i], iframe#duo_iframe',
   duoLegacyRememberMe: 'input[name="dampen_choice"]',
+  duoPasscodeInput: [
+    'input[name="passcode"]',
+    'input[placeholder*="passcode" i]',
+    'input[aria-label*="passcode" i]',
+    'input[placeholder*="Enter code" i]',
+    'input[placeholder*="one-time" i]',
+  ].join(', '),
+  duoSendPasscode: [
+    'button:has-text("Send a passcode")',
+    'button:has-text("Send Me a Passcode")',
+    'button:has-text("Send Passcode")',
+    'button:has-text("Text me instead")',
+  ].join(', '),
+  duoPasscodeSubmit: [
+    'button:has-text("Verify")',
+    'button:has-text("Log in")',
+    'button:has-text("Submit")',
+    'button[type="submit"]',
+  ].join(', '),
 };
 
 // ---------------------------------------------------------------------------
@@ -90,6 +109,10 @@ let streamingPaused = false;
 let captureInProgress = false;
 let aborted = false;
 
+// Passcode awaiter — resolves when parent sends a 'type-text' message
+let pendingPasscodeResolve = null;
+let bufferedPasscode = null;
+
 // ---------------------------------------------------------------------------
 // Parent message handling
 // ---------------------------------------------------------------------------
@@ -103,9 +126,24 @@ parentPort.on('message', (msg) => {
     handleClick(msg);
     return;
   }
+  if (msg?.type === 'type-text') {
+    if (pendingPasscodeResolve) {
+      const resolve = pendingPasscodeResolve;
+      pendingPasscodeResolve = null;
+      resolve(msg.text);
+    } else {
+      bufferedPasscode = msg.text;
+    }
+    return;
+  }
   if (msg?.type === 'abort') {
     aborted = true;
     stopScreenshotLoop();
+    // Unblock any waiting passcode promise so the worker can exit cleanly
+    if (pendingPasscodeResolve) {
+      pendingPasscodeResolve('');
+      pendingPasscodeResolve = null;
+    }
     context?.close().catch(() => {});
   }
 });
@@ -279,8 +317,7 @@ async function authenticate(browserContext, page, uname, pwd) {
 }
 
 async function handleDuoUniversal(page) {
-  // Duo may show a "Desktop local network access" interstitial before sending a push.
-  // Click "Skip for now" automatically so the flow continues to the push screen.
+  // Skip the "Desktop local network access" interstitial if shown
   try {
     const skipBtn = page.locator('button', { hasText: /skip for now/i });
     await skipBtn.waitFor({ state: 'visible', timeout: 8_000 });
@@ -288,20 +325,32 @@ async function handleDuoUniversal(page) {
     await skipBtn.click();
     await page.waitForTimeout(500);
   } catch {
-    // Dialog not shown — already past this step
+    // Not shown — already past this step
+  }
+
+  // Flow 2: some users land directly on the "Send a text passcode" screen
+  // (no push available). Auto-send the SMS and surface the native passcode input.
+  const smsFirst = await page.waitForSelector(SEL.duoSendPasscode, { timeout: 3_000 })
+    .then(() => true).catch(() => false);
+  if (smsFirst) {
+    await handleDuoPasscodeFlow(page, 'sms');
+    return;
   }
 
   parentPort.postMessage({ type: 'status', message: 'Approve the Duo push on your phone...' });
 
-  // Duo may require additional verification ("Additional Duo Push required") when
-  // the login comes from an unfamiliar location (Vercel's servers).  Auto-click
-  // "Try again" to send a fresh push; allow up to 3 total attempts.
+  // Flow 1: push sent — Vercel's Virginia IP may cause Duo to flag the request
+  // and fall back to a passcode prompt after one or more "Try again" cycles.
+  // Up to 3 push attempts; bail early if passcode input appears.
   for (let attempt = 0; attempt < 3; attempt++) {
     const result = await Promise.race([
       page.waitForSelector(SEL.duoTrust, { timeout: 55_000 }).then(() => 'trust'),
       page.waitForSelector('button:has-text("Try again")', { timeout: 55_000 }).then(() => 'retry'),
-      // Bail out immediately if the account has been disabled
       page.waitForSelector(':text("Account disabled")', { timeout: 55_000 }).then(() => 'disabled'),
+      // Duo may surface a passcode input directly after flagging the push
+      page.waitForSelector(SEL.duoPasscodeInput, { timeout: 55_000 }).then(() => 'passcode'),
+      // Duo may also show "Send a passcode" (SMS fallback) mid-flow
+      page.waitForSelector(SEL.duoSendPasscode, { timeout: 55_000 }).then(() => 'sms'),
     ]).catch(() => null);
 
     if (result === 'trust') {
@@ -309,11 +358,17 @@ async function handleDuoUniversal(page) {
       await page.click(SEL.duoTrust).catch(() => {});
       return;
     }
-
     if (result === 'disabled') {
       throw new Error('Your Duo account has been disabled. Contact UCSC ITS at https://slughub.ucsc.edu/its to re-enable it.');
     }
-
+    if (result === 'passcode') {
+      await handleDuoPasscodeFlow(page, 'app');
+      return;
+    }
+    if (result === 'sms') {
+      await handleDuoPasscodeFlow(page, 'sms');
+      return;
+    }
     if (result === 'retry') {
       parentPort.postMessage({
         type: 'status',
@@ -321,11 +376,79 @@ async function handleDuoUniversal(page) {
       });
       await page.click('button:has-text("Try again")').catch(() => {});
       await page.waitForTimeout(1_500);
-      // loop continues for next attempt
     } else {
-      break; // timeout — fall through to outer waitForURL
+      break; // timeout
     }
   }
+
+  // Final safety check: if all push attempts timed out, look for a passcode
+  // input that Duo may have shown after repeated failures from this IP.
+  const passcodeAfterRetry = await page.waitForSelector(SEL.duoPasscodeInput, { timeout: 5_000 })
+    .then(() => true).catch(() => false);
+  if (passcodeAfterRetry) {
+    await handleDuoPasscodeFlow(page, 'app');
+    return;
+  }
+  const smsAfterRetry = await page.waitForSelector(SEL.duoSendPasscode, { timeout: 3_000 })
+    .then(() => true).catch(() => false);
+  if (smsAfterRetry) {
+    await handleDuoPasscodeFlow(page, 'sms');
+  }
+}
+
+/**
+ * Handle both passcode variants:
+ *  'app'  — 6-digit TOTP from the Duo Mobile app (push failed, Vercel IP flagged)
+ *  'sms'  — 7-digit code sent via text message
+ *
+ * Emits 'mfa-input-required' to the parent so the UI shows a native input field.
+ * Blocks until the user submits the code via POST /api/canvas-auth/type.
+ */
+async function handleDuoPasscodeFlow(page, variant) {
+  if (variant === 'sms') {
+    parentPort.postMessage({ type: 'status', message: 'Requesting a text passcode — please wait...' });
+    await page.locator(SEL.duoSendPasscode).first().click().catch(() => {});
+    // Wait for the passcode input to appear after SMS dispatch
+    await page.waitForSelector(SEL.duoPasscodeInput, { timeout: 20_000 }).catch(() => {});
+    parentPort.postMessage({ type: 'status', message: 'Enter the 7-digit code sent to your phone.' });
+  } else {
+    parentPort.postMessage({ type: 'status', message: 'Enter the 6-digit passcode from your Duo app.' });
+  }
+
+  // Signal the UI to show the native passcode input
+  parentPort.postMessage({ type: 'mfa-input-required', variant });
+
+  const code = await waitForPasscode();
+  if (!code || aborted) return;
+
+  // Fill the passcode field and submit
+  const field = page.locator(SEL.duoPasscodeInput).first();
+  await field.fill(code).catch(() => {});
+
+  const submitted = await page.locator(SEL.duoPasscodeSubmit).first()
+    .click({ timeout: 3_000 }).then(() => true).catch(() => false);
+  if (!submitted) {
+    await field.press('Enter').catch(() => {});
+  }
+
+  // Duo may show "trust browser" after a successful passcode verification
+  const trustVisible = await page.waitForSelector(SEL.duoTrust, { timeout: 10_000 })
+    .then(() => true).catch(() => false);
+  if (trustVisible) {
+    parentPort.postMessage({ type: 'status', message: 'Trusting browser to skip Duo next time...' });
+    await page.click(SEL.duoTrust).catch(() => {});
+  }
+}
+
+function waitForPasscode() {
+  if (bufferedPasscode !== null) {
+    const code = bufferedPasscode;
+    bufferedPasscode = null;
+    return Promise.resolve(code);
+  }
+  return new Promise((resolve) => {
+    pendingPasscodeResolve = resolve;
+  });
 }
 
 async function handleDuoLegacy(page) {

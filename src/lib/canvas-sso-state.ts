@@ -102,6 +102,10 @@ function handleWorkerMessage(
       enqueue?.("frame", msg.data);
       break;
 
+    case "mfa-input-required":
+      enqueue?.("mfa-input-required", { variant: msg.variant });
+      break;
+
     case "playwright-ready":
       // Internal — no need to forward to client
       break;
@@ -211,6 +215,16 @@ export function forwardClick(
   if (!session) throw new Error("No active auth session.");
   const id = Date.now();
   session.worker.postMessage({ type: "click", id, x, y, viewportWidth, viewportHeight });
+}
+
+/**
+ * Forward a typed passcode from the UI to the headless browser.
+ * Called when Duo falls back to app passcode or SMS passcode entry.
+ */
+export function forwardType(userId: string, text: string): void {
+  const session = activeSessions.get(userId);
+  if (!session) throw new Error("No active auth session.");
+  session.worker.postMessage({ type: "type-text", text });
 }
 
 /**

@@ -5,11 +5,14 @@ import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 
 type AuthPhase =
-  | "idle"          // showing the CruzID / password form
-  | "starting"      // POST /stream request in flight (before first event)
-  | "streaming"     // SSE connected, showing browser mirror
-  | "connected"     // done — Canvas is now connected
-  | "error";        // terminal error
+  | "idle"              // showing the CruzID / password form
+  | "starting"          // POST /stream request in flight (before first event)
+  | "streaming"         // SSE connected, showing browser mirror
+  | "passcode-required" // Duo fell back — waiting for user to enter passcode
+  | "connected"         // done — Canvas is now connected
+  | "error";            // terminal error
+
+type PasscodeVariant = "app" | "sms";
 
 interface CanvasAuthViewerProps {
   /** Called after credentials are successfully saved to Convex */
@@ -33,6 +36,9 @@ export function CanvasAuthViewer({ onConnected }: CanvasAuthViewerProps) {
   const [statusMsg, setStatusMsg] = useState("Starting browser…");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [frameSrc, setFrameSrc] = useState<string | null>(null);
+  const [passcodeVariant, setPasscodeVariant] = useState<PasscodeVariant>("app");
+  const [passcode, setPasscode] = useState("");
+  const [passcodeSubmitting, setPasscodeSubmitting] = useState(false);
 
   const abortRef = useRef<AbortController | null>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
@@ -46,7 +52,7 @@ export function CanvasAuthViewer({ onConnected }: CanvasAuthViewerProps) {
 
   // Visibility change — pause screenshots when tab is hidden
   useEffect(() => {
-    if (phase !== "streaming") return;
+    if (phase !== "streaming" && phase !== "passcode-required") return;
 
     function handleVisibility() {
       fetch("/api/canvas-auth/pause", {
@@ -150,6 +156,12 @@ export function CanvasAuthViewer({ onConnected }: CanvasAuthViewerProps) {
         setFrameSrc(`data:image/jpeg;base64,${base64}`);
         break;
       }
+      case "mfa-input-required": {
+        const { variant } = data as { variant?: string };
+        setPasscodeVariant((variant === "sms" ? "sms" : "app") as PasscodeVariant);
+        setPhase("passcode-required");
+        break;
+      }
       case "done": {
         abortRef.current = null;
         setPhase("connected");
@@ -163,6 +175,24 @@ export function CanvasAuthViewer({ onConnected }: CanvasAuthViewerProps) {
         setPhase("error");
         break;
       }
+    }
+  }
+
+  async function handlePasscodeSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!passcode.trim()) return;
+    setPasscodeSubmitting(true);
+    try {
+      await fetch("/api/canvas-auth/type", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: passcode }),
+      });
+      setPasscode("");
+      setPhase("streaming");
+      setStatusMsg("Verifying passcode…");
+    } finally {
+      setPasscodeSubmitting(false);
     }
   }
 
@@ -252,10 +282,76 @@ export function CanvasAuthViewer({ onConnected }: CanvasAuthViewerProps) {
     );
   }
 
+  // --- Render: MFA passcode input (Flow 1: Duo app 6-digit / Flow 2: SMS 7-digit) ---
+  if (phase === "passcode-required") {
+    const isSms = passcodeVariant === "sms";
+    const digits = isSms ? 7 : 6;
+    const label = isSms
+      ? "7-digit passcode sent to your phone"
+      : "6-digit passcode from your Duo app";
+    const placeholder = "0".repeat(digits);
+
+    return (
+      <div className="rounded-lg border bg-white p-6" data-testid="canvas-auth-passcode">
+        <div className="mb-3 flex items-center gap-2">
+          <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-amber-500" />
+          <span className="text-sm text-gray-600">{statusMsg}</span>
+        </div>
+        {frameSrc && (
+          <div className="mb-4 overflow-hidden rounded border border-gray-200">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              ref={imgRef}
+              src={frameSrc}
+              alt="Canvas login browser"
+              className="block w-full cursor-crosshair"
+              onClick={handleImgClick}
+            />
+          </div>
+        )}
+        <form onSubmit={handlePasscodeSubmit} className="space-y-3">
+          <div>
+            <label
+              htmlFor="canvas-mfa-input"
+              className="block text-sm font-medium text-gray-700"
+              data-testid="canvas-mfa-label"
+            >
+              {label}
+            </label>
+            <input
+              id="canvas-mfa-input"
+              data-testid="canvas-mfa-passcode-input"
+              type="tel"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              autoComplete="one-time-code"
+              value={passcode}
+              onChange={(e) => setPasscode(e.target.value.replace(/\D/g, ""))}
+              maxLength={digits}
+              placeholder={placeholder}
+              required
+              autoFocus
+              disabled={passcodeSubmitting}
+              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-center text-lg tracking-[0.3em] focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+            />
+          </div>
+          <button
+            type="submit"
+            data-testid="canvas-mfa-submit"
+            disabled={passcodeSubmitting || passcode.length < digits}
+            className="w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {passcodeSubmitting ? "Verifying…" : "Verify passcode"}
+          </button>
+        </form>
+      </div>
+    );
+  }
+
   // --- Render: browser mirror ---
   if (phase === "streaming") {
     return (
-      <div className="rounded-lg border bg-white p-4">
+      <div className="rounded-lg border bg-white p-4" data-testid="canvas-auth-streaming">
         <div className="mb-2 flex items-center gap-2">
           <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-green-500" />
           <span className="text-sm text-gray-600">{statusMsg}</span>
