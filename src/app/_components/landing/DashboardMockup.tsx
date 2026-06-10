@@ -279,15 +279,11 @@ export function DashboardMockup() {
       </div>
 
       {/* Status bar */}
-      <div className="flex h-6 items-center justify-between border-t border-gray-200 bg-[#EFEFEF] px-3 font-mono text-[10px] text-gray-500">
-        <div className="flex items-center gap-3">
-          <span className="flex items-center gap-1">
-            <span className="blink inline-block h-1.5 w-1.5 rounded-full bg-green-400" />
-            LMS Sync Active
-          </span>
-          <span className="hidden sm:inline">Sprint: 2 In-Progress</span>
-        </div>
-        <span>Team: 5</span>
+      <div className="flex h-6 items-center border-t border-gray-200 bg-[#EFEFEF] px-3 font-mono text-[10px] text-gray-500">
+        <span className="flex items-center gap-1">
+          <span className="blink inline-block h-1.5 w-1.5 rounded-full bg-green-400" />
+          LMS Sync Active
+        </span>
       </div>
     </div>
   );
