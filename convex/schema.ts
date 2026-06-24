@@ -245,6 +245,9 @@ export default defineSchema({
     timestamp: v.number(),
   })
     .index("by_userId", ["userId"])
-    .index("by_userId_timestamp", ["userId", "timestamp"]),
+    .index("by_userId_timestamp", ["userId", "timestamp"])
+    // Global timestamp index so the retention cron can prune old rows across all
+    // users without scanning the table.
+    .index("by_timestamp", ["timestamp"]),
 
 });

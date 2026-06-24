@@ -115,6 +115,25 @@ export const logPomodoroSession = mutation({
   },
 });
 
+// Retention: keep audit entries for this many days. Older rows are pruned daily.
+const RETENTION_DAYS = 90;
+const PRUNE_BATCH = 500;
+
+// Internal — run by the daily retention cron. Deletes up to PRUNE_BATCH of the
+// oldest expired rows per run (steady-state daily volume is far below the batch).
+export const pruneOldEntries = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const cutoff = Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000;
+    const expired = await ctx.db
+      .query("auditLog")
+      .withIndex("by_timestamp", (q) => q.lt("timestamp", cutoff))
+      .take(PRUNE_BATCH);
+    await Promise.all(expired.map((e) => ctx.db.delete(e._id)));
+    return { deleted: expired.length };
+  },
+});
+
 // Mutation — deletes all audit log entries for the authenticated user
 export const clearAuditLog = mutation({
   args: {},
