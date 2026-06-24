@@ -2,9 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { timingSafeEqual } from "node:crypto";
 import { isAllowedUrl, isPrivateHost } from "@/lib/browse-allowlist";
+import { rateLimit } from "@/lib/rate-limit";
 import type { Page } from "playwright";
 
 export const maxDuration = 30;
+
+// Each browse spawns a headless Chromium, so direct (browser) calls are capped
+// per user. Internal Convex-to-Next calls (chat browse tool) are exempt — they
+// are authenticated by the shared secret and throttled upstream in chat.
+const RATE_LIMIT = 10;
+const RATE_WINDOW_MS = 60_000;
 
 // Pisa needs form-fill + AJAX submit — plain goto returns an empty shell.
 async function browsePisa(page: Page, params: URLSearchParams): Promise<string> {
@@ -64,6 +71,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!isInternalCall) {
     const { userId } = await auth();
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const limit = rateLimit(`browse:${userId}`, RATE_LIMIT, RATE_WINDOW_MS);
+    if (!limit.ok) {
+      return NextResponse.json(
+        { error: "Too many requests" },
+        { status: 429, headers: { "Retry-After": String(Math.ceil(limit.retryAfterMs / 1000)) } }
+      );
+    }
   }
 
   let body: unknown;

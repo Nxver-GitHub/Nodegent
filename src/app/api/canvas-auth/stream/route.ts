@@ -30,11 +30,18 @@ import {
   setStreamingPaused,
   hasActiveSession,
 } from "@/lib/canvas-sso-state";
+import { rateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300; // 5 min — allows time for Playwright + Duo MFA
 
 const MAX_INPUT_LEN = 256;
+
+// Each connection spawns a headless Playwright browser. Cap per user — generous
+// enough for legitimate MFA retries within a login, but blocks a rapid
+// browser-spawn abuse loop.
+const RATE_LIMIT = 10;
+const RATE_WINDOW_MS = 60_000;
 
 const UNIVERSITY_CANVAS_URLS: Record<string, string> = {
   ucsc: "https://canvas.ucsc.edu",
@@ -52,6 +59,14 @@ export async function POST(request: NextRequest): Promise<Response> {
   const tokenResult = await getToken();
   if (!tokenResult) return new Response("Unauthorized", { status: 401 });
   const token: string = tokenResult;
+
+  const limit = rateLimit(`canvas-stream:${userId}`, RATE_LIMIT, RATE_WINDOW_MS);
+  if (!limit.ok) {
+    return new Response("Too many requests", {
+      status: 429,
+      headers: { "Retry-After": String(Math.ceil(limit.retryAfterMs / 1000)) },
+    });
+  }
 
   // Terminate any zombie session from a prior timed-out or disconnected attempt
   if (hasActiveSession(userId)) {

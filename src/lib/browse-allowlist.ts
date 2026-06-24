@@ -8,11 +8,19 @@ export const STATIC_ALLOWLIST = [
 ];
 
 // Matches private/loopback/link-local IPv4 and IPv6 ranges.
+//  IPv4: loopback, RFC1918, link-local, unspecified.
+//  IPv6: loopback (::1), unique-local fc00::/7 (fc/fd), link-local fe80::/10
+//        (fe80–febf), and IPv4-mapped (::ffff:…). The trailing ":" on the IPv6
+//        alternatives anchors them to address literals so real DNS hostnames
+//        (which never contain ":") cannot match by accident.
 const PRIVATE_IP_RE =
-  /^(127\.|10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|169\.254\.|0\.0\.0\.0$|::1$|localhost$)/i;
+  /^(127\.|10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|169\.254\.|0\.0\.0\.0$|::1$|fc[0-9a-f]{2}:|fd[0-9a-f]{2}:|fe[89ab][0-9a-f]:|::ffff:|localhost$)/i;
 
 export function isPrivateHost(host: string): boolean {
-  return PRIVATE_IP_RE.test(host);
+  // URL.hostname returns IPv6 literals wrapped in brackets (e.g. "[::1]"); strip
+  // them so the address itself is tested. Lowercase for hex-range matching.
+  const normalized = host.replace(/^\[/, "").replace(/\]$/, "").toLowerCase();
+  return PRIVATE_IP_RE.test(normalized);
 }
 
 export function isAllowedUrl(url: string): boolean {

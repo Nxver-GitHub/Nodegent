@@ -198,10 +198,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
       synced = result.synced;
     } catch (err) {
-      return NextResponse.json(
-        { error: `Failed to save listings: ${err instanceof Error ? err.message : "unknown"}` },
-        { status: 500 }
-      );
+      // Log detail server-side; return a generic message rather than leaking the
+      // raw backend exception text to the client.
+      console.error("[sync/slugschedule] upsertListings failed:", err);
+      return NextResponse.json({ error: "Failed to save listings" }, { status: 500 });
     }
   }
 
