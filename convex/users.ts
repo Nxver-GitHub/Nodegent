@@ -6,6 +6,7 @@ import {
   displayedStreak,
   safeTimezone,
 } from "./streak.helpers";
+import { UCSC_BUILTIN_NAME, UCSC_BUILTIN_TOOLS } from "./mcpConnectors";
 
 const SYNC_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -59,7 +60,7 @@ export const ensureUser = mutation({
       return existing._id;
     }
 
-    return await ctx.db.insert("users", {
+    const userId = await ctx.db.insert("users", {
       clerkId: identity.subject,
       email: identity.email ?? "",
       name: identity.name ?? identity.email ?? "Student",
@@ -68,6 +69,19 @@ export const ensureUser = mutation({
       lastSyncedAt: now,
       ...(validatedTz !== undefined ? { timezone: validatedTz } : {}),
     });
+
+    // Seed the UCSC builtin MCP connector once, at creation — avoids a per-message
+    // seeding read on every chat turn. (Existing users seed via the Connectors
+    // panel, and chat falls back to all builtin tools when none are configured.)
+    await ctx.db.insert("mcpConnectors", {
+      userId,
+      name: UCSC_BUILTIN_NAME,
+      type: "builtin",
+      enabled: true,
+      tools: UCSC_BUILTIN_TOOLS,
+    });
+
+    return userId;
   },
 });
 

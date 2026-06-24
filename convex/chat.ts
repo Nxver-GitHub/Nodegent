@@ -868,14 +868,6 @@ export const sendMessage = action({
       { userId, message: content, now }
     );
 
-    // Ensure UCSC builtin connector is seeded for this user (no-op if already exists).
-    // Non-fatal: a seeding failure must not prevent the chat from responding.
-    try {
-      await ctx.runMutation(internal.mcpConnectors.ensureUcscBuiltinForUser, { userId });
-    } catch {
-      // Seeding failure is non-critical — MCP tools simply won't be available this turn.
-    }
-
     // Single lightweight query for enabled MCP connectors — flat list, no per-message overhead.
     // Falls back to all built-in tools if the query fails (e.g. stale deployment).
     let enabledConnectors: { tools: string[] }[] = [];
@@ -927,7 +919,10 @@ export const sendMessage = action({
       "Assignment and event items in the context are pre-formatted with bold course codes and italic dates — copy them exactly as given without reformatting. " +
       "Use bullet lists for multiple items. Never invent URLs — only use links that are explicitly present in the context." +
       (enabledMcpToolNames.size > 0
-        ? " You have access to live campus data tools — use search_classes for real-time course availability, get_dining_menu for dining hall menus, and search_directory to look up people at UCSC. Always call these tools when the user's question is about live course or dining data. When tool results include a Source link, always include it in your response so the user can verify or explore further."
+        ? " You have access to live campus data tools — search_classes (course availability), get_dining_menu (dining hall menus), and search_directory (people at UCSC). Always call the relevant tool when the user asks about live course or dining data, and base your answer ONLY on what that tool returns." +
+          " CRITICAL — never fabricate live data: do not invent or guess menu items, dishes, dining halls, course sections, instructors, or meeting times; report only what appears verbatim in the tool result." +
+          " Copy the tool's 'Source:' line exactly as given — never write your own Source line, and never attribute a menu to a dining hall you did not receive a result for." +
+          " If a tool result says 'No menu data found' (the hall may be closed for the summer or the menu not yet posted), or if you received no tool result, tell the user the data is not available — do NOT make up a menu. It is always better to say you couldn't retrieve the data than to guess."
         : "");
 
     // Term codes: Spring=2__2, Summer=2__4, Fall=2__8, Winter=2__0  (e.g. Fall 2026 = 2268)
