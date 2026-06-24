@@ -231,29 +231,47 @@ export const getDailySnapshot = query({
     const todayEnd = todayStart + 24 * 60 * 60 * 1000 - 1;
     const weekEnd = todayStart + 7 * 24 * 60 * 60 * 1000;
 
-    // Read only incomplete assignments — completed ones don't appear in any
-    // snapshot bucket, so excluding them at the index level saves the read.
-    const incomplete = await ctx.db
-      .query("assignments")
-      .withIndex("by_userId_isCompleted", (q) =>
-        q.eq("userId", user._id).eq("isCompleted", false)
-      )
-      .collect();
-
     const byDue = (a: { dueAt?: number }, b: { dueAt?: number }) =>
       (a.dueAt ?? 0) - (b.dueAt ?? 0);
 
+    // Bounded reads via the dueAt index instead of collecting every incomplete
+    // row (past-due incompletes accumulate all term, and this re-runs reactively
+    // on every Canvas-sync write). Overdue is capped at the 25 most-recently-due;
+    // today/this-week come from one windowed read; undated from its own bucket.
+    const [overdueRecent, window, undated] = await Promise.all([
+      ctx.db
+        .query("assignments")
+        .withIndex("by_userId_dueAt", (q) =>
+          q.eq("userId", user._id).lt("dueAt", todayStart)
+        )
+        .order("desc")
+        .filter((q) => q.eq(q.field("isCompleted"), false))
+        .take(25),
+      ctx.db
+        .query("assignments")
+        .withIndex("by_userId_dueAt", (q) =>
+          q.eq("userId", user._id).gte("dueAt", todayStart).lte("dueAt", weekEnd)
+        )
+        .filter((q) => q.eq(q.field("isCompleted"), false))
+        .take(100),
+      ctx.db
+        .query("assignments")
+        .withIndex("by_userId_dueAt", (q) =>
+          q.eq("userId", user._id).eq("dueAt", undefined)
+        )
+        .filter((q) => q.eq(q.field("isCompleted"), false))
+        .take(50),
+    ]);
+
     return {
-      overdue: incomplete
-        .filter((a) => a.dueAt !== undefined && a.dueAt < todayStart)
+      overdue: overdueRecent.sort(byDue),
+      dueToday: window
+        .filter((a) => a.dueAt !== undefined && a.dueAt <= todayEnd)
         .sort(byDue),
-      dueToday: incomplete
-        .filter((a) => a.dueAt !== undefined && a.dueAt >= todayStart && a.dueAt <= todayEnd)
+      dueThisWeek: window
+        .filter((a) => a.dueAt !== undefined && a.dueAt > todayEnd)
         .sort(byDue),
-      dueThisWeek: incomplete
-        .filter((a) => a.dueAt !== undefined && a.dueAt > todayEnd && a.dueAt <= weekEnd)
-        .sort(byDue),
-      noDueDate: incomplete.filter((a) => a.dueAt === undefined),
+      noDueDate: undated,
     };
   },
 });
