@@ -63,17 +63,27 @@ export const getUpcomingAssignments = query({
 
     const now = Date.now();
 
-    // Read only incomplete assignments via the dedicated index. Completed ones
-    // (often the majority by end of term) never enter the bandwidth tally.
-    const incomplete = await ctx.db
-      .query("assignments")
-      .withIndex("by_userId_isCompleted", (q) =>
-        q.eq("userId", user._id).eq("isCompleted", false)
-      )
-      .collect();
+    // Upcoming = incomplete assignments due from now on, plus undated ones. Read
+    // via the dueAt index — the future window + the undated bucket — instead of
+    // collecting every incomplete row (past-due incompletes accumulate all term
+    // and this query re-runs reactively on every Canvas-sync write).
+    const [futureDated, undated] = await Promise.all([
+      ctx.db
+        .query("assignments")
+        .withIndex("by_userId_dueAt", (q) =>
+          q.eq("userId", user._id).gte("dueAt", now)
+        )
+        .take(100),
+      ctx.db
+        .query("assignments")
+        .withIndex("by_userId_dueAt", (q) =>
+          q.eq("userId", user._id).eq("dueAt", undefined)
+        )
+        .take(50),
+    ]);
 
-    return incomplete
-      .filter((a) => a.dueAt === undefined || a.dueAt >= now)
+    return [...futureDated, ...undated]
+      .filter((a) => !a.isCompleted)
       .sort((a, b) => {
         // Undated assignments sort to the end
         const aDate = a.dueAt ?? Number.MAX_SAFE_INTEGER;

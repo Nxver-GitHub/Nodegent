@@ -464,11 +464,11 @@ export const buildCampusContext = internalQuery({
       ? await ctx.db
           .query("courseListings")
           .withIndex("by_userId", (q) => q.eq("userId", user._id))
-          .collect()
+          .take(30)
       : [];
 
     if (courseCatalog.length > 0) {
-      const catalogLines = courseCatalog.slice(0, 30).map((cl) => {
+      const catalogLines = courseCatalog.map((cl) => {
         const seats =
           cl.enrolled != null && cl.capacity != null
             ? ` (${cl.enrolled}/${cl.capacity}${cl.status ? `, ${cl.status}` : ""})`
