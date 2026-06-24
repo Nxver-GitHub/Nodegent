@@ -1,4 +1,5 @@
 import * as cheerio from "cheerio";
+import { campusDateMDY } from "./timeUtil";
 
 const UA = "Mozilla/5.0 (compatible; Nodegent/1.0)";
 
@@ -13,10 +14,7 @@ const HALLS = [
 ];
 
 function todayStr(): string {
-  const now = new Date();
-  const mm = String(now.getMonth() + 1).padStart(2, "0");
-  const dd = String(now.getDate()).padStart(2, "0");
-  return `${mm}/${dd}/${now.getFullYear()}`;
+  return campusDateMDY(Date.now());
 }
 
 type CheerioRoot = ReturnType<typeof cheerio.load>;
@@ -66,9 +64,12 @@ async function getDiningMenu(args: Record<string, unknown>): Promise<string> {
   const mealFilter = typeof args.meal === "string" ? args.meal.toLowerCase() : undefined;
   const hall = HALLS.find((h) => h.aliases.some((a) => hallQuery.includes(a))) ?? HALLS[0];
 
+  // Resolve the date server-side from a relative choice. The model can't be
+  // trusted to compute calendar dates (it passes wrong absolute dates even when
+  // given the correct one), so it only picks "today"/"tomorrow" here.
   const today = todayStr();
-  const dateStr =
-    typeof args.date === "string" && args.date.trim() ? args.date.trim() : today;
+  const day = typeof args.day === "string" ? args.day.toLowerCase() : "";
+  const dateStr = day.includes("tomorrow") ? campusDateMDY(Date.now(), 1) : today;
 
   // The UCSC ASP.NET app returns HTTP 500 unless the request carries the full set of
   // WebInaCart cookies the root page would normally set. Since their values are always
@@ -121,7 +122,7 @@ async function searchClasses(args: Record<string, unknown>): Promise<string> {
   const body = new URLSearchParams({
     action: "results",
     "binds[:term]": term,
-    "binds[:reg_status]": args.open_only === true ? "O" : "all",
+    "binds[:reg_status]": args.open_only === true || args.open_only === "true" ? "O" : "all",
     rec_start: "0",
     rec_dur: "25",
   });

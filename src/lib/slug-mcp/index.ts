@@ -51,7 +51,10 @@ export const MCP_TOOL_DEFS = [
           course_number: { type: "string", description: "Course number e.g. 115A" },
           instructor: { type: "string", description: "Instructor last name" },
           title: { type: "string", description: "Course title keyword" },
-          open_only: { type: "boolean", description: "Only show open/available sections" },
+          open_only: {
+            type: "string",
+            description: 'Pass "true" to show only open/available sections; "false" or omit for all sections',
+          },
         },
         additionalProperties: false,
       },

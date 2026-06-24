@@ -1,6 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+
+// Fullscreen support is fixed for the page lifetime, so the store never notifies.
+const subscribeNoop = (): (() => void) => () => {};
 
 interface FullscreenElement extends HTMLElement {
   webkitRequestFullscreen?: () => Promise<void> | void;
@@ -40,7 +43,10 @@ export function useFullscreen(): {
   toggleFullscreen: () => void;
 } {
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [isSupported] = useState(detectSupport);
+  // Returns the server snapshot (false) during SSR and the initial hydration
+  // render, then the real client value — hydration-safe, with no mismatch from
+  // reading `document` during render.
+  const isSupported = useSyncExternalStore(subscribeNoop, detectSupport, () => false);
 
   useEffect(() => {
     function handleChange() {

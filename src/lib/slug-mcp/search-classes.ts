@@ -6,7 +6,7 @@ export interface SearchClassesArgs {
   course_number?: string;
   instructor?: string;
   title?: string;
-  open_only?: boolean;
+  open_only?: boolean | string;
 }
 
 const PISA_URL = "https://pisa.ucsc.edu/class_search/index.php";
@@ -42,7 +42,7 @@ export async function searchClasses(args: SearchClassesArgs): Promise<string> {
   const body = new URLSearchParams({
     action: "results",
     "binds[:term]": term,
-    "binds[:reg_status]": args.open_only ? "O" : "all",
+    "binds[:reg_status]": args.open_only === true || args.open_only === "true" ? "O" : "all",
     rec_start: "0",
     rec_dur: "25",
   });

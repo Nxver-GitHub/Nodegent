@@ -24,6 +24,7 @@ import type * as mcpConnectors from "../mcpConnectors.js";
 import type * as mcpTools from "../mcpTools.js";
 import type * as push from "../push.js";
 import type * as pushSend from "../pushSend.js";
+import type * as timeUtil from "../timeUtil.js";
 import type * as users from "../users.js";
 
 import type {
@@ -49,6 +50,7 @@ declare const fullApi: ApiFromModules<{
   mcpTools: typeof mcpTools;
   push: typeof push;
   pushSend: typeof pushSend;
+  timeUtil: typeof timeUtil;
   users: typeof users;
 }>;
 

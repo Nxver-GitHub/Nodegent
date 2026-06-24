@@ -7,6 +7,7 @@ import {
   dayKey,
   effectiveTimezone,
 } from "./streak.helpers";
+import { startOfCampusDay } from "./timeUtil";
 
 export const getAssignments = query({
   args: {
@@ -216,9 +217,7 @@ export const getDailySnapshot = query({
 
     if (!user) return empty;
 
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
-    const todayStart = startOfToday.getTime();
+    const todayStart = startOfCampusDay(Date.now());
     const todayEnd = todayStart + 24 * 60 * 60 * 1000 - 1;
     const weekEnd = todayStart + 7 * 24 * 60 * 60 * 1000;
 

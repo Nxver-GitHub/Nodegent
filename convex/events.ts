@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { startOfCampusDay } from "./timeUtil";
 
 export const getEvents = query({
   args: {
@@ -48,8 +49,7 @@ export const getTodayEvents = query({
       return [];
     }
 
-    const now = new Date();
-    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const startOfDay = startOfCampusDay(Date.now());
     const endOfDay = startOfDay + 24 * 60 * 60 * 1000 - 1;
 
     return await ctx.db

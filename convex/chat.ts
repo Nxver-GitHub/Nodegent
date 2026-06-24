@@ -705,7 +705,10 @@ const ALL_MCP_TOOL_DEFS = [
           course_number: { type: "string", description: "Course number e.g. 115A" },
           instructor: { type: "string", description: "Instructor last name" },
           title: { type: "string", description: "Course title keyword" },
-          open_only: { type: "boolean", description: "Only show open/available sections" },
+          open_only: {
+            type: "string",
+            description: 'Pass "true" to show only open/available sections; "false" or omit for all sections',
+          },
         },
         additionalProperties: false,
       },
@@ -719,13 +722,17 @@ const ALL_MCP_TOOL_DEFS = [
         "Get a UCSC dining hall menu from nutrition.sa.ucsc.edu. " +
         "Halls: cowell/stevenson, crown/merrill, porter/kresge, carson/oakes, lewis/college-nine. " +
         "Meals: Breakfast, Lunch, Dinner. " +
-        "Pass date in MM/DD/YYYY format for a specific day (e.g. tomorrow). Omit for today.",
+        "Set day to 'tomorrow' for tomorrow's menu; omit for today. Never compute calendar dates yourself.",
       parameters: {
         type: "object",
         properties: {
           hall: { type: "string", description: "Dining hall alias e.g. 'cowell', 'porter', 'lewis'" },
           meal: { type: "string", description: "Meal period: Breakfast, Lunch, or Dinner" },
-          date: { type: "string", description: "Date in MM/DD/YYYY format. Omit for today." },
+          day: {
+            type: "string",
+            enum: ["today", "tomorrow"],
+            description: "Which day's menu: 'tomorrow' for tomorrow, otherwise omit for today",
+          },
         },
         additionalProperties: false,
       },
@@ -894,15 +901,23 @@ export const sendMessage = action({
       .filter((m) => m.role === "user" || m.role === "assistant")
       .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
 
-    const todayStr = new Date(now).toLocaleDateString("en-US", {
+    const laDate = (ms: number, opts: Intl.DateTimeFormatOptions): string =>
+      new Date(ms).toLocaleDateString("en-US", { timeZone: "America/Los_Angeles", ...opts });
+    const todayStr = laDate(now, {
       weekday: "long",
       year: "numeric",
       month: "long",
       day: "numeric",
     });
+    // Provide exact MM/DD/YYYY dates so the model never has to do date arithmetic
+    // (small models miscount, and tool date params require MM/DD/YYYY).
+    const mdy: Intl.DateTimeFormatOptions = { year: "numeric", month: "2-digit", day: "2-digit" };
+    const todayMDY = laDate(now, mdy);
+    const tomorrowMDY = laDate(now + 86_400_000, mdy);
 
     const system =
-      `Today is ${todayStr}. ` +
+      `Today is ${todayStr} (Pacific Time). ` +
+      `When a tool needs a date, use MM/DD/YYYY format: today is ${todayMDY}, tomorrow is ${tomorrowMDY}. ` +
       "You are Nodegent, a campus-aware assistant for UCSC students. " +
       "For Canvas assignments, due dates, and Google Calendar events, use only the provided campus context. " +
       "You are read-only: do not claim you created calendar events, submitted assignments, or changed campus systems. " +
@@ -964,6 +979,11 @@ export const sendMessage = action({
       } catch (toolErr) {
         // Groq returns 400 when the model fails to generate valid function-call JSON.
         // Fall back to a plain call without tools so the user always gets a response.
+        // Previously silent: log so tool-call schema rejections are visible.
+        console.warn(
+          "[chat] tool-call request rejected, retrying without tools:",
+          toolErr instanceof Error ? toolErr.message : String(toolErr)
+        );
         const isToolGenFailure =
           toolErr instanceof Error && toolErr.message.includes("400");
         if (!isToolGenFailure) throw toolErr;
@@ -1014,6 +1034,10 @@ export const sendMessage = action({
           }
         } catch (toolErr) {
           // Surface MCP errors so the model can explain them; browse errors fall through.
+          console.warn(
+            "[chat] tool dispatch failed:",
+            toolErr instanceof Error ? toolErr.message : String(toolErr)
+          );
           if (MCP_TOOL_NAMES_SET.has(toolName)) {
             toolResultText = `Error fetching data: ${toolErr instanceof Error ? toolErr.message : String(toolErr)}`;
           }
