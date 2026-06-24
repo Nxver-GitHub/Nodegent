@@ -28,9 +28,13 @@ export default defineSchema({
     weeklyDigest: v.optional(v.string()),
     // US-8.5: browser push notifications — JSON-serialised PushSubscription
     pushSubscription: v.optional(v.string()),
+    // Denormalized presence flag kept in sync with pushSubscription, so the daily
+    // notification cron can fetch subscribers via an index instead of scanning
+    // the whole users table.
+    hasPushSubscription: v.optional(v.boolean()),
   })
     .index("by_clerkId", ["clerkId"])
-    .index("by_pushSubscription", ["pushSubscription"]),
+    .index("by_hasPushSubscription", ["hasPushSubscription"]),
 
   chatThreads: defineTable({
     userId: v.id("users"),

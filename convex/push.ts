@@ -51,7 +51,10 @@ export const savePushSubscription = mutation({
       .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
       .unique();
     if (!user) throw new Error("User not found");
-    await ctx.db.patch(user._id, { pushSubscription: args.subscription });
+    await ctx.db.patch(user._id, {
+      pushSubscription: args.subscription,
+      hasPushSubscription: true,
+    });
   },
 });
 
@@ -65,7 +68,10 @@ export const removePushSubscription = mutation({
       .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
       .unique();
     if (!user) throw new Error("User not found");
-    await ctx.db.patch(user._id, { pushSubscription: undefined });
+    await ctx.db.patch(user._id, {
+      pushSubscription: undefined,
+      hasPushSubscription: false,
+    });
   },
 });
 
@@ -80,16 +86,37 @@ export const getSubscriptionForClerkId = internalQuery({
   },
 });
 
-// Returns only users who have a push subscription stored.
-// TODO: Add a separate pushSubscribers table to avoid full-scan at scale
-// For now: index exists on pushSubscription, but Convex doesn't support !=null index filtering
+// Returns only users who have a push subscription stored — via the
+// by_hasPushSubscription index, so this no longer scans the whole users table.
 export const getSubscribedUsers = internalQuery({
   args: {},
   handler: async (ctx) => {
-    const users = await ctx.db.query("users").take(10000);
+    const users = await ctx.db
+      .query("users")
+      .withIndex("by_hasPushSubscription", (q) => q.eq("hasPushSubscription", true))
+      .collect();
     return users
-      .filter((u) => u.pushSubscription != null)
+      .filter((u) => u.pushSubscription != null) // defensive: flag/field in sync
       .map((u) => ({ _id: u._id, pushSubscription: u.pushSubscription! }));
+  },
+});
+
+// One-time migration: backfill `hasPushSubscription` for existing rows so the
+// index above sees subscribers created before the flag existed. Run once with
+// `npx convex run push:backfillHasPushSubscription` after deploying.
+export const backfillHasPushSubscription = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const users = await ctx.db.query("users").take(10000);
+    let updated = 0;
+    for (const u of users) {
+      const expected = u.pushSubscription != null;
+      if (u.hasPushSubscription !== expected) {
+        await ctx.db.patch(u._id, { hasPushSubscription: expected });
+        updated += 1;
+      }
+    }
+    return { scanned: users.length, updated };
   },
 });
 
@@ -116,6 +143,9 @@ export const getUpcomingAssignmentsForUser = internalQuery({
 export const clearStaleSubscription = internalMutation({
   args: { userId: v.id("users") },
   handler: async (ctx, args) => {
-    await ctx.db.patch(args.userId, { pushSubscription: undefined });
+    await ctx.db.patch(args.userId, {
+      pushSubscription: undefined,
+      hasPushSubscription: false,
+    });
   },
 });
