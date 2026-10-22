@@ -11,7 +11,7 @@
  * Next.js route handlers that have already authenticated the user with Clerk.
  */
 
-import { internalMutation, mutation } from "./_generated/server";
+import { internalMutation, mutation, type MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { assertInternalSecret } from "./internalSecret.helpers";
@@ -26,44 +26,68 @@ const RATE_LIMITS = {
   browse: { limit: 10, windowMs: 60_000 },
   calendarSync: { limit: 6, windowMs: 60_000 },
   slugSchedule: { limit: 6, windowMs: 60_000 },
+  // Public Convex actions that hit Canvas with the user's cookies.
+  canvasSync: { limit: 4, windowMs: 60_000 },
+  officeHours: { limit: 20, windowMs: 60_000 },
 } as const;
+
+type RateLimitBucket = keyof typeof RATE_LIMITS;
 
 const rateLimitBucket = v.union(
   v.literal("canvasStream"),
   v.literal("canvasInput"),
   v.literal("browse"),
   v.literal("calendarSync"),
-  v.literal("slugSchedule")
+  v.literal("slugSchedule"),
+  v.literal("canvasSync"),
+  v.literal("officeHours")
 );
+
+type RateLimitResult = { ok: boolean; retryAfterMs: number };
+
+async function consumeBucket(
+  ctx: MutationCtx,
+  bucket: RateLimitBucket,
+  clerkId: string
+): Promise<RateLimitResult> {
+  const { limit, windowMs } = RATE_LIMITS[bucket];
+  const key = `${bucket}:${clerkId}`;
+  const now = Date.now();
+
+  const existing = await ctx.db
+    .query("rateLimitBuckets")
+    .withIndex("by_key", (q) => q.eq("key", key))
+    .unique();
+
+  if (!existing || now - existing.windowStart >= windowMs) {
+    if (existing) {
+      await ctx.db.patch(existing._id, { windowStart: now, count: 1 });
+    } else {
+      await ctx.db.insert("rateLimitBuckets", { key, windowStart: now, count: 1 });
+    }
+    return { ok: true, retryAfterMs: 0 };
+  }
+
+  if (existing.count >= limit) {
+    return { ok: false, retryAfterMs: existing.windowStart + windowMs - now };
+  }
+  await ctx.db.patch(existing._id, { count: existing.count + 1 });
+  return { ok: true, retryAfterMs: 0 };
+}
 
 export const consumeRateLimit = mutation({
   args: { secret: v.string(), bucket: rateLimitBucket, clerkId: v.string() },
-  handler: async (ctx, args): Promise<{ ok: boolean; retryAfterMs: number }> => {
+  handler: async (ctx, args): Promise<RateLimitResult> => {
     assertInternalSecret(args.secret);
-    const { limit, windowMs } = RATE_LIMITS[args.bucket];
-    const key = `${args.bucket}:${args.clerkId}`;
-    const now = Date.now();
-
-    const existing = await ctx.db
-      .query("rateLimitBuckets")
-      .withIndex("by_key", (q) => q.eq("key", key))
-      .unique();
-
-    if (!existing || now - existing.windowStart >= windowMs) {
-      if (existing) {
-        await ctx.db.patch(existing._id, { windowStart: now, count: 1 });
-      } else {
-        await ctx.db.insert("rateLimitBuckets", { key, windowStart: now, count: 1 });
-      }
-      return { ok: true, retryAfterMs: 0 };
-    }
-
-    if (existing.count >= limit) {
-      return { ok: false, retryAfterMs: existing.windowStart + windowMs - now };
-    }
-    await ctx.db.patch(existing._id, { count: existing.count + 1 });
-    return { ok: true, retryAfterMs: 0 };
+    return consumeBucket(ctx, args.bucket, args.clerkId);
   },
+});
+
+/** Same limits for public Convex actions, keyed by the caller's Clerk subject. */
+export const consumeRateLimitInternal = internalMutation({
+  args: { bucket: rateLimitBucket, clerkId: v.string() },
+  handler: async (ctx, args): Promise<RateLimitResult> =>
+    consumeBucket(ctx, args.bucket, args.clerkId),
 });
 
 // ---------------------------------------------------------------------------

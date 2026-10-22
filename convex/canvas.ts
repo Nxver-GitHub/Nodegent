@@ -84,6 +84,19 @@ class CanvasSessionExpiredError extends Error {
 // Pagination helper — follows Canvas Link header rel="next" using Cookie auth
 // ---------------------------------------------------------------------------
 
+/**
+ * Cookie-bearing Canvas request. Redirects aren't followed: Canvas only
+ * redirects when the session is gone (to SSO login), and following would send
+ * the Cookie header wherever the Location points.
+ */
+function canvasRequestInit(cookieHeader: string): RequestInit {
+  return { headers: { Cookie: cookieHeader, Accept: "application/json" }, redirect: "manual" };
+}
+
+function isRedirect(res: Response): boolean {
+  return res.type === "opaqueredirect" || (res.status >= 300 && res.status < 400);
+}
+
 async function fetchAllPagesWithCookies<T>(
   url: string,
   cookieHeader: string
@@ -96,15 +109,10 @@ async function fetchAllPagesWithCookies<T>(
   const allowedOrigin = new URL(url).origin;
 
   while (nextUrl && pageCount < MAX_PAGES) {
-    const response: Response = await fetch(nextUrl, {
-      headers: {
-        Cookie: cookieHeader,
-        Accept: "application/json",
-      },
-    });
+    const response: Response = await fetch(nextUrl, canvasRequestInit(cookieHeader));
 
     if (!response.ok) {
-      if (response.status === 401 || response.status === 302) {
+      if (response.status === 401 || isRedirect(response)) {
         throw new CanvasSessionExpiredError(
           "Canvas session expired. Please reconnect Canvas in the dashboard."
         );
@@ -504,6 +512,13 @@ export const syncCanvas = action({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
 
+    // Each sync fans out many cookie-authed Canvas requests — throttle per user.
+    const limit = await ctx.runMutation(internal.guards.consumeRateLimitInternal, {
+      bucket: "canvasSync",
+      clerkId: identity.subject,
+    });
+    if (!limit.ok) throw new Error("Canvas was synced moments ago. Please wait a minute and try again.");
+
     const user = await ctx.runQuery(api.users.getCurrentUser, {});
     if (!user) throw new Error("User not found");
 
@@ -536,9 +551,7 @@ export const syncCanvas = action({
       // Fetch the student's own Canvas profile to get their real name, then
       // patch the user record if it still holds the "Student" placeholder.
       try {
-        const profileRes = await fetch(`${baseUrl}/api/v1/users/self/profile`, {
-          headers: { Cookie: cookieHeader, Accept: "application/json" },
-        });
+        const profileRes = await fetch(`${baseUrl}/api/v1/users/self/profile`, canvasRequestInit(cookieHeader));
         if (profileRes.ok) {
           const profile = await profileRes.json() as { name?: string; short_name?: string };
           const canvasName = profile.short_name ?? profile.name;
@@ -568,11 +581,11 @@ export const syncCanvas = action({
           const [teacherRes, taRes] = await Promise.all([
             fetch(
               `${baseUrl}/api/v1/courses/${course.id}/enrollments?type[]=TeacherEnrollment&per_page=5`,
-              { headers: { Cookie: cookieHeader, Accept: "application/json" } }
+              canvasRequestInit(cookieHeader)
             ),
             fetch(
               `${baseUrl}/api/v1/courses/${course.id}/enrollments?type[]=TaEnrollment&per_page=20`,
-              { headers: { Cookie: cookieHeader, Accept: "application/json" } }
+              canvasRequestInit(cookieHeader)
             ),
           ]);
           if (teacherRes.ok) {
@@ -605,7 +618,7 @@ export const syncCanvas = action({
         try {
           const enrollRes = await fetch(
             `${baseUrl}/api/v1/courses/${course.id}/enrollments?user_id=self`,
-            { headers: { Cookie: cookieHeader, Accept: "application/json" } }
+            canvasRequestInit(cookieHeader)
           );
           if (enrollRes.ok) {
             const enrollments = (await enrollRes.json()) as CanvasEnrollment[];
@@ -640,7 +653,7 @@ export const syncCanvas = action({
           ),
           fetch(
             `${baseUrl}/api/v1/courses/${course.id}/students/submissions?student_ids[]=self&per_page=100`,
-            { headers: { Cookie: cookieHeader, Accept: "application/json" } }
+            canvasRequestInit(cookieHeader)
           ).then((r) => (r.ok ? (r.json() as Promise<CanvasSubmission[]>) : Promise.resolve([] as CanvasSubmission[])))
             .catch(() => [] as CanvasSubmission[]),
         ]);
@@ -746,6 +759,12 @@ export const extractOfficeHours = action({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
 
+    const limit = await ctx.runMutation(internal.guards.consumeRateLimitInternal, {
+      bucket: "officeHours",
+      clerkId: identity.subject,
+    });
+    if (!limit.ok) return { professor: null, tas: null };
+
     const user = await ctx.runQuery(api.users.getCurrentUser, {});
     if (!user) return { professor: null, tas: null };
 
@@ -777,7 +796,7 @@ export const extractOfficeHours = action({
     try {
       const res = await fetch(
         `${baseUrl}/api/v1/courses/${canvasId}?include[]=syllabus_body`,
-        { headers: { Cookie: cookieHeader, Accept: "application/json" } }
+        canvasRequestInit(cookieHeader)
       );
       if (res.ok) {
         const data = (await res.json()) as { syllabus_body?: string | null };
@@ -789,7 +808,7 @@ export const extractOfficeHours = action({
       try {
         const res = await fetch(
           `${baseUrl}/api/v1/courses/${canvasId}/front_page`,
-          { headers: { Cookie: cookieHeader, Accept: "application/json" } }
+          canvasRequestInit(cookieHeader)
         );
         if (res.ok) {
           const data = (await res.json()) as { body?: string | null };
