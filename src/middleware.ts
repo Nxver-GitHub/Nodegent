@@ -12,6 +12,10 @@ const isPublicRoute = createRouteMatcher([
 ]);
 
 const isApiRoute = createRouteMatcher(["/api(.*)"]);
+// Called server-to-server by Convex with the x-nodegent-internal secret (no
+// Clerk session). These routes verify that secret — or a Clerk session —
+// themselves, so the middleware only skips auth.protect() when it's present.
+const isInternalCallableRoute = createRouteMatcher(["/api/browse", "/api/mcp/call"]);
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 /**
@@ -36,7 +40,9 @@ export default clerkMiddleware(
     if (isApiRoute(req) && !SAFE_METHODS.has(req.method) && isForeignOrigin(req)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
-    if (!isPublicRoute(req)) {
+    const internalCall =
+      isInternalCallableRoute(req) && req.headers.has("x-nodegent-internal");
+    if (!isPublicRoute(req) && !internalCall) {
       await auth.protect();
     }
   },
