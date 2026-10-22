@@ -2,20 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { fetchQuery, fetchMutation } from "convex/nextjs";
 import { api } from "@convex/_generated/api";
+import { currentUcscTerm } from "@convex/ucscTerm.helpers";
 import * as cheerio from "cheerio";
 import { enforceRateLimit } from "@/lib/convex-internal";
 
 export const maxDuration = 60;
-
-function currentUcscTerm(): string {
-  const now = new Date();
-  const yy = String(now.getFullYear() % 100).padStart(2, "0");
-  const m = now.getMonth() + 1;
-  if (m >= 10) return `2${yy}8`; // Fall
-  if (m >= 7) return `2${yy}4`;  // Summer
-  if (m >= 4) return `2${yy}2`;  // Spring
-  return `2${yy}0`;              // Winter
-}
 
 function parseCourseCode(raw: string): { subject: string; catalogNbr: string } | null {
   const m = raw.trim().match(/^([A-Z]+(?:\s+[A-Z]+)?)\s+(\w+)/i);
@@ -152,7 +143,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const limited = await enforceRateLimit("slugSchedule", userId);
   if (limited) return limited;
 
-  const term = currentUcscTerm();
+  const term = currentUcscTerm(Date.now()).code;
 
   let courses: { courseCode: string }[];
   try {
