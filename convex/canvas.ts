@@ -1,4 +1,5 @@
 import { action, internalMutation, internalQuery, mutation, query } from "./_generated/server";
+import type { MutationCtx } from "./_generated/server";
 import { internal, api } from "./_generated/api";
 import { v } from "convex/values";
 import { DEFAULT_GROQ_MODEL } from "./groqModel.helpers";
@@ -101,6 +102,18 @@ async function fetchAllPagesWithCookies<T>(
   url: string,
   cookieHeader: string
 ): Promise<T[]> {
+  return (await fetchAllPagesDetailed<T>(url, cookieHeader)).results;
+}
+
+/**
+ * Same as fetchAllPagesWithCookies, but also reports whether pagination was
+ * cut off at MAX_PAGES — callers that act on "absent from Canvas" (pruning)
+ * must not treat a truncated listing as complete.
+ */
+async function fetchAllPagesDetailed<T>(
+  url: string,
+  cookieHeader: string
+): Promise<{ results: T[]; truncated: boolean }> {
   const results: T[] = [];
   let nextUrl: string | null = url;
   let pageCount = 0;
@@ -141,7 +154,7 @@ async function fetchAllPagesWithCookies<T>(
     }
   }
 
-  return results;
+  return { results, truncated: nextUrl !== null };
 }
 
 // ---------------------------------------------------------------------------
@@ -437,6 +450,109 @@ export const removeCanvasCredentials = mutation({
 });
 
 // ---------------------------------------------------------------------------
+// purgeCanvasCourseData — shared cascade delete for Canvas-synced rows.
+// scope "all": every course/assignment/description/canvas event for the user
+// (revocation). scope = course ids: only those courses and their dependents
+// (sync pruning). Dependents go first so nothing is left pointing at a
+// deleted course or assignment.
+// ---------------------------------------------------------------------------
+
+// Capped at 500 per table; for large datasets this should be converted to a paginated internalAction
+const PURGE_CAP = 500;
+
+async function purgeCanvasCourseData(
+  ctx: MutationCtx,
+  userId: Id<"users">,
+  scope: "all" | Id<"courses">[]
+): Promise<void> {
+  const courseIdSet = scope === "all" ? null : new Set<string>(scope);
+
+  // Assignments (they reference courses via courseId)
+  const assignments =
+    scope === "all"
+      ? await ctx.db
+          .query("assignments")
+          .withIndex("by_userId", (q) => q.eq("userId", userId))
+          .collect()
+      : (
+          await Promise.all(
+            scope.map((courseId) =>
+              ctx.db
+                .query("assignments")
+                .withIndex("by_userId_courseId", (q) =>
+                  q.eq("userId", userId).eq("courseId", courseId)
+                )
+                .collect()
+            )
+          )
+        ).flat();
+  const toDeleteAssignments = assignments.slice(0, PURGE_CAP);
+
+  // Assignment descriptions before assignments (foreign key dependency)
+  const descriptions =
+    scope === "all"
+      ? await ctx.db
+          .query("assignmentDescriptions")
+          .withIndex("by_userId", (q) => q.eq("userId", userId))
+          .collect()
+      : (
+          await Promise.all(
+            toDeleteAssignments.map((a) =>
+              ctx.db
+                .query("assignmentDescriptions")
+                .withIndex("by_assignmentId", (q) => q.eq("assignmentId", a._id))
+                .collect()
+            )
+          )
+        ).flat();
+  await Promise.all(descriptions.slice(0, PURGE_CAP).map((d) => ctx.db.delete(d._id)));
+  await Promise.all(toDeleteAssignments.map((a) => ctx.db.delete(a._id)));
+
+  // Courses — scoped deletes re-check ownership so a stray id can't cross users
+  const courses =
+    scope === "all"
+      ? await ctx.db
+          .query("courses")
+          .withIndex("by_userId", (q) => q.eq("userId", userId))
+          .collect()
+      : (await Promise.all(scope.map((id) => ctx.db.get(id)))).filter(
+          (c): c is NonNullable<typeof c> => c !== null && c.userId === userId
+        );
+  await Promise.all(courses.slice(0, PURGE_CAP).map((c) => ctx.db.delete(c._id)));
+
+  // Canvas-sourced events
+  const canvasEvents = await ctx.db
+    .query("events")
+    .withIndex("by_userId_source", (q) => q.eq("userId", userId).eq("source", "canvas"))
+    .collect();
+  const toDeleteEvents = courseIdSet
+    ? canvasEvents.filter((e) => e.courseId !== undefined && courseIdSet.has(e.courseId))
+    : canvasEvents;
+  await Promise.all(toDeleteEvents.slice(0, PURGE_CAP).map((e) => ctx.db.delete(e._id)));
+}
+
+// ---------------------------------------------------------------------------
+// pruneStaleCourses — remove courses Canvas no longer returns for this user.
+// Called by syncCanvas only after a complete, successful course listing.
+// ---------------------------------------------------------------------------
+
+export const pruneStaleCourses = internalMutation({
+  args: { userId: v.id("users"), keepCanvasIds: v.array(v.string()) },
+  handler: async (ctx, args): Promise<number> => {
+    const keep = new Set(args.keepCanvasIds);
+    const stale = (
+      await ctx.db
+        .query("courses")
+        .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+        .collect()
+    ).filter((c) => !keep.has(c.canvasId));
+    if (stale.length === 0) return 0;
+    await purgeCanvasCourseData(ctx, args.userId, stale.map((c) => c._id));
+    return stale.length;
+  },
+});
+
+// ---------------------------------------------------------------------------
 // revokeCanvasAccess — permanently delete credentials AND all synced data
 // US-4.2: instant access revocation
 // ---------------------------------------------------------------------------
@@ -453,43 +569,7 @@ export const revokeCanvasAccess = mutation({
       .unique();
     if (!user) throw new Error("User not found");
 
-    // Delete assignment descriptions before assignments (foreign key dependency)
-    const assignmentDescriptions = await ctx.db
-      .query("assignmentDescriptions")
-      .withIndex("by_userId", (q) => q.eq("userId", user._id))
-      .collect();
-    // Capped at 500; for large datasets this should be converted to a paginated internalAction
-    const toDeleteDescriptions = assignmentDescriptions.slice(0, 500);
-    await Promise.all(toDeleteDescriptions.map((d) => ctx.db.delete(d._id)));
-
-    // Delete assignments (they reference courses via courseId)
-    const assignments = await ctx.db
-      .query("assignments")
-      .withIndex("by_userId", (q) => q.eq("userId", user._id))
-      .collect();
-    // Capped at 500; for large datasets this should be converted to a paginated internalAction
-    const toDeleteAssignments = assignments.slice(0, 500);
-    await Promise.all(toDeleteAssignments.map((a) => ctx.db.delete(a._id)));
-
-    // Delete all courses
-    const courses = await ctx.db
-      .query("courses")
-      .withIndex("by_userId", (q) => q.eq("userId", user._id))
-      .collect();
-    // Capped at 500; for large datasets this should be converted to a paginated internalAction
-    const toDeleteCourses = courses.slice(0, 500);
-    await Promise.all(toDeleteCourses.map((c) => ctx.db.delete(c._id)));
-
-    // Delete any canvas-sourced events
-    const canvasEvents = await ctx.db
-      .query("events")
-      .withIndex("by_userId_source", (q) =>
-        q.eq("userId", user._id).eq("source", "canvas")
-      )
-      .collect();
-    // Capped at 500; for large datasets this should be converted to a paginated internalAction
-    const toDeleteCanvasEvents = canvasEvents.slice(0, 500);
-    await Promise.all(toDeleteCanvasEvents.map((e) => ctx.db.delete(e._id)));
+    await purgeCanvasCourseData(ctx, user._id, "all");
 
     // Delete credentials last
     const creds = await ctx.db
@@ -566,10 +646,11 @@ export const syncCanvas = action({
         // Non-fatal: profile fetch failure shouldn't block the rest of sync
       }
 
-      const courses = await fetchAllPagesWithCookies<CanvasCourse>(
-        `${baseUrl}/api/v1/courses?enrollment_state=active&include[]=term&include[]=teachers&per_page=50`,
-        cookieHeader
-      );
+      const { results: courses, truncated: coursesTruncated } =
+        await fetchAllPagesDetailed<CanvasCourse>(
+          `${baseUrl}/api/v1/courses?enrollment_state=active&include[]=term&include[]=teachers&per_page=50`,
+          cookieHeader
+        );
 
       let coursesSynced = 0;
       let assignmentsSynced = 0;
@@ -704,6 +785,19 @@ export const syncCanvas = action({
         });
       }
 
+      // Every course above upserted without throwing, so the listing is
+      // authoritative: drop courses Canvas stopped returning. Skip when the
+      // listing was truncated or empty — an empty response is far more likely
+      // a Canvas hiccup than a student with zero enrollments, and pruning on
+      // it would wipe the dashboard.
+      let coursesPruned = 0;
+      if (!coursesTruncated && courses.length > 0) {
+        coursesPruned = await ctx.runMutation(internal.canvas.pruneStaleCourses, {
+          userId: user._id,
+          keepCanvasIds: courses.map((c) => String(c.id)),
+        });
+      }
+
       await ctx.runMutation(internal.canvas.updateSyncStatus, {
         userId: user._id,
         status: "success",
@@ -715,7 +809,7 @@ export const syncCanvas = action({
         userId: user._id,
         action: "canvas_sync",
         status: "success",
-        details: JSON.stringify({ coursesSynced, assignmentsSynced }),
+        details: JSON.stringify({ coursesSynced, assignmentsSynced, coursesPruned }),
       });
 
       return { coursesSynced, assignmentsSynced };
