@@ -24,6 +24,7 @@ import type * as googleCalendar from "../googleCalendar.js";
 import type * as guards from "../guards.js";
 import type * as mcpConnectors from "../mcpConnectors.js";
 import type * as mcpTools from "../mcpTools.js";
+import type * as nutritionFetch from "../nutritionFetch.js";
 import type * as push from "../push.js";
 import type * as pushSend from "../pushSend.js";
 import type * as ssoRelay from "../ssoRelay.js";
@@ -53,6 +54,7 @@ declare const fullApi: ApiFromModules<{
   guards: typeof guards;
   mcpConnectors: typeof mcpConnectors;
   mcpTools: typeof mcpTools;
+  nutritionFetch: typeof nutritionFetch;
   push: typeof push;
   pushSend: typeof pushSend;
   ssoRelay: typeof ssoRelay;

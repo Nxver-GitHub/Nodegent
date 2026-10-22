@@ -8,6 +8,7 @@ import type { Id } from "@convex/_generated/dataModel";
 import { CaretDown, Trash, Gear } from "@phosphor-icons/react";
 import { ConnectorsPanel } from "@/app/dashboard/components/connectors/ConnectorsPanel";
 import ReactMarkdown from "react-markdown";
+import { ConvexError } from "convex/values";
 import { isSafeChatLink } from "@/lib/chat-link-allowlist";
 
 type ContextRef = { type: "course" | "assignment" | "event"; id: string; label: string };
@@ -265,7 +266,12 @@ export function ChatClient() {
       await sendMessage({ threadId, content });
     } catch (e) {
       setDraft(content);
-      setError(e instanceof Error ? e.message : "Failed to send message");
+      // Prod Convex hides plain Error messages; user-facing ones are ConvexErrors.
+      setError(
+        e instanceof ConvexError
+          ? String(e.data)
+          : "Couldn't get a reply. Please try again."
+      );
     } finally {
       setIsSending(false);
     }
@@ -314,12 +320,6 @@ export function ChatClient() {
         </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
-        {error && (
-          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-            {error}
-          </div>
-        )}
-
         {!threadId && (
           <div className="rounded-md border bg-gray-50 px-3 py-2 text-sm text-gray-700">
             Initializing chat…
@@ -342,6 +342,12 @@ export function ChatClient() {
       </div>
 
       <div className="border-t p-3">
+        {/* Next to the input so it's visible while scrolled to the latest message. */}
+        {error && (
+          <div role="alert" className="mb-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {error}
+          </div>
+        )}
         <div className="flex gap-2">
           <input
             value={draft}
@@ -365,7 +371,7 @@ export function ChatClient() {
           </button>
         </div>
         <p className="mt-2 text-[11px] text-gray-500">
-          Nodegent&apos;s AI is powered by llama-4-scout-17b-16e-instruct from Groq.
+          Nodegent&apos;s AI is powered by Groq.
         </p>
         <p className="mt-0.5 text-[11px] text-gray-500">
           AI responses may not be fully accurate. Verify important information.

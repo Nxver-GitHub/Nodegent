@@ -1,4 +1,5 @@
 import { action, internalMutation, internalQuery, mutation, query } from "./_generated/server";
+import type { MutationCtx } from "./_generated/server";
 import { internal, api } from "./_generated/api";
 import { v } from "convex/values";
 import { DEFAULT_GROQ_MODEL } from "./groqModel.helpers";
@@ -101,6 +102,18 @@ async function fetchAllPagesWithCookies<T>(
   url: string,
   cookieHeader: string
 ): Promise<T[]> {
+  return (await fetchAllPagesDetailed<T>(url, cookieHeader)).results;
+}
+
+/**
+ * Same as fetchAllPagesWithCookies, but also reports whether pagination was
+ * cut off at MAX_PAGES — callers that act on "absent from Canvas" (pruning)
+ * must not treat a truncated listing as complete.
+ */
+async function fetchAllPagesDetailed<T>(
+  url: string,
+  cookieHeader: string
+): Promise<{ results: T[]; truncated: boolean }> {
   const results: T[] = [];
   let nextUrl: string | null = url;
   let pageCount = 0;
@@ -141,7 +154,7 @@ async function fetchAllPagesWithCookies<T>(
     }
   }
 
-  return results;
+  return { results, truncated: nextUrl !== null };
 }
 
 // ---------------------------------------------------------------------------
@@ -437,6 +450,184 @@ export const removeCanvasCredentials = mutation({
 });
 
 // ---------------------------------------------------------------------------
+// purgeCanvasCourseData — cascade delete of every Canvas-synced row for the
+// user (revocation): courses, assignments, descriptions, canvas events.
+// Dependents go first so nothing is left pointing at a deleted course or
+// assignment.
+// ---------------------------------------------------------------------------
+
+// Capped at 500 per table; for large datasets this should be converted to a paginated internalAction
+const PURGE_CAP = 500;
+
+async function purgeCanvasCourseData(ctx: MutationCtx, userId: Id<"users">): Promise<void> {
+  const assignments = await ctx.db
+    .query("assignments")
+    .withIndex("by_userId", (q) => q.eq("userId", userId))
+    .collect();
+
+  // Assignment descriptions before assignments (foreign key dependency)
+  const descriptions = await ctx.db
+    .query("assignmentDescriptions")
+    .withIndex("by_userId", (q) => q.eq("userId", userId))
+    .collect();
+  await Promise.all(descriptions.slice(0, PURGE_CAP).map((d) => ctx.db.delete(d._id)));
+  await Promise.all(assignments.slice(0, PURGE_CAP).map((a) => ctx.db.delete(a._id)));
+
+  const courses = await ctx.db
+    .query("courses")
+    .withIndex("by_userId", (q) => q.eq("userId", userId))
+    .collect();
+  await Promise.all(courses.slice(0, PURGE_CAP).map((c) => ctx.db.delete(c._id)));
+
+  // Canvas-sourced events
+  const canvasEvents = await ctx.db
+    .query("events")
+    .withIndex("by_userId_source", (q) => q.eq("userId", userId).eq("source", "canvas"))
+    .collect();
+  await Promise.all(canvasEvents.slice(0, PURGE_CAP).map((e) => ctx.db.delete(e._id)));
+}
+
+// ---------------------------------------------------------------------------
+// Stale-course pruning (sync). Deletes are bounded per mutation by
+// PRUNE_ROW_BUDGET; leftover courses are handed to continueCoursePrune via the
+// scheduler. A course row is only deleted once all of its dependents are
+// gone, so an interrupted batch never leaves orphans. Courses with user notes
+// are kept.
+// ---------------------------------------------------------------------------
+
+const PRUNE_ROW_BUDGET = 400;
+
+async function courseHasNotes(
+  ctx: MutationCtx,
+  userId: Id<"users">,
+  courseId: Id<"courses">
+): Promise<boolean> {
+  const note = await ctx.db
+    .query("courseNotes")
+    .withIndex("by_userId_courseId", (q) => q.eq("userId", userId).eq("courseId", courseId))
+    .first();
+  return note !== null;
+}
+
+/** Delete up to `budget` rows for one course. `finished` means the course row itself is gone (or skipped). */
+async function pruneOneCourse(
+  ctx: MutationCtx,
+  userId: Id<"users">,
+  courseId: Id<"courses">,
+  budget: number
+): Promise<{ used: number; finished: boolean }> {
+  // Re-check ownership so a stray id can't cross users, and notes in case one
+  // was written since the prune was scheduled.
+  const course = await ctx.db.get(courseId);
+  if (!course || course.userId !== userId) return { used: 0, finished: true };
+  if (await courseHasNotes(ctx, userId, courseId)) return { used: 0, finished: true };
+
+  let used = 0;
+  const assignments = await ctx.db
+    .query("assignments")
+    .withIndex("by_userId_courseId", (q) => q.eq("userId", userId).eq("courseId", courseId))
+    .take(budget);
+  for (const a of assignments) {
+    if (used >= budget) return { used, finished: false };
+    // Descriptions before their assignment (foreign key dependency)
+    const descriptions = await ctx.db
+      .query("assignmentDescriptions")
+      .withIndex("by_assignmentId", (q) => q.eq("assignmentId", a._id))
+      .take(budget - used);
+    for (const d of descriptions) await ctx.db.delete(d._id);
+    used += descriptions.length;
+    if (used >= budget) return { used, finished: false };
+    await ctx.db.delete(a._id);
+    used++;
+  }
+  if (used >= budget) return { used, finished: false };
+
+  const events = await ctx.db
+    .query("events")
+    .withIndex("by_userId_courseId_source", (q) =>
+      q.eq("userId", userId).eq("courseId", courseId).eq("source", "canvas")
+    )
+    .take(budget - used);
+  for (const e of events) await ctx.db.delete(e._id);
+  used += events.length;
+  if (used >= budget) return { used, finished: false };
+
+  // Only drop the course once nothing references it any more.
+  const leftoverAssignment = await ctx.db
+    .query("assignments")
+    .withIndex("by_userId_courseId", (q) => q.eq("userId", userId).eq("courseId", courseId))
+    .first();
+  const leftoverEvent = await ctx.db
+    .query("events")
+    .withIndex("by_userId_courseId_source", (q) =>
+      q.eq("userId", userId).eq("courseId", courseId).eq("source", "canvas")
+    )
+    .first();
+  if (leftoverAssignment || leftoverEvent) return { used, finished: false };
+
+  await ctx.db.delete(courseId);
+  return { used: used + 1, finished: true };
+}
+
+/** Prune courses in order within one row budget; reschedule whatever is left. */
+async function pruneCourses(
+  ctx: MutationCtx,
+  userId: Id<"users">,
+  courseIds: Id<"courses">[]
+): Promise<void> {
+  let budget = PRUNE_ROW_BUDGET;
+  for (let i = 0; i < courseIds.length; i++) {
+    const { used, finished } = await pruneOneCourse(ctx, userId, courseIds[i], budget);
+    budget -= used;
+    if (!finished || budget <= 0) {
+      const remaining = courseIds.slice(finished ? i + 1 : i);
+      if (remaining.length > 0) {
+        await ctx.scheduler.runAfter(0, internal.canvas.continueCoursePrune, {
+          userId,
+          courseIds: remaining,
+        });
+      }
+      return;
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// pruneStaleCourses — remove courses Canvas no longer returns for this user.
+// Called by syncCanvas only after a complete, successful course listing.
+// Returns the number of courses queued for removal (noted courses excluded).
+// ---------------------------------------------------------------------------
+
+export const pruneStaleCourses = internalMutation({
+  args: { userId: v.id("users"), keepCanvasIds: v.array(v.string()) },
+  handler: async (ctx, args): Promise<number> => {
+    const keep = new Set(args.keepCanvasIds);
+    const stale = (
+      await ctx.db
+        .query("courses")
+        .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+        .collect()
+    ).filter((c) => !keep.has(c.canvasId));
+
+    const toPrune: Id<"courses">[] = [];
+    for (const c of stale) {
+      if (!(await courseHasNotes(ctx, args.userId, c._id))) toPrune.push(c._id);
+    }
+    if (toPrune.length === 0) return 0;
+    await pruneCourses(ctx, args.userId, toPrune);
+    return toPrune.length;
+  },
+});
+
+/** Scheduled continuation of pruneStaleCourses for work past one batch. */
+export const continueCoursePrune = internalMutation({
+  args: { userId: v.id("users"), courseIds: v.array(v.id("courses")) },
+  handler: async (ctx, args): Promise<void> => {
+    await pruneCourses(ctx, args.userId, args.courseIds);
+  },
+});
+
+// ---------------------------------------------------------------------------
 // revokeCanvasAccess — permanently delete credentials AND all synced data
 // US-4.2: instant access revocation
 // ---------------------------------------------------------------------------
@@ -453,43 +644,7 @@ export const revokeCanvasAccess = mutation({
       .unique();
     if (!user) throw new Error("User not found");
 
-    // Delete assignment descriptions before assignments (foreign key dependency)
-    const assignmentDescriptions = await ctx.db
-      .query("assignmentDescriptions")
-      .withIndex("by_userId", (q) => q.eq("userId", user._id))
-      .collect();
-    // Capped at 500; for large datasets this should be converted to a paginated internalAction
-    const toDeleteDescriptions = assignmentDescriptions.slice(0, 500);
-    await Promise.all(toDeleteDescriptions.map((d) => ctx.db.delete(d._id)));
-
-    // Delete assignments (they reference courses via courseId)
-    const assignments = await ctx.db
-      .query("assignments")
-      .withIndex("by_userId", (q) => q.eq("userId", user._id))
-      .collect();
-    // Capped at 500; for large datasets this should be converted to a paginated internalAction
-    const toDeleteAssignments = assignments.slice(0, 500);
-    await Promise.all(toDeleteAssignments.map((a) => ctx.db.delete(a._id)));
-
-    // Delete all courses
-    const courses = await ctx.db
-      .query("courses")
-      .withIndex("by_userId", (q) => q.eq("userId", user._id))
-      .collect();
-    // Capped at 500; for large datasets this should be converted to a paginated internalAction
-    const toDeleteCourses = courses.slice(0, 500);
-    await Promise.all(toDeleteCourses.map((c) => ctx.db.delete(c._id)));
-
-    // Delete any canvas-sourced events
-    const canvasEvents = await ctx.db
-      .query("events")
-      .withIndex("by_userId_source", (q) =>
-        q.eq("userId", user._id).eq("source", "canvas")
-      )
-      .collect();
-    // Capped at 500; for large datasets this should be converted to a paginated internalAction
-    const toDeleteCanvasEvents = canvasEvents.slice(0, 500);
-    await Promise.all(toDeleteCanvasEvents.map((e) => ctx.db.delete(e._id)));
+    await purgeCanvasCourseData(ctx, user._id);
 
     // Delete credentials last
     const creds = await ctx.db
@@ -566,10 +721,11 @@ export const syncCanvas = action({
         // Non-fatal: profile fetch failure shouldn't block the rest of sync
       }
 
-      const courses = await fetchAllPagesWithCookies<CanvasCourse>(
-        `${baseUrl}/api/v1/courses?enrollment_state=active&include[]=term&include[]=teachers&per_page=50`,
-        cookieHeader
-      );
+      const { results: courses, truncated: coursesTruncated } =
+        await fetchAllPagesDetailed<CanvasCourse>(
+          `${baseUrl}/api/v1/courses?enrollment_state=active&include[]=term&include[]=teachers&per_page=50`,
+          cookieHeader
+        );
 
       let coursesSynced = 0;
       let assignmentsSynced = 0;
@@ -704,6 +860,19 @@ export const syncCanvas = action({
         });
       }
 
+      // Every course above upserted without throwing, so the listing is
+      // authoritative: drop courses Canvas stopped returning. Skip when the
+      // listing was truncated or empty — an empty response is far more likely
+      // a Canvas hiccup than a student with zero enrollments, and pruning on
+      // it would wipe the dashboard.
+      let coursesPruned = 0;
+      if (!coursesTruncated && courses.length > 0) {
+        coursesPruned = await ctx.runMutation(internal.canvas.pruneStaleCourses, {
+          userId: user._id,
+          keepCanvasIds: courses.map((c) => String(c.id)),
+        });
+      }
+
       await ctx.runMutation(internal.canvas.updateSyncStatus, {
         userId: user._id,
         status: "success",
@@ -715,7 +884,7 @@ export const syncCanvas = action({
         userId: user._id,
         action: "canvas_sync",
         status: "success",
-        details: JSON.stringify({ coursesSynced, assignmentsSynced }),
+        details: JSON.stringify({ coursesSynced, assignmentsSynced, coursesPruned }),
       });
 
       return { coursesSynced, assignmentsSynced };

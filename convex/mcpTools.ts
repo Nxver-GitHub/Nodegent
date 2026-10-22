@@ -59,7 +59,16 @@ function buildShortMenuResult(
   return lines.join("\n");
 }
 
-async function getDiningMenu(args: Record<string, unknown>): Promise<string> {
+/** Fetches a nutrition.sa.ucsc.edu page; must trust that host's broken TLS chain. */
+export type NutritionPageFetcher = (
+  url: string,
+  headers: Record<string, string>
+) => Promise<{ status: number; body: string }>;
+
+async function getDiningMenu(
+  args: Record<string, unknown>,
+  fetchPage: NutritionPageFetcher
+): Promise<string> {
   const hallQuery = typeof args.hall === "string" ? args.hall.toLowerCase() : "";
   const mealFilter = typeof args.meal === "string" ? args.meal.toLowerCase() : undefined;
   const hall = HALLS.find((h) => h.aliases.some((a) => hallQuery.includes(a))) ?? HALLS[0];
@@ -86,13 +95,10 @@ async function getDiningMenu(args: Record<string, unknown>): Promise<string> {
     `&locationNum=${hall.locationNum}&locationName=${hall.locationName}` +
     `&naFlag=1${dateParam}`;
 
-  const res = await fetch(url, {
-    headers: { "User-Agent": UA, Cookie: COOKIE },
-  });
-  if (!res.ok)
+  const res = await fetchPage(url, { "User-Agent": UA, Cookie: COOKIE });
+  if (res.status < 200 || res.status >= 300)
     throw new Error(`nutrition.sa.ucsc.edu returned ${res.status}`);
-  const html = await res.text();
-  return buildShortMenuResult(cheerio.load(html), hall, mealFilter, url, dateStr);
+  return buildShortMenuResult(cheerio.load(res.body), hall, mealFilter, url, dateStr);
 }
 
 // ─── Classes ───────────────────────────────────────────────────────────────
@@ -226,10 +232,11 @@ async function searchDirectory(args: Record<string, unknown>): Promise<string> {
 
 export async function dispatchMcpTool(
   tool: string,
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
+  deps: { fetchNutritionPage: NutritionPageFetcher }
 ): Promise<string> {
   switch (tool) {
-    case "get_dining_menu": return getDiningMenu(args);
+    case "get_dining_menu": return getDiningMenu(args, deps.fetchNutritionPage);
     case "search_classes": return searchClasses(args);
     case "search_directory": return searchDirectory(args);
     default: return `Unknown MCP tool: ${tool}`;

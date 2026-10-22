@@ -198,7 +198,8 @@ export default defineSchema({
     .index("by_userId", ["userId"])
     .index("by_userId_startAt", ["userId", "startAt"])
     .index("by_userId_externalId", ["userId", "externalId"])
-    .index("by_userId_source", ["userId", "source"]),
+    .index("by_userId_source", ["userId", "source"])
+    .index("by_userId_courseId_source", ["userId", "courseId", "source"]),
 
   canvasCredentials: defineTable({
     userId: v.id("users"),
