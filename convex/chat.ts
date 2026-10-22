@@ -794,7 +794,8 @@ async function callGroq(args: {
     body: JSON.stringify({
       model: args.model,
       temperature: 0.2,
-      max_tokens: 700,
+      // gpt-oss reasoning tokens count toward this cap; 700 cut long lists mid-row.
+      max_tokens: 2000,
       messages: [
         { role: "system", content: args.system },
         {
