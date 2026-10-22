@@ -1050,7 +1050,10 @@ export const sendMessage = action({
             toolResultText = browseData.text ?? "No data retrieved";
           } else if (MCP_TOOL_NAMES_SET.has(toolName)) {
             const mcpArgs = JSON.parse(tc.function.arguments ?? "{}") as Record<string, unknown>;
-            toolResultText = await dispatchMcpTool(toolName, mcpArgs);
+            toolResultText = await dispatchMcpTool(toolName, mcpArgs, {
+              fetchNutritionPage: (url, headers) =>
+                ctx.runAction(internal.nutritionFetch.fetchPage, { url, headers }),
+            });
           }
         } catch (toolErr) {
           // Surface MCP errors so the model can explain them; browse errors fall through.

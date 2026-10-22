@@ -1,4 +1,5 @@
 import * as cheerio from "cheerio";
+import { fetchNutritionPage } from "@convex/nutritionHttps.helpers";
 
 export interface GetDiningMenuArgs {
   hall?: string;
@@ -65,12 +66,12 @@ export async function getDiningMenu(args: GetDiningMenuArgs): Promise<string> {
     `&locationName=${hall.locationName}` +
     `&naFlag=1&WeeksMenus=UCSC+-+This+Week%27s+Menus&myaction=read`;
 
-  const res = await fetch(url, {
-    headers: { Cookie: NUTRITION_COOKIES, "User-Agent": UA },
-  });
-  if (!res.ok) throw new Error(`nutrition.sa.ucsc.edu returned ${res.status}`);
+  const res = await fetchNutritionPage(url, { Cookie: NUTRITION_COOKIES, "User-Agent": UA });
+  if (res.status < 200 || res.status >= 300) {
+    throw new Error(`nutrition.sa.ucsc.edu returned ${res.status}`);
+  }
 
-  const html = await res.text();
+  const html = res.body;
   if (html.includes("Runtime Error") || html.includes("Server Error")) {
     throw new Error("Nutrition site returned an error page");
   }
