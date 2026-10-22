@@ -1,6 +1,6 @@
 import { convexTest } from "convex-test";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { api } from "../_generated/api";
+import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import schema from "../schema";
 
@@ -142,6 +142,7 @@ function stubCanvas(opts: {
 describe("syncCanvas pruning", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.useRealTimers();
   });
 
   it("removes courses Canvas no longer returns, with their dependents, but not other users' data", async () => {
@@ -211,6 +212,95 @@ describe("syncCanvas pruning", () => {
     await t.run(async (ctx) => {
       expect(await ctx.db.get(s.keepCourseId)).not.toBeNull();
       expect(await ctx.db.get(s.goneCourseId)).not.toBeNull();
+    });
+  });
+
+  it("keeps a stale course that has user notes", async () => {
+    const t = convexTest(schema);
+    const s = await seed(t);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("courseNotes", {
+        userId: s.userId,
+        courseId: s.goneCourseId,
+        content: "Keep my notes",
+        updatedAt: Date.now(),
+      });
+    });
+    stubCanvas({ courses: [{ id: 101, name: "CSE-130" }] });
+
+    await t.withIdentity(IDENTITY).action(api.canvas.syncCanvas, {});
+
+    await t.run(async (ctx) => {
+      expect(await ctx.db.get(s.goneCourseId)).not.toBeNull();
+      expect(await ctx.db.get(s.goneAssignmentId)).not.toBeNull();
+    });
+  });
+
+  it("prunes a large stale course across scheduled batches without orphans", async () => {
+    vi.useFakeTimers();
+    const t = convexTest(schema);
+    const s = await seed(t);
+    const now = Date.now();
+    const CHILDREN = 450; // assignments + descriptions + events well past one batch
+
+    await t.run(async (ctx) => {
+      for (let i = 0; i < CHILDREN; i++) {
+        const assignmentId = await ctx.db.insert("assignments", {
+          userId: s.userId,
+          courseId: s.goneCourseId,
+          canvasId: `bulk_${i}`,
+          title: `Bulk ${i}`,
+          isCompleted: false,
+          lastSyncedAt: now,
+        });
+        await ctx.db.insert("assignmentDescriptions", {
+          userId: s.userId,
+          assignmentId,
+          description: "<p>bulk</p>",
+          lastSyncedAt: now,
+        });
+        await ctx.db.insert("events", {
+          userId: s.userId,
+          courseId: s.goneCourseId,
+          title: `Bulk event ${i}`,
+          startAt: now,
+          eventType: "class",
+          source: "canvas",
+          lastSyncedAt: now,
+        });
+      }
+    });
+
+    const pruned = await t.mutation(internal.canvas.pruneStaleCourses, {
+      userId: s.userId,
+      keepCanvasIds: ["101"],
+    });
+    expect(pruned).toBe(1);
+
+    // First batch is bounded: the course and some dependents remain.
+    await t.run(async (ctx) => {
+      expect(await ctx.db.get(s.goneCourseId)).not.toBeNull();
+    });
+
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+    await t.run(async (ctx) => {
+      expect(await ctx.db.get(s.goneCourseId)).toBeNull();
+      expect(await ctx.db.get(s.keepCourseId)).not.toBeNull();
+
+      const assignments = await ctx.db.query("assignments").collect();
+      expect(assignments.filter((a) => a.courseId === s.goneCourseId)).toHaveLength(0);
+
+      const assignmentIds = new Set(assignments.map((a) => a._id as string));
+      const descriptions = await ctx.db.query("assignmentDescriptions").collect();
+      expect(descriptions.filter((d) => !assignmentIds.has(d.assignmentId))).toHaveLength(0);
+
+      const events = await ctx.db.query("events").collect();
+      expect(events.filter((e) => e.courseId === s.goneCourseId)).toHaveLength(0);
+
+      // Other user's identically-keyed course and assignment are untouched.
+      expect(await ctx.db.get(s.otherCourseId)).not.toBeNull();
+      expect(await ctx.db.get(s.otherAssignmentId)).not.toBeNull();
     });
   });
 });
