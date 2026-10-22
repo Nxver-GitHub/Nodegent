@@ -183,14 +183,26 @@ export function CanvasAuthViewer({ onConnected }: CanvasAuthViewerProps) {
     if (!passcode.trim()) return;
     setPasscodeSubmitting(true);
     try {
-      await fetch("/api/canvas-auth/type", {
+      const res = await fetch("/api/canvas-auth/type", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: passcode }),
       });
+      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; reason?: string };
+      if (!res.ok || !data.ok) {
+        // Keep the code so the user can resend instead of waiting out a timeout.
+        setStatusMsg(
+          data.reason === "no-session"
+            ? "Your login session ended. Retry to start a new one."
+            : "Couldn't send your passcode. Please try again."
+        );
+        return;
+      }
       setPasscode("");
       setPhase("streaming");
       setStatusMsg("Verifying passcode…");
+    } catch {
+      setStatusMsg("Couldn't send your passcode. Please try again.");
     } finally {
       setPasscodeSubmitting(false);
     }

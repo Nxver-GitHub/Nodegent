@@ -152,8 +152,24 @@ parentPort.on('message', (msg) => {
 // Entry point
 // ---------------------------------------------------------------------------
 
+/**
+ * Errors whose message is safe to show the user. Anything else (Playwright
+ * internals, URLs, selectors) is replaced with a generic message.
+ * @param {string} message
+ * @returns {Error}
+ */
+function userError(message) {
+  const err = new Error(message);
+  err.userFacing = true;
+  return err;
+}
+
+const GENERIC_AUTH_ERROR = 'Canvas login failed. Please try again.';
+
 main().catch((err) => {
-  if (!aborted) parentPort.postMessage({ type: 'error', message: err.message });
+  if (aborted) return;
+  const message = err?.userFacing ? err.message : GENERIC_AUTH_ERROR;
+  parentPort.postMessage({ type: 'error', message });
 });
 
 async function main() {
@@ -226,7 +242,7 @@ async function runAuth(uname, pwd) {
 
 function throwIfAborted() {
   if (aborted) {
-    throw new Error('Authentication was cancelled because the viewer disconnected.');
+    throw userError('Authentication was cancelled because the viewer disconnected.');
   }
 }
 
@@ -245,7 +261,7 @@ async function authenticate(browserContext, page, uname, pwd) {
   }
 
   if (!uname || !pwd) {
-    throw new Error('Session expired. Enter your CruzID and password to log in again.');
+    throw userError('Session expired. Enter your CruzID and password to log in again.');
   }
 
   parentPort.postMessage({ type: 'status', message: 'Navigating to UCSC SSO...' });
@@ -359,7 +375,7 @@ async function handleDuoUniversal(page) {
       return;
     }
     if (result === 'disabled') {
-      throw new Error('Your Duo account has been disabled. Contact UCSC ITS at https://slughub.ucsc.edu/its to re-enable it.');
+      throw userError('Your Duo account has been disabled. Contact UCSC ITS at https://slughub.ucsc.edu/its to re-enable it.');
     }
     if (result === 'passcode') {
       await handleDuoPasscodeFlow(page, 'app');
@@ -473,7 +489,7 @@ async function extractCookies(browserContext) {
   const all = await browserContext.cookies();
   const cookies = all.filter((c) => c.domain.includes('canvas.ucsc.edu'));
   if (cookies.length === 0) {
-    throw new Error('Authenticated but no Canvas session cookies were found.');
+    throw userError('Authenticated but no Canvas session cookies were found.');
   }
   return cookies;
 }
@@ -486,8 +502,8 @@ async function fillFirstVisible(page, selector, value, label) {
   try {
     await page.locator(selector).first().fill(value, { timeout: ssoTimeoutMs });
   } catch {
-    throw new Error(
-      `Could not find an editable ${label} field on ${page.url()}. UCSC may have changed the login form.`
+    throw userError(
+      `Could not find an editable ${label} field. UCSC may have changed the login form.`
     );
   }
 }
@@ -496,8 +512,8 @@ async function clickFirstVisible(page, selector, label) {
   try {
     await page.locator(selector).first().click({ timeout: ssoTimeoutMs });
   } catch {
-    throw new Error(
-      `Could not find an enabled ${label} on ${page.url()}. UCSC may have changed the login form.`
+    throw userError(
+      `Could not find an enabled ${label}. UCSC may have changed the login form.`
     );
   }
 }

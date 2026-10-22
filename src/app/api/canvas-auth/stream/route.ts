@@ -6,7 +6,8 @@
  * long-lived SSE connection.
  *
  * Replaces the old three-route pattern (start → stream → save) to avoid
- * cross-instance state loss on Vercel Fluid Compute.
+ * cross-instance state loss on Vercel Fluid Compute. Viewer input (clicks,
+ * Duo passcodes) reaches this instance via the Convex relay.
  *
  * Event types pushed to the client:
  *  status  — { message: string }                       Human-readable progress
@@ -18,60 +19,45 @@
  *  - Requires Clerk auth.
  *  - Credentials are passed directly to the worker thread and never stored.
  *  - Cookies are saved server-to-Convex; they never appear in the SSE stream.
+ *  - Cross-instance per-user rate limit + a global cap on concurrent browsers.
  */
 
+import { randomUUID } from "node:crypto";
 import { NextRequest } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { fetchAction } from "convex/nextjs";
+import { fetchAction, fetchMutation } from "convex/nextjs";
 import { api } from "@convex/_generated/api";
+import type { Id } from "@convex/_generated/dataModel";
 import {
   startSession,
   terminateSession,
   setStreamingPaused,
   hasActiveSession,
 } from "@/lib/canvas-sso-state";
-import { rateLimit } from "@/lib/rate-limit";
+import {
+  acquireBrowserLease,
+  enforceRateLimit,
+  getInternalSecret,
+  releaseBrowserLease,
+} from "@/lib/convex-internal";
+import { beginSsoSession, endSsoSession } from "@/lib/sso-input-relay";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300; // 5 min — allows time for Playwright + Duo MFA
 
 const MAX_INPUT_LEN = 256;
-
-// Each connection spawns a headless Playwright browser. Cap per user — generous
-// enough for legitimate MFA retries within a login, but blocks a rapid
-// browser-spawn abuse loop.
-const RATE_LIMIT = 10;
-const RATE_WINDOW_MS = 60_000;
-
-const UNIVERSITY_CANVAS_URLS: Record<string, string> = {
-  ucsc: "https://canvas.ucsc.edu",
-  ucberkeley: "https://bcourses.berkeley.edu",
-  ucla: "https://bruinlearn.ucla.edu",
-  ucsd: "https://canvas.ucsd.edu",
-  ucdavis: "https://canvas.ucdavis.edu",
-  stanford: "https://canvas.stanford.edu",
-};
+/** Lease outlives maxDuration slightly; it's released early on completion. */
+const BROWSER_LEASE_TTL_MS = (maxDuration + 5) * 1000;
 
 export async function POST(request: NextRequest): Promise<Response> {
   const { userId, getToken } = await auth();
   if (!userId) return new Response("Unauthorized", { status: 401 });
 
-  const tokenResult = await getToken();
-  if (!tokenResult) return new Response("Unauthorized", { status: 401 });
-  const token: string = tokenResult;
+  const token = await getToken();
+  if (!token) return new Response("Unauthorized", { status: 401 });
 
-  const limit = rateLimit(`canvas-stream:${userId}`, RATE_LIMIT, RATE_WINDOW_MS);
-  if (!limit.ok) {
-    return new Response("Too many requests", {
-      status: 429,
-      headers: { "Retry-After": String(Math.ceil(limit.retryAfterMs / 1000)) },
-    });
-  }
-
-  // Terminate any zombie session from a prior timed-out or disconnected attempt
-  if (hasActiveSession(userId)) {
-    terminateSession(userId);
-  }
+  const limited = await enforceRateLimit("canvasStream", userId);
+  if (limited) return limited;
 
   let body: unknown;
   try {
@@ -104,10 +90,64 @@ export async function POST(request: NextRequest): Promise<Response> {
     return new Response("Input too long", { status: 400 });
   }
 
-  const canvasBaseUrl =
-    typeof university === "string" && university in UNIVERSITY_CANVAS_URLS
-      ? UNIVERSITY_CANVAS_URLS[university]
-      : undefined;
+  // The SSO worker only knows the UCSC login flow, and Convex only accepts
+  // canvas.ucsc.edu cookies. Other campuses are backlog (multi-campus support);
+  // reject them here so their credentials are never typed into UCSC's SSO form.
+  if (university !== undefined && university !== null && university !== "ucsc") {
+    return Response.json(
+      { error: "Canvas login is currently only supported for UC Santa Cruz" },
+      { status: 400 }
+    );
+  }
+
+  // Terminate any zombie session from a prior timed-out or disconnected attempt
+  if (hasActiveSession(userId)) {
+    terminateSession(userId);
+  }
+
+  const sessionId = randomUUID();
+  let leaseId: Id<"browserLeases"> | null;
+  try {
+    // Create the user row now, while the Clerk token is fresh — the final
+    // cookie save runs minutes later via the internal secret instead.
+    await fetchMutation(api.users.ensureUser, {}, { token });
+    leaseId = await acquireBrowserLease("canvasSso", userId, BROWSER_LEASE_TTL_MS);
+  } catch (err) {
+    console.error("[canvas-auth] setup failed:", err);
+    return Response.json(
+      { error: "Could not start Canvas login. Please try again." },
+      { status: 500 }
+    );
+  }
+  if (!leaseId) {
+    return Response.json(
+      { error: "Canvas login is busy right now. Please try again in a minute." },
+      { status: 503, headers: { "Retry-After": "30" } }
+    );
+  }
+  const heldLease: Id<"browserLeases"> = leaseId;
+
+  // Releases everything this stream holds; idempotent, safe from any path.
+  let cleanedUp = false;
+  function cleanup(): void {
+    if (cleanedUp) return;
+    cleanedUp = true;
+    void releaseBrowserLease(heldLease);
+    void endSsoSession(userId!, sessionId);
+  }
+
+  try {
+    // Supersede any older stream (possibly on another instance) so it can't
+    // claim this attempt's clicks/passcodes.
+    await beginSsoSession(userId, sessionId);
+  } catch (err) {
+    console.error("[canvas-auth] session register failed:", err);
+    cleanup();
+    return Response.json(
+      { error: "Could not start Canvas login. Please try again." },
+      { status: 500 }
+    );
+  }
 
   const encoder = new TextEncoder();
 
@@ -125,6 +165,7 @@ export async function POST(request: NextRequest): Promise<Response> {
       }
 
       function close() {
+        cleanup();
         try {
           controller.close();
         } catch {
@@ -133,21 +174,34 @@ export async function POST(request: NextRequest): Promise<Response> {
       }
 
       async function onSave(cookies: object[]): Promise<void> {
-        await fetchAction(
-          api.canvas.saveCanvasCookies,
-          { cookiesJson: JSON.stringify(cookies), canvasBaseUrl },
-          { token }
-        );
+        await fetchAction(api.canvas.saveCanvasCookiesFromServer, {
+          secret: getInternalSecret(),
+          clerkId: userId!,
+          cookiesJson: JSON.stringify(cookies),
+        });
       }
 
-      const started = startSession(
-        userId,
-        trimmedUsername,
-        trimmedPassword,
-        enqueue,
-        close,
-        onSave
-      );
+      if (request.signal.aborted) {
+        cleanup();
+        close();
+        return;
+      }
+
+      let started = false;
+      try {
+        started = startSession(
+          userId,
+          sessionId,
+          trimmedUsername,
+          trimmedPassword,
+          enqueue,
+          close,
+          onSave,
+          cleanup
+        );
+      } catch (err) {
+        console.error("[canvas-auth] start failed:", err);
+      }
 
       if (!started) {
         enqueue("error", { message: "Failed to start auth session." });
@@ -158,11 +212,13 @@ export async function POST(request: NextRequest): Promise<Response> {
       request.signal.addEventListener("abort", () => {
         setStreamingPaused(userId, true);
         terminateSession(userId);
+        cleanup();
       });
     },
 
     cancel() {
       terminateSession(userId);
+      cleanup();
     },
   });
 
