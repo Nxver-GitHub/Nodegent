@@ -32,7 +32,7 @@ import {
   startSession,
   terminateSession,
   terminateSessionIfCurrent,
-  hasActiveSession,
+  SUPERSEDED_MESSAGE,
 } from "@/lib/canvas-sso-state";
 import {
   acquireBrowserLease,
@@ -103,9 +103,7 @@ export async function POST(request: NextRequest): Promise<Response> {
   }
 
   // Terminate any zombie session from a prior timed-out or disconnected attempt
-  if (hasActiveSession(userId)) {
-    terminateSession(userId);
-  }
+  terminateSession(userId, SUPERSEDED_MESSAGE);
 
   const sessionId = randomUUID();
   let leaseId: Id<"browserLeases"> | null;

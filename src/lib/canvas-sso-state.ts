@@ -49,12 +49,14 @@ const activeSessions = new Map<string, AuthSession>();
 /** 10 min — session cleanup guard for stale entries */
 const SESSION_MAX_AGE_MS = 10 * 60 * 1000;
 
+export const SUPERSEDED_MESSAGE = "A newer Canvas login was started, so this one was closed.";
+
 // Prune stale sessions periodically (every 5 min)
 setInterval(() => {
   const now = Date.now();
   for (const [userId, session] of activeSessions) {
     if (now - session.createdAt > SESSION_MAX_AGE_MS) {
-      terminateSession(userId);
+      terminateSession(userId, "Canvas login timed out. Please try again.");
     }
   }
 }, 5 * 60_000).unref();
@@ -93,11 +95,12 @@ function buildWorkerData(userId: string, username: string, password: string) {
 
 function handleWorkerMessage(
   userId: string,
+  session: AuthSession,
   msg: Record<string, unknown>,
   onSave: OnSaveFn
 ): void {
-  const session = activeSessions.get(userId);
-  if (!session) return;
+  // A late message from a replaced worker must not reach (or end) the newer login.
+  if (activeSessions.get(userId) !== session) return;
 
   const { enqueue, close } = session;
 
@@ -178,13 +181,10 @@ export function startSession(
   onTerminate: TeardownFn
 ): boolean {
   // Overwrite any zombie session
-  terminateSession(userId);
+  terminateSession(userId, SUPERSEDED_MESSAGE);
 
   // Subscribe before spawning Chromium: without the relay, clicks/passcodes
   // can't reach the worker, so fail fast rather than strand the user at Duo.
-  // Assigned below once the worker exists; the superseded callback only
-  // fires asynchronously, after that.
-  let session: AuthSession | undefined;
   let stopRelay: () => void;
   try {
     stopRelay = subscribeSsoInputs(
@@ -194,10 +194,7 @@ export function startSession(
       () => {
         // Only tear down if this instance is still running *this* session —
         // a same-instance retry already replaced it in activeSessions.
-        if (!session || activeSessions.get(userId) !== session) return;
-        enqueue("error", { message: "A newer Canvas login was started, so this one was closed." });
-        terminateSession(userId);
-        close();
+        terminateSessionIfCurrent(userId, sessionId, SUPERSEDED_MESSAGE);
       }
     );
   } catch (err) {
@@ -225,7 +222,7 @@ export function startSession(
     return false;
   }
 
-  session = {
+  const ownSession: AuthSession = {
     sessionId,
     worker,
     enqueue,
@@ -234,24 +231,24 @@ export function startSession(
     createdAt: Date.now(),
     teardown,
   };
-  activeSessions.set(userId, session);
+  activeSessions.set(userId, ownSession);
+
+  // Every handler is bound to ownSession: a replaced worker's late events
+  // (including the exit its own terminate() causes) must not end a newer login.
+  const isCurrent = () => activeSessions.get(userId) === ownSession;
 
   worker.on("message", (msg: Record<string, unknown>) => {
-    handleWorkerMessage(userId, msg, onSave);
+    handleWorkerMessage(userId, ownSession, msg, onSave);
   });
 
   worker.on("error", (err: Error) => {
     console.error("[canvas-sso] worker error:", err);
-    enqueue("error", { message: "Browser error. Please try again." });
-    terminateSession(userId);
-    close();
+    if (isCurrent()) terminateSession(userId, "Browser error. Please try again.");
   });
 
   worker.on("exit", (code: number) => {
-    if (code !== 0 && activeSessions.has(userId)) {
-      enqueue("error", { message: "Browser process exited unexpectedly." });
-      terminateSession(userId);
-      close();
+    if (code !== 0 && isCurrent()) {
+      terminateSession(userId, "Browser process exited unexpectedly.");
     }
   });
 
@@ -313,23 +310,33 @@ export function setStreamingPaused(userId: string, paused: boolean): void {
 }
 
 /**
- * Abort and clean up a session for a user.
+ * Abort and clean up a session for a user. With `notify`, also sends the
+ * viewer that error and closes its stream — callers that finish the stream
+ * themselves (e.g. after saving cookies) omit it.
  */
-export function terminateSession(userId: string): void {
+export function terminateSession(userId: string, notify?: string): void {
   const session = activeSessions.get(userId);
   if (!session) return;
   activeSessions.delete(userId);
   session.teardown();
   session.worker.postMessage({ type: "abort" });
   session.worker.terminate().catch(() => {});
+  if (notify !== undefined) {
+    session.enqueue?.("error", { message: notify });
+    session.close?.();
+  }
 }
 
 /**
  * Terminates the user's session only if it is still `sessionId` — so a stale
  * stream's abort/deadline can't kill a newer login on the same instance.
  */
-export function terminateSessionIfCurrent(userId: string, sessionId: string): void {
-  if (activeSessions.get(userId)?.sessionId === sessionId) terminateSession(userId);
+export function terminateSessionIfCurrent(
+  userId: string,
+  sessionId: string,
+  notify?: string
+): void {
+  if (activeSessions.get(userId)?.sessionId === sessionId) terminateSession(userId, notify);
 }
 
 export function hasActiveSession(userId: string): boolean {
