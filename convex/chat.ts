@@ -10,6 +10,7 @@ import { v } from "convex/values";
 import { DEFAULT_GROQ_MODEL } from "./groqModel.helpers";
 import type { Id } from "./_generated/dataModel";
 import { dispatchMcpTool } from "./mcpTools";
+import { currentUcscTerm, isCurrentTermName, nextUcscTerm } from "./ucscTerm.helpers";
 
 const DEFAULT_THREAD_TITLE = "Campus AI Chat";
 
@@ -230,12 +231,18 @@ export const buildCampusContext = internalQuery({
     const canvasEnabled = user?.canvasEnabled !== false;
     const calendarEnabled = user?.calendarEnabled !== false;
 
-    const courses = canvasEnabled
+    const allCourses = canvasEnabled
       ? await ctx.db
           .query("courses")
           .withIndex("by_userId", (q) => q.eq("userId", args.userId))
           .take(MAX_COURSES)
       : [];
+    // Only the current quarter's enrollments reach the model. Canvas keeps old
+    // and training shells "active" for years; listing them made the model
+    // present stale enrollments as the term's course offerings.
+    const currentTerm = currentUcscTerm(args.now);
+    const courses = allCourses.filter((c) => isCurrentTermName(c.term, args.now));
+    const includedCourseIds = new Set<string>(courses.map((c) => c._id));
 
     const courseById = new Map<string, { name: string; courseCode: string }>();
     for (const c of courses) {
@@ -261,6 +268,8 @@ export const buildCampusContext = internalQuery({
           .order("asc")
           .take(MAX_ASSIGNMENTS)
       : [];
+    // Assignments from excluded (non-current-term) courses are dropped too.
+    const currentAssignments = assignments.filter((a) => includedCourseIds.has(a.courseId));
 
     const events = await ctx.db
       .query("events")
@@ -272,8 +281,8 @@ export const buildCampusContext = internalQuery({
 
     const filteredAssignments =
       mentionedCourseIds.length > 0
-        ? assignments.filter((a) => mentionedCourseIds.includes(a.courseId))
-        : assignments;
+        ? currentAssignments.filter((a) => mentionedCourseIds.includes(a.courseId))
+        : currentAssignments;
 
     const filteredEvents = (
       mentionedCourseIds.length > 0
@@ -446,7 +455,9 @@ export const buildCampusContext = internalQuery({
       sections.push("ACCESS RESTRICTIONS:\n" + accessNotices.map((n) => `- ${n}`).join("\n"));
     }
 
-    sections.push("COURSES:");
+    sections.push(
+      `STUDENT'S OWN CANVAS ENROLLMENTS (${currentTerm.name}) — these are the courses this student is taking, NOT the UCSC course catalog:`
+    );
     sections.push(courseLines.length ? courseLines.join("\n") : "- (none)");
 
     if (prioritizeAssignments || (!prioritizeSchedule && assignmentLines.length > 0)) {
@@ -687,77 +698,84 @@ const MCP_TOOL_NAMES_SET = new Set([
   "search_directory",
 ]);
 
-const ALL_MCP_TOOL_DEFS = [
-  {
-    type: "function" as const,
-    function: {
-      name: "search_classes",
-      description:
-        "Search UCSC class schedule on pisa.ucsc.edu. Use for questions about courses, " +
-        "enrollment, instructors, meeting times, or available sections. " +
-        "Term codes: Spring 2026=2262, Summer 2026=2264, Fall 2026=2268. " +
-        "Use dept codes like CSE, MATH, PHYS, CMPM. " +
-        "'Next quarter' from June 2026 means Fall 2026 (2268).",
-      parameters: {
-        type: "object",
-        properties: {
-          term: { type: "string", description: "Term code e.g. 2268 for Fall 2026" },
-          subject: { type: "string", description: "Dept code e.g. CSE, MATH, PHYS" },
-          course_number: { type: "string", description: "Course number e.g. 115A" },
-          instructor: { type: "string", description: "Instructor last name" },
-          title: { type: "string", description: "Course title keyword" },
-          open_only: {
-            type: "string",
-            description: 'Pass "true" to show only open/available sections; "false" or omit for all sections',
+// Built per request so the term codes in the tool description track the
+// calendar instead of going stale each quarter.
+function buildMcpToolDefs(nowMs: number) {
+  const current = currentUcscTerm(nowMs);
+  const next = nextUcscTerm(nowMs);
+  return [
+    {
+      type: "function" as const,
+      function: {
+        name: "search_classes",
+        description:
+          "Search the UCSC Schedule of Classes on pisa.ucsc.edu. Use for questions about which courses " +
+          "are offered, open, or available in a term, enrollment, instructors, meeting times, or sections. " +
+          `Term codes: current quarter ${current.name}=${current.code}, next quarter ${next.name}=${next.code}. ` +
+          "Codes are '2' + 2-digit year + quarter digit (Winter 0, Spring 2, Summer 4, Fall 8). " +
+          "Use dept codes like CSE, MATH, PHYS, CMPM. " +
+          `'Next quarter' means ${next.name} (${next.code}).`,
+        parameters: {
+          type: "object",
+          properties: {
+            term: { type: "string", description: `Term code e.g. ${current.code} for ${current.name}` },
+            subject: { type: "string", description: "Dept code e.g. CSE, MATH, PHYS" },
+            course_number: { type: "string", description: "Course number e.g. 115A" },
+            instructor: { type: "string", description: "Instructor last name" },
+            title: { type: "string", description: "Course title keyword" },
+            open_only: {
+              type: "string",
+              description: 'Pass "true" to show only open/available sections; "false" or omit for all sections',
+            },
           },
+          additionalProperties: false,
         },
-        additionalProperties: false,
       },
     },
-  },
-  {
-    type: "function" as const,
-    function: {
-      name: "get_dining_menu",
-      description:
-        "Get a UCSC dining hall menu from nutrition.sa.ucsc.edu. " +
-        "Halls: cowell/stevenson, crown/merrill, porter/kresge, carson/oakes, lewis/college-nine. " +
-        "Meals: Breakfast, Lunch, Dinner. " +
-        "Set day to 'tomorrow' for tomorrow's menu; omit for today. Never compute calendar dates yourself.",
-      parameters: {
-        type: "object",
-        properties: {
-          hall: { type: "string", description: "Dining hall alias e.g. 'cowell', 'porter', 'lewis'" },
-          meal: { type: "string", description: "Meal period: Breakfast, Lunch, or Dinner" },
-          day: {
-            type: "string",
-            enum: ["today", "tomorrow"],
-            description: "Which day's menu: 'tomorrow' for tomorrow, otherwise omit for today",
+    {
+      type: "function" as const,
+      function: {
+        name: "get_dining_menu",
+        description:
+          "Get a UCSC dining hall menu from nutrition.sa.ucsc.edu. " +
+          "Halls: cowell/stevenson, crown/merrill, porter/kresge, carson/oakes, lewis/college-nine. " +
+          "Meals: Breakfast, Lunch, Dinner. " +
+          "Set day to 'tomorrow' for tomorrow's menu; omit for today. Never compute calendar dates yourself.",
+        parameters: {
+          type: "object",
+          properties: {
+            hall: { type: "string", description: "Dining hall alias e.g. 'cowell', 'porter', 'lewis'" },
+            meal: { type: "string", description: "Meal period: Breakfast, Lunch, or Dinner" },
+            day: {
+              type: "string",
+              enum: ["today", "tomorrow"],
+              description: "Which day's menu: 'tomorrow' for tomorrow, otherwise omit for today",
+            },
           },
+          additionalProperties: false,
         },
-        additionalProperties: false,
       },
     },
-  },
-  {
-    type: "function" as const,
-    function: {
-      name: "search_directory",
-      description:
-        "Search UCSC campus directory for faculty, staff, or departments. " +
-        "Use for finding instructor contact info, office locations, or department listings.",
-      parameters: {
-        type: "object",
-        properties: {
-          query: { type: "string", description: "Name, department, or keyword to search" },
-          type: { type: "string", enum: ["people", "departments"], description: "Search type (default: people)" },
+    {
+      type: "function" as const,
+      function: {
+        name: "search_directory",
+        description:
+          "Search UCSC campus directory for faculty, staff, or departments. " +
+          "Use for finding instructor contact info, office locations, or department listings.",
+        parameters: {
+          type: "object",
+          properties: {
+            query: { type: "string", description: "Name, department, or keyword to search" },
+            type: { type: "string", enum: ["people", "departments"], description: "Search type (default: people)" },
+          },
+          required: ["query"],
+          additionalProperties: false,
         },
-        required: ["query"],
-        additionalProperties: false,
       },
     },
-  },
-];
+  ];
+}
 
 async function callGroq(args: {
   apiKey: string;
@@ -907,6 +925,8 @@ export const sendMessage = action({
     const mdy: Intl.DateTimeFormatOptions = { year: "numeric", month: "2-digit", day: "2-digit" };
     const todayMDY = laDate(now, mdy);
     const tomorrowMDY = laDate(now + 86_400_000, mdy);
+    const termNow = currentUcscTerm(now);
+    const termNext = nextUcscTerm(now);
 
     const system =
       `Today is ${todayStr} (Pacific Time). ` +
@@ -918,7 +938,11 @@ export const sendMessage = action({
       "Prefer concise, accurate answers. Format all responses as markdown. " +
       "When listing multiple items, group them under bold headers — **Assignments** before **Events**. " +
       "Assignment and event items in the context are pre-formatted with bold course codes and italic dates — copy them exactly as given without reformatting. " +
-      "Use bullet lists for multiple items. Never invent URLs — only use links that are explicitly present in the context." +
+      "Use bullet lists for multiple items. Never invent URLs — only use links that are explicitly present in the context. " +
+      `The current UCSC quarter is ${termNow.name} (term code ${termNow.code}); next quarter is ${termNext.name} (${termNext.code}). ` +
+      "The STUDENT'S OWN CANVAS ENROLLMENTS section lists only the classes this student is taking — it is NOT the UCSC course catalog. " +
+      "Questions about what courses are offered, available, or open in a term must be answered by calling search_classes " +
+      "(or browse_web on pisa.ucsc.edu), never from the student's enrollments. If the tool returns nothing or is unavailable, say so instead of listing enrollments." +
       (enabledMcpToolNames.size > 0
         ? " You have access to live campus data tools — search_classes (course availability), get_dining_menu (dining hall menus), and search_directory (people at UCSC). Always call the relevant tool when the user asks about live course or dining data, and base your answer ONLY on what that tool returns." +
           " CRITICAL — never fabricate live data: do not invent or guess menu items, dishes, dining halls, course sections, instructors, or meeting times; report only what appears verbatim in the tool result." +
@@ -926,7 +950,7 @@ export const sendMessage = action({
           " If a tool result says 'No menu data found' (the hall may be closed for the summer or the menu not yet posted), or if you received no tool result, tell the user the data is not available — do NOT make up a menu. It is always better to say you couldn't retrieve the data than to guess."
         : "");
 
-    // Term codes: Spring=2__2, Summer=2__4, Fall=2__8, Winter=2__0  (e.g. Fall 2026 = 2268)
+    // Term codes: Spring=2__2, Summer=2__4, Fall=2__8, Winter=2__0 — derived from the calendar.
     const browseTools = [{
       type: "function" as const,
       function: {
@@ -939,9 +963,9 @@ export const sendMessage = action({
           "For course catalog queries, build the URL as: " +
           "https://pisa.ucsc.edu/class_search/index.php?action=results" +
           "&binds[:term]=TERM&binds[:reg_status]=all&binds[:subject]=DEPT" +
-          " where TERM = current quarter code (Spring 2026=2262, Summer 2026=2264, Fall 2026=2268) " +
+          ` where TERM = quarter code (current quarter ${termNow.name}=${termNow.code}, next quarter ${termNext.name}=${termNext.code}) ` +
           "and DEPT = uppercase department code (e.g. CSE, CMPM, MATH, PHYS). " +
-          "'Next quarter' from June 2026 is Summer 2026 (2264); Fall 2026 is 2268.",
+          `'Next quarter' means ${termNext.name} (${termNext.code}).`,
         parameters: {
           type: "object",
           properties: {
@@ -954,7 +978,7 @@ export const sendMessage = action({
       },
     }];
 
-    const mcpToolDefs = ALL_MCP_TOOL_DEFS.filter((t) => enabledMcpToolNames.has(t.function.name));
+    const mcpToolDefs = buildMcpToolDefs(now).filter((t) => enabledMcpToolNames.has(t.function.name));
     const allTools = [...browseTools, ...mcpToolDefs];
 
     const start = Date.now();

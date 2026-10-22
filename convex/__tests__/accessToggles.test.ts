@@ -2,6 +2,7 @@ import { convexTest } from "convex-test";
 import { beforeEach, describe, expect, it } from "vitest";
 import { api } from "../_generated/api";
 import schema from "../schema";
+import { currentUcscTerm } from "../ucscTerm.helpers";
 
 const IDENTITY = {
   subject: "clerk_toggle_1",
@@ -134,7 +135,8 @@ describe("buildCampusContext access toggles (US-3.4)", () => {
         canvasId: "c_toggle_1",
         name: "Test Course",
         courseCode: "TST 101",
-        term: "Spring 2026",
+        // Chat context only includes current-quarter enrollments.
+        term: currentUcscTerm(now).name,
         lastSyncedAt: now,
       });
       await ctx.db.insert("assignments", {
@@ -216,7 +218,8 @@ describe("buildCampusContext access toggles (US-3.4)", () => {
         canvasId: "c_default_1",
         name: "Default Course",
         courseCode: "DEF 100",
-        term: "Spring 2026",
+        // Chat context only includes current-quarter enrollments.
+        term: currentUcscTerm(now).name,
         lastSyncedAt: now,
       });
       await ctx.db.insert("assignments", {

@@ -1,7 +1,8 @@
 import { convexTest } from "convex-test";
 import { beforeEach, describe, expect, it } from "vitest";
-import { api } from "../_generated/api";
+import { api, internal } from "../_generated/api";
 import schema from "../schema";
+import { currentUcscTerm } from "../ucscTerm.helpers";
 
 describe("chat (US-3.1)", () => {
   beforeEach(() => {
@@ -28,7 +29,9 @@ describe("chat (US-3.1)", () => {
         canvasId: "c_1",
         name: "Software Engineering",
         courseCode: "CSE115A",
-        term: "Spring 2026",
+        // Chat context only includes current-quarter enrollments, so derive
+        // the term from the clock rather than hardcoding a quarter.
+        term: currentUcscTerm(now).name,
         instructorName: "Instructor",
         lastSyncedAt: now,
       });
@@ -92,6 +95,83 @@ describe("chat (US-3.1)", () => {
     await expect(
       t.withIdentity(b).query(api.chat.listMessages, { threadId })
     ).rejects.toThrow("Chat thread not found");
+  });
+
+  it("buildCampusContext excludes non-current-term courses and labels enrollments", async () => {
+    const t = convexTest(schema);
+    const identity = { subject: "clerk_chat_term", email: "term@ucsc.edu", name: "Term" };
+    const userId = await t.withIdentity(identity).mutation(api.users.ensureUser, {});
+
+    // Fall 2026 is in session on 2026-10-21.
+    const now = Date.parse("2026-10-21T20:00:00Z");
+    const { currentId, staleId } = await t.run(async (ctx) => {
+      const currentId = await ctx.db.insert("courses", {
+        userId,
+        canvasId: "c_now",
+        name: "Operating Systems",
+        courseCode: "CSE-130-01",
+        term: "Fall 2026",
+        lastSyncedAt: now,
+      });
+      const staleId = await ctx.db.insert("courses", {
+        userId,
+        canvasId: "c_old",
+        name: "CSE 20 Testout September 2024",
+        courseCode: "CSE-20-TESTOUT",
+        term: "Fall 2024",
+        lastSyncedAt: now,
+      });
+      await ctx.db.insert("courses", {
+        userId,
+        canvasId: "c_unknown",
+        name: "2024 Slugs CARE, Title IX, & SHOP 2",
+        courseCode: "SLUGS-CARE",
+        term: "Unknown Term",
+        lastSyncedAt: now,
+      });
+      const dueAt = now + 2 * 24 * 60 * 60 * 1000;
+      await ctx.db.insert("assignments", {
+        userId,
+        courseId: currentId,
+        canvasId: "a_now",
+        title: "Project 2",
+        dueAt,
+        isCompleted: false,
+        lastSyncedAt: now,
+      });
+      await ctx.db.insert("assignments", {
+        userId,
+        courseId: staleId,
+        canvasId: "a_old",
+        title: "Testout quiz",
+        dueAt,
+        isCompleted: false,
+        lastSyncedAt: now,
+      });
+      return { currentId, staleId };
+    });
+
+    const result = await t.query(internal.chat.buildCampusContext, {
+      userId,
+      message: "what courses are offered in the fall?",
+      now,
+    });
+
+    expect(result.contextText).toContain(
+      "STUDENT'S OWN CANVAS ENROLLMENTS (Fall 2026) — these are the courses this student is taking, NOT the UCSC course catalog:"
+    );
+    expect(result.contextText).not.toMatch(/^COURSES:/m);
+    expect(result.contextText).toContain("CSE-130-01");
+    expect(result.contextText).toContain("Project 2");
+    expect(result.contextText).not.toContain("Testout");
+    expect(result.contextText).not.toContain("Slugs CARE");
+
+    const refIds = result.contextRefs.map((r) => r.id);
+    expect(refIds).toContain(currentId);
+    expect(refIds).not.toContain(staleId);
+    expect(result.contextRefs.filter((r) => r.type === "course")).toHaveLength(1);
+    expect(result.contextRefs.filter((r) => r.type === "assignment")).toHaveLength(1);
+    expect(result.stats).toMatchObject({ courses: 1, assignments: 1 });
   });
 });
 
