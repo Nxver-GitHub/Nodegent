@@ -31,7 +31,7 @@ import type { Id } from "@convex/_generated/dataModel";
 import {
   startSession,
   terminateSession,
-  setStreamingPaused,
+  terminateSessionIfCurrent,
   hasActiveSession,
 } from "@/lib/canvas-sso-state";
 import {
@@ -48,6 +48,8 @@ export const maxDuration = 300; // 5 min — allows time for Playwright + Duo MF
 const MAX_INPUT_LEN = 256;
 /** Lease outlives maxDuration slightly; it's released early on completion. */
 const BROWSER_LEASE_TTL_MS = (maxDuration + 5) * 1000;
+/** End the login cleanly just before Vercel would kill the function. */
+const STREAM_DEADLINE_MS = (maxDuration - 10) * 1000;
 
 export async function POST(request: NextRequest): Promise<Response> {
   const { userId, getToken } = await auth();
@@ -129,9 +131,11 @@ export async function POST(request: NextRequest): Promise<Response> {
 
   // Releases everything this stream holds; idempotent, safe from any path.
   let cleanedUp = false;
+  let deadline: ReturnType<typeof setTimeout> | undefined;
   function cleanup(): void {
     if (cleanedUp) return;
     cleanedUp = true;
+    clearTimeout(deadline);
     void releaseBrowserLease(heldLease);
     void endSsoSession(userId!, sessionId);
   }
@@ -209,15 +213,20 @@ export async function POST(request: NextRequest): Promise<Response> {
         return;
       }
 
+      deadline = setTimeout(() => {
+        enqueue("error", { message: "Canvas login timed out. Please try again." });
+        terminateSessionIfCurrent(userId, sessionId);
+        close();
+      }, STREAM_DEADLINE_MS);
+
       request.signal.addEventListener("abort", () => {
-        setStreamingPaused(userId, true);
-        terminateSession(userId);
-        cleanup();
+        terminateSessionIfCurrent(userId, sessionId);
+        close();
       });
     },
 
     cancel() {
-      terminateSession(userId);
+      terminateSessionIfCurrent(userId, sessionId);
       cleanup();
     },
   });

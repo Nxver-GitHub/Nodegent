@@ -56,12 +56,14 @@ export async function endSsoSession(clerkId: string, sessionId: string): Promise
 
 /**
  * Subscribes to queued input for this session and calls `onInput` for each
- * row, in order. Never throws asynchronously. Returns a teardown function.
+ * row, in order. Calls `onSuperseded` once if a newer login replaces this
+ * session. Never throws asynchronously. Returns a teardown function.
  */
 export function subscribeSsoInputs(
   clerkId: string,
   sessionId: string,
-  onInput: (input: SsoInput) => void
+  onInput: (input: SsoInput) => void,
+  onSuperseded: () => void
 ): () => void {
   const url = process.env.NEXT_PUBLIC_CONVEX_URL;
   if (!url) throw new Error("NEXT_PUBLIC_CONVEX_URL is not configured");
@@ -118,10 +120,27 @@ export function subscribeSsoInputs(
     (err) => console.error("[sso-relay] subscription error:", err)
   );
 
+  // A different non-null sessionId means a newer stream took over. (null just
+  // means our own row was cleaned up, which happens as we end.)
+  const unsubscribeSession = client.onUpdate(
+    api.ssoRelay.currentSession,
+    { secret, clerkId },
+    (current) => {
+      if (closed || current === null || current === sessionId) return;
+      try {
+        onSuperseded();
+      } catch (err) {
+        console.error("[sso-relay] superseded handler failed:", err);
+      }
+    },
+    (err) => console.error("[sso-relay] session subscription error:", err)
+  );
+
   return () => {
     if (closed) return;
     closed = true;
     unsubscribe();
+    unsubscribeSession();
     void client.close().catch(() => undefined);
   };
 }

@@ -30,6 +30,7 @@ type OnSaveFn = (cookies: object[]) => Promise<void>;
 type TeardownFn = () => void;
 
 interface AuthSession {
+  sessionId: string;
   worker: Worker;
   enqueue: EnqueueFn | null;
   close: CloseFn | null;
@@ -181,10 +182,23 @@ export function startSession(
 
   // Subscribe before spawning Chromium: without the relay, clicks/passcodes
   // can't reach the worker, so fail fast rather than strand the user at Duo.
+  // Assigned below once the worker exists; the superseded callback only
+  // fires asynchronously, after that.
+  let session: AuthSession | undefined;
   let stopRelay: () => void;
   try {
-    stopRelay = subscribeSsoInputs(userId, sessionId, (input) =>
-      applyRelayedInput(userId, input)
+    stopRelay = subscribeSsoInputs(
+      userId,
+      sessionId,
+      (input) => applyRelayedInput(userId, input),
+      () => {
+        // Only tear down if this instance is still running *this* session —
+        // a same-instance retry already replaced it in activeSessions.
+        if (!session || activeSessions.get(userId) !== session) return;
+        enqueue("error", { message: "A newer Canvas login was started, so this one was closed." });
+        terminateSession(userId);
+        close();
+      }
     );
   } catch (err) {
     console.error("[canvas-sso] relay subscribe failed:", err);
@@ -211,7 +225,8 @@ export function startSession(
     return false;
   }
 
-  const session: AuthSession = {
+  session = {
+    sessionId,
     worker,
     enqueue,
     close,
@@ -307,6 +322,14 @@ export function terminateSession(userId: string): void {
   session.teardown();
   session.worker.postMessage({ type: "abort" });
   session.worker.terminate().catch(() => {});
+}
+
+/**
+ * Terminates the user's session only if it is still `sessionId` — so a stale
+ * stream's abort/deadline can't kill a newer login on the same instance.
+ */
+export function terminateSessionIfCurrent(userId: string, sessionId: string): void {
+  if (activeSessions.get(userId)?.sessionId === sessionId) terminateSession(userId);
 }
 
 export function hasActiveSession(userId: string): boolean {

@@ -125,6 +125,23 @@ export const queueInput = mutation({
   },
 });
 
+/**
+ * The user's live sessionId (or null). Streams subscribe to this so one that
+ * has been superseded by a newer login — possibly on another instance — can
+ * shut its browser down instead of idling until the function timeout.
+ */
+export const currentSession = query({
+  args: { secret: v.string(), clerkId: v.string() },
+  handler: async (ctx, args): Promise<string | null> => {
+    assertInternalSecret(args.secret);
+    const session = await ctx.db
+      .query("ssoSessions")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", args.clerkId))
+      .unique();
+    return session?.sessionId ?? null;
+  },
+});
+
 /** Subscribed to by the stream instance; returns only ids to keep it light. */
 export const pendingInputs = query({
   args: { secret: v.string(), clerkId: v.string(), sessionId: v.string() },

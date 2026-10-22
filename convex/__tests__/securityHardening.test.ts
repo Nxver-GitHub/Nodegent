@@ -177,6 +177,17 @@ describe("ssoRelay", () => {
     expect((await t.mutation(api.ssoRelay.queueInput, { ...base, input: click })).ok).toBe(true);
   });
 
+  it("reports the live session so superseded streams can shut down", async () => {
+    const t = convexTest(schema);
+    expect(await t.query(api.ssoRelay.currentSession, base)).toBeNull();
+    await t.mutation(api.ssoRelay.beginSession, { ...base, sessionId: "first" });
+    expect(await t.query(api.ssoRelay.currentSession, base)).toBe("first");
+    await t.mutation(api.ssoRelay.beginSession, { ...base, sessionId: "second" });
+    expect(await t.query(api.ssoRelay.currentSession, base)).toBe("second");
+    await t.mutation(api.ssoRelay.endSession, { ...base, sessionId: "second" });
+    expect(await t.query(api.ssoRelay.currentSession, base)).toBeNull();
+  });
+
   it("does not deliver expired input", async () => {
     vi.useFakeTimers();
     const t = convexTest(schema);
