@@ -887,7 +887,7 @@ export const sendMessage = action({
       await ctx.runQuery(internal.chat.assertThreadOwnership, { userId, threadId });
     }
 
-    await ctx.runMutation(internal.chat.insertMessage, {
+    const userMessageId = await ctx.runMutation(internal.chat.insertMessage, {
       userId,
       threadId,
       role: "user",
@@ -927,6 +927,8 @@ export const sendMessage = action({
     const history = recent
       .slice()
       .reverse()
+      // The message just inserted is appended explicitly to each Groq call.
+      .filter((m) => m._id !== userMessageId)
       .filter((m) => m.role === "user" || m.role === "assistant")
       // Every Groq call resends this; keep it small so a few long answers
       // (menus, section lists) don't exhaust the per-minute token budget.
