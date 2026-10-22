@@ -6,7 +6,7 @@
  * "InCommon ECC OV SSL CA 3" but it serves "InCommon RSA Server CA 2". Browsers
  * and macOS curl repair the chain via AIA; Node (Next.js routes, Convex Node
  * actions) does not, so plain fetch fails with UNABLE_TO_VERIFY_LEAF_SIGNATURE.
- * We trust the system roots plus the correct intermediate — verification stays
+ * We trust Node's bundled roots plus the correct intermediate — verification stays
  * on. Node-only: import from "use node" Convex modules or Next.js routes.
  *
  * Source: http://crt.sectigo.com/InCommonECCOVSSLCA3.crt (leaf AIA), valid to
@@ -45,6 +45,9 @@ const MAX_BYTES = 2 * 1024 * 1024;
 // Trust store = Node's bundled roots + the missing intermediate (not a pin).
 const CA = [...tls.rootCertificates, INCOMMON_ECC_OV_SSL_CA_3];
 
+// One agent so the CA list is parsed into a SecureContext once, not per request.
+const agent = new https.Agent({ ca: CA });
+
 /** Throws unless `raw` is an https URL on the nutrition host. */
 export function assertNutritionUrl(raw: string): URL {
   const url = new URL(raw);
@@ -66,7 +69,17 @@ export function fetchNutritionPage(
 ): Promise<NutritionPage> {
   const url = assertNutritionUrl(rawUrl);
   return new Promise((resolve, reject) => {
-    const req = https.get(url, { ca: CA, headers, timeout: TIMEOUT_MS }, (res) => {
+    // `timeout` below is only a socket-idle timeout; a slow drip could hold
+    // the request open indefinitely, so also enforce a wall-clock deadline.
+    const deadline = setTimeout(
+      () => req.destroy(new Error("Nutrition site timed out")),
+      TIMEOUT_MS
+    );
+    const fail = (err: Error) => {
+      clearTimeout(deadline);
+      reject(err);
+    };
+    const req = https.get(url, { agent, headers, timeout: TIMEOUT_MS }, (res) => {
       const chunks: Buffer[] = [];
       let size = 0;
       res.on("data", (chunk: Buffer) => {
@@ -77,12 +90,13 @@ export function fetchNutritionPage(
         }
         chunks.push(chunk);
       });
-      res.on("end", () =>
-        resolve({ status: res.statusCode ?? 0, body: Buffer.concat(chunks).toString("utf8") })
-      );
-      res.on("error", reject);
+      res.on("end", () => {
+        clearTimeout(deadline);
+        resolve({ status: res.statusCode ?? 0, body: Buffer.concat(chunks).toString("utf8") });
+      });
+      res.on("error", fail);
     });
     req.on("timeout", () => req.destroy(new Error("Nutrition site timed out")));
-    req.on("error", reject);
+    req.on("error", fail);
   });
 }
