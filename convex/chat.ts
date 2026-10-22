@@ -6,8 +6,12 @@ import {
   query,
 } from "./_generated/server";
 import { internal, api } from "./_generated/api";
-import { v } from "convex/values";
-import { DEFAULT_GROQ_MODEL } from "./groqModel.helpers";
+import { ConvexError, v } from "convex/values";
+import {
+  DEFAULT_GROQ_MODEL,
+  GROQ_MAX_RETRY_WAIT_MS,
+  groqRetryAfterMs,
+} from "./groqModel.helpers";
 import type { Id } from "./_generated/dataModel";
 import { dispatchMcpTool } from "./mcpTools";
 import { currentUcscTerm, isCurrentTermName, nextUcscTerm } from "./ucscTerm.helpers";
@@ -20,6 +24,8 @@ const RATE_LIMIT_MAX_REQUESTS = 12;
 const CONTEXT_WINDOW_DAYS = 14;
 const MAX_ASSIGNMENTS = 20;
 const MAX_EVENTS = 20;
+const HISTORY_MESSAGES = 8;
+const HISTORY_MESSAGE_CHARS = 1_200;
 const MAX_COURSES = 40;
 // Cap on messages returned by listMessages — well beyond a normal session,
 // bounds the reactive query's bandwidth as a thread ages.
@@ -116,7 +122,7 @@ export const enforceRateLimit = internalMutation({
     }
 
     if (existing.count >= RATE_LIMIT_MAX_REQUESTS) {
-      throw new Error("Rate limit exceeded. Please wait a moment and try again.");
+      throw new ConvexError("Rate limit exceeded. Please wait a moment and try again.");
     }
 
     await ctx.db.patch(existing._id, { count: existing.count + 1 });
@@ -785,7 +791,7 @@ async function callGroq(args: {
   contextText: string;
   tools?: any[];
 }): Promise<{ content: string; provider: string; model: string; toolCalls?: any[] }> {
-  const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+  const request = () => fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${args.apiKey}`,
@@ -810,11 +816,22 @@ async function callGroq(args: {
     }),
   });
 
+  // The per-minute token bucket usually refills within seconds, so wait it
+  // out once (bounded) instead of failing the user's message outright.
+  let response = await request();
+  if (response.status === 429) {
+    const waitMs = groqRetryAfterMs(response.headers);
+    if (waitMs !== null && waitMs <= GROQ_MAX_RETRY_WAIT_MS) {
+      await new Promise((resolve) => setTimeout(resolve, waitMs + 250));
+      response = await request();
+    }
+  }
+
   if (!response.ok) {
     const errBody: any = await response.json().catch(() => null);
     if (response.status === 429) {
-      throw new Error(
-        "The AI provider is temporarily rate-limited. Please wait a moment and try again."
+      throw new ConvexError(
+        "The AI is getting a lot of requests right now. Please wait a few seconds and try again."
       );
     }
     const detail = errBody?.error?.message ?? `status ${response.status}`;
@@ -856,7 +873,7 @@ export const sendMessage = action({
     const now = Date.now();
     const content = normalizeText(args.content);
     if (!content) throw new Error("Message cannot be empty");
-    if (content.length > 4000) throw new Error("Message is too long");
+    if (content.length > 4000) throw new ConvexError("Message is too long");
 
     const userId = await ctx.runMutation(api.users.ensureUser, {});
 
@@ -911,7 +928,13 @@ export const sendMessage = action({
       .slice()
       .reverse()
       .filter((m) => m.role === "user" || m.role === "assistant")
-      .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
+      // Every Groq call resends this; keep it small so a few long answers
+      // (menus, section lists) don't exhaust the per-minute token budget.
+      .slice(-HISTORY_MESSAGES)
+      .map((m) => ({
+        role: m.role as "user" | "assistant",
+        content: clampText(m.content, HISTORY_MESSAGE_CHARS),
+      }));
 
     const laDate = (ms: number, opts: Intl.DateTimeFormatOptions): string =>
       new Date(ms).toLocaleDateString("en-US", { timeZone: "America/Los_Angeles", ...opts });
