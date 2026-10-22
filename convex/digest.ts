@@ -1,6 +1,7 @@
 import { action, internalMutation, internalQuery } from "./_generated/server";
 import { internal, api } from "./_generated/api";
 import { v } from "convex/values";
+import { DEFAULT_GROQ_MODEL } from "./groqModel.helpers";
 import type { Id } from "./_generated/dataModel";
 
 // ---------------------------------------------------------------------------
@@ -313,7 +314,7 @@ export const generateWeeklyDigest = action({
     // Fall back to Groq (OpenAI-compatible) if prior providers unavailable
     if (!digest) {
       const groqKey = process.env.GROQ_API_KEY;
-      const groqModel = process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile";
+      const groqModel = process.env.GROQ_MODEL ?? DEFAULT_GROQ_MODEL;
       if (groqKey) {
         try {
           const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {

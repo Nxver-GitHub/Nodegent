@@ -11,6 +11,7 @@
 import type * as assignments from "../assignments.js";
 import type * as auditLog from "../auditLog.js";
 import type * as canvas from "../canvas.js";
+import type * as canvasCookieMigration from "../canvasCookieMigration.js";
 import type * as chat from "../chat.js";
 import type * as courseListings from "../courseListings.js";
 import type * as courseNotes from "../courseNotes.js";
@@ -20,10 +21,12 @@ import type * as digest from "../digest.js";
 import type * as dockApps from "../dockApps.js";
 import type * as events from "../events.js";
 import type * as googleCalendar from "../googleCalendar.js";
+import type * as guards from "../guards.js";
 import type * as mcpConnectors from "../mcpConnectors.js";
 import type * as mcpTools from "../mcpTools.js";
 import type * as push from "../push.js";
 import type * as pushSend from "../pushSend.js";
+import type * as ssoRelay from "../ssoRelay.js";
 import type * as timeUtil from "../timeUtil.js";
 import type * as users from "../users.js";
 
@@ -37,6 +40,7 @@ declare const fullApi: ApiFromModules<{
   assignments: typeof assignments;
   auditLog: typeof auditLog;
   canvas: typeof canvas;
+  canvasCookieMigration: typeof canvasCookieMigration;
   chat: typeof chat;
   courseListings: typeof courseListings;
   courseNotes: typeof courseNotes;
@@ -46,10 +50,12 @@ declare const fullApi: ApiFromModules<{
   dockApps: typeof dockApps;
   events: typeof events;
   googleCalendar: typeof googleCalendar;
+  guards: typeof guards;
   mcpConnectors: typeof mcpConnectors;
   mcpTools: typeof mcpTools;
   push: typeof push;
   pushSend: typeof pushSend;
+  ssoRelay: typeof ssoRelay;
   timeUtil: typeof timeUtil;
   users: typeof users;
 }>;

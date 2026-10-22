@@ -4,8 +4,9 @@
  * Module-level singleton that manages active Canvas SSO auth sessions.
  *
  * Keyed by Clerk userId so multiple users can auth concurrently without
- * cross-contamination. Lives in the Next.js Node.js process — works in
- * local dev (single process). Not suitable for multi-instance deployments.
+ * cross-contamination. The worker lives on the instance that serves the SSE
+ * stream; viewer input from other instances arrives via the Convex relay
+ * (see sso-input-relay.ts), so this works across Vercel instances.
  *
  * Security notes:
  *  - Credentials (username/password) are passed directly to the worker via
@@ -17,6 +18,7 @@
 
 import { Worker } from "node:worker_threads";
 import path from "node:path";
+import { subscribeSsoInputs, type SsoInput } from "@/lib/sso-input-relay";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -25,13 +27,17 @@ import path from "node:path";
 type EnqueueFn = (event: string, data: unknown) => void;
 type CloseFn = () => void;
 type OnSaveFn = (cookies: object[]) => Promise<void>;
+type TeardownFn = () => void;
 
 interface AuthSession {
+  sessionId: string;
   worker: Worker;
   enqueue: EnqueueFn | null;
   close: CloseFn | null;
   abortController: AbortController;
   createdAt: number;
+  /** Stops the input relay and runs the route's cleanup (lease release etc). */
+  teardown: TeardownFn;
 }
 
 // ---------------------------------------------------------------------------
@@ -43,12 +49,14 @@ const activeSessions = new Map<string, AuthSession>();
 /** 10 min — session cleanup guard for stale entries */
 const SESSION_MAX_AGE_MS = 10 * 60 * 1000;
 
+export const SUPERSEDED_MESSAGE = "A newer Canvas login was started, so this one was closed.";
+
 // Prune stale sessions periodically (every 5 min)
 setInterval(() => {
   const now = Date.now();
   for (const [userId, session] of activeSessions) {
     if (now - session.createdAt > SESSION_MAX_AGE_MS) {
-      terminateSession(userId);
+      terminateSession(userId, "Canvas login timed out. Please try again.");
     }
   }
 }, 5 * 60_000).unref();
@@ -59,7 +67,7 @@ setInterval(() => {
 
 const WORKER_PATH = path.join(process.cwd(), "src", "lib", "sso-auth-worker.js");
 
-function buildWorkerData(username: string, password: string) {
+function buildWorkerData(userId: string, username: string, password: string) {
   return {
     mode: "auth",
     username,
@@ -67,7 +75,9 @@ function buildWorkerData(username: string, password: string) {
     canvasBaseUrl: "https://canvas.ucsc.edu",
     canvasSsoUrl:
       "https://canvas.ucsc.edu/login/instructure?authentication_provider=5",
-    sessionDir: "/tmp/.browser-session",
+    // Per-user profile (local/non-Vercel mode only) so one user's saved Canvas
+    // session is never "restored" for another user on a shared host.
+    sessionDir: `/tmp/.browser-session-${userId.replace(/[^A-Za-z0-9_-]/g, "")}`,
     ssoTimeoutMs: 90_000,
     sessionCheckMs: Number(process.env.SESSION_CHECK_MS ?? 2_000),
     playwrightOptions: {
@@ -85,11 +95,12 @@ function buildWorkerData(username: string, password: string) {
 
 function handleWorkerMessage(
   userId: string,
+  session: AuthSession,
   msg: Record<string, unknown>,
   onSave: OnSaveFn
 ): void {
-  const session = activeSessions.get(userId);
-  if (!session) return;
+  // A late message from a replaced worker must not reach (or end) the newer login.
+  if (activeSessions.get(userId) !== session) return;
 
   const { enqueue, close } = session;
 
@@ -153,52 +164,116 @@ function handleWorkerMessage(
  * The onSave callback is called with the extracted cookies when auth succeeds,
  * saving them to Convex without ever exposing them to the browser.
  *
- * Returns false if a session is already active (should not happen as callers
- * check hasActiveSession first).
+ * `onTerminate` runs exactly once when the session ends for any reason
+ * (success, error, abort, zombie overwrite, stale sweep) — callers release
+ * per-session resources there. It also runs if startup fails.
+ *
+ * Returns false if the relay or worker could not be started.
  */
 export function startSession(
   userId: string,
+  sessionId: string,
   username: string,
   password: string,
   enqueue: EnqueueFn,
   close: CloseFn,
-  onSave: OnSaveFn
+  onSave: OnSaveFn,
+  onTerminate: TeardownFn
 ): boolean {
   // Overwrite any zombie session
-  terminateSession(userId);
+  terminateSession(userId, SUPERSEDED_MESSAGE);
 
-  const abortController = new AbortController();
-  const workerData = buildWorkerData(username, password);
-  const worker = new Worker(WORKER_PATH, { workerData });
+  // Subscribe before spawning Chromium: without the relay, clicks/passcodes
+  // can't reach the worker, so fail fast rather than strand the user at Duo.
+  let stopRelay: () => void;
+  try {
+    stopRelay = subscribeSsoInputs(
+      userId,
+      sessionId,
+      (input) => applyRelayedInput(userId, input),
+      () => {
+        // Only tear down if this instance is still running *this* session —
+        // a same-instance retry already replaced it in activeSessions.
+        terminateSessionIfCurrent(userId, sessionId, SUPERSEDED_MESSAGE);
+      }
+    );
+  } catch (err) {
+    console.error("[canvas-sso] relay subscribe failed:", err);
+    onTerminate();
+    return false;
+  }
 
-  const session: AuthSession = {
+  let tornDown = false;
+  const teardown = () => {
+    if (tornDown) return;
+    tornDown = true;
+    stopRelay();
+    onTerminate();
+  };
+
+  let worker: Worker;
+  try {
+    worker = new Worker(WORKER_PATH, {
+      workerData: buildWorkerData(userId, username, password),
+    });
+  } catch (err) {
+    console.error("[canvas-sso] worker spawn failed:", err);
+    teardown();
+    return false;
+  }
+
+  const ownSession: AuthSession = {
+    sessionId,
     worker,
     enqueue,
     close,
-    abortController,
+    abortController: new AbortController(),
     createdAt: Date.now(),
+    teardown,
   };
-  activeSessions.set(userId, session);
+  activeSessions.set(userId, ownSession);
+
+  // Every handler is bound to ownSession: a replaced worker's late events
+  // (including the exit its own terminate() causes) must not end a newer login.
+  const isCurrent = () => activeSessions.get(userId) === ownSession;
 
   worker.on("message", (msg: Record<string, unknown>) => {
-    handleWorkerMessage(userId, msg, onSave);
+    handleWorkerMessage(userId, ownSession, msg, onSave);
   });
 
   worker.on("error", (err: Error) => {
-    enqueue("error", { message: `Browser error: ${err.message}` });
-    terminateSession(userId);
-    close();
+    console.error("[canvas-sso] worker error:", err);
+    if (isCurrent()) terminateSession(userId, "Browser error. Please try again.");
   });
 
   worker.on("exit", (code: number) => {
-    if (code !== 0 && activeSessions.has(userId)) {
-      enqueue("error", { message: "Browser process exited unexpectedly." });
-      terminateSession(userId);
-      close();
+    if (code !== 0 && isCurrent()) {
+      terminateSession(userId, "Browser process exited unexpectedly.");
     }
   });
 
   return true;
+}
+
+/** Routes one relayed viewer input to this instance's worker for `userId`. */
+function applyRelayedInput(userId: string, input: SsoInput): void {
+  try {
+    if (input.kind === "click") {
+      forwardClick(
+        userId,
+        input.x ?? 0,
+        input.y ?? 0,
+        input.viewportWidth ?? 0,
+        input.viewportHeight ?? 0
+      );
+    } else if (input.kind === "type" && input.text) {
+      forwardType(userId, input.text);
+    } else if (input.kind === "pause") {
+      setStreamingPaused(userId, input.paused ?? false);
+    }
+  } catch {
+    // Session ended between queue and delivery — nothing to forward to.
+  }
 }
 
 /**
@@ -235,14 +310,33 @@ export function setStreamingPaused(userId: string, paused: boolean): void {
 }
 
 /**
- * Abort and clean up a session for a user.
+ * Abort and clean up a session for a user. With `notify`, also sends the
+ * viewer that error and closes its stream — callers that finish the stream
+ * themselves (e.g. after saving cookies) omit it.
  */
-export function terminateSession(userId: string): void {
+export function terminateSession(userId: string, notify?: string): void {
   const session = activeSessions.get(userId);
   if (!session) return;
   activeSessions.delete(userId);
+  session.teardown();
   session.worker.postMessage({ type: "abort" });
   session.worker.terminate().catch(() => {});
+  if (notify !== undefined) {
+    session.enqueue?.("error", { message: notify });
+    session.close?.();
+  }
+}
+
+/**
+ * Terminates the user's session only if it is still `sessionId` — so a stale
+ * stream's abort/deadline can't kill a newer login on the same instance.
+ */
+export function terminateSessionIfCurrent(
+  userId: string,
+  sessionId: string,
+  notify?: string
+): void {
+  if (activeSessions.get(userId)?.sessionId === sessionId) terminateSession(userId, notify);
 }
 
 export function hasActiveSession(userId: string): boolean {

@@ -78,6 +78,49 @@ export default defineSchema({
     count: v.number(),
   }).index("by_userId", ["userId"]),
 
+  // Cross-instance rate limits for Next.js routes (see guards.ts).
+  // key = `${bucket}:${clerkId}`.
+  rateLimitBuckets: defineTable({
+    key: v.string(),
+    windowStart: v.number(),
+    count: v.number(),
+  })
+    .index("by_key", ["key"])
+    .index("by_windowStart", ["windowStart"]),
+
+  // Global concurrency cap on headless Chromium sessions (see guards.ts).
+  browserLeases: defineTable({
+    owner: v.string(),
+    kind: v.union(v.literal("canvasSso"), v.literal("browse")),
+    expiresAt: v.number(),
+  }).index("by_expiresAt", ["expiresAt"]),
+
+  // Short-lived Canvas SSO viewer input relayed to the instance running the
+  // headless browser (see ssoRelay.ts). Rows are deleted on delivery.
+  ssoInputs: defineTable({
+    clerkId: v.string(),
+    sessionId: v.string(),
+    kind: v.union(v.literal("click"), v.literal("type"), v.literal("pause")),
+    x: v.optional(v.number()),
+    y: v.optional(v.number()),
+    viewportWidth: v.optional(v.number()),
+    viewportHeight: v.optional(v.number()),
+    text: v.optional(v.string()),
+    paused: v.optional(v.boolean()),
+    expiresAt: v.number(),
+  })
+    .index("by_clerkId_sessionId", ["clerkId", "sessionId"])
+    .index("by_expiresAt", ["expiresAt"]),
+
+  // The user's current Canvas SSO stream; input is only delivered to it.
+  ssoSessions: defineTable({
+    clerkId: v.string(),
+    sessionId: v.string(),
+    expiresAt: v.number(),
+  })
+    .index("by_clerkId", ["clerkId"])
+    .index("by_expiresAt", ["expiresAt"]),
+
   courses: defineTable({
     userId: v.id("users"),
     canvasId: v.string(),

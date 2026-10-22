@@ -18,4 +18,7 @@ crons.daily(
   internal.auditLog.pruneOldEntries
 );
 
+// Sweep expired browser leases, SSO relay input, and stale rate-limit windows.
+crons.interval("prune-guards", { minutes: 10 }, internal.guards.pruneExpired);
+
 export default crons;

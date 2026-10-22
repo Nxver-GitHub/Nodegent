@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { fetchQuery, fetchMutation } from "convex/nextjs";
 import { api } from "@convex/_generated/api";
 import * as cheerio from "cheerio";
+import { enforceRateLimit } from "@/lib/convex-internal";
 
 export const maxDuration = 60;
 
@@ -147,6 +148,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const token = await getToken();
   if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  // Fans out one Pisa fetch per enrolled course — throttle across instances.
+  const limited = await enforceRateLimit("slugSchedule", userId);
+  if (limited) return limited;
+
   const term = currentUcscTerm();
 
   let courses: { courseCode: string }[];
@@ -183,7 +188,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         const parsed = parsePisaHtml(html, subject, catalogNbr);
         allListings.push(...parsed);
       } catch (err) {
-        errors.push(`${subject} ${catalogNbr}: ${err instanceof Error ? err.message : "fetch failed"}`);
+        console.error("[slugschedule] fetch failed:", subject, catalogNbr, err);
+        errors.push(`${subject} ${catalogNbr}: could not load schedule`);
       }
     })
   );

@@ -81,6 +81,8 @@ Copy `.env.example` to `.env.local` and fill in:
 npx convex env set CONVEX_INTERNAL_SECRET <your-generated-secret>
 ```
 
+- `CANVAS_COOKIE_KEY` (Convex env only) — encrypts stored Canvas cookies at rest. Generate with `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`. Set on dev **and** prod (`--prod`) before deploying; without it, Canvas connect fails closed. Losing or changing it invalidates stored cookies (users reconnect Canvas).
+
 ## Key Architecture Decisions
 
 - **Convex** owns all persistent state. The AI assistant reads campus data from Convex rather than holding credentials directly.
@@ -92,10 +94,8 @@ npx convex env set CONVEX_INTERNAL_SECRET <your-generated-secret>
 
 Canvas login uses a headless Playwright browser running in a Node.js worker thread:
 
-1. User submits CruzID + Gold Password → `POST /api/canvas-auth/start` (stages credentials in server memory)
-2. SSE stream opens (`GET /api/canvas-auth/stream`) → worker starts, screenshots streamed to UI
-3. User can interact (e.g. approve Duo MFA) by clicking the live browser mirror
-4. On success, worker posts cookies → stored in `extractedCookies` map (server-side only)
-5. Client calls `POST /api/canvas-auth/save` → cookies written to Convex via `saveCanvasCookiesInternal` mutation
+1. User submits CruzID + Gold Password → `POST /api/canvas-auth/stream` (one long-lived SSE connection). The route rate-limits (Convex `guards.consumeRateLimit`), takes a global browser lease (`guards.acquireBrowserLease`, max 8 concurrent), and starts the worker; screenshots stream to the UI
+2. User interacts (e.g. Duo MFA) by clicking the live mirror or typing a passcode → `POST /api/canvas-auth/{click,type,pause}` queue input in Convex `ssoInputs`; the stream instance subscribes (`ssoRelay.pendingInputs`) and claims rows (`ssoRelay.takeInputs`), so it works when requests land on different Vercel instances
+3. On success the stream route saves cookies via `canvas.saveCanvasCookiesFromServer` — filtered to Canvas-bound cookies and AES-GCM encrypted (`CANVAS_COOKIE_KEY`). Cookies never reach the browser
 
-**Why `CONVEX_INTERNAL_SECRET`:** Server-to-Convex calls from Next.js Route Handlers use a shared secret instead of a Clerk JWT template (which is not configured). The secret is validated inside the Convex mutation before any data is written. It must be set in both `.env.local` and the Convex dashboard.
+**Why `CONVEX_INTERNAL_SECRET`:** Server-to-Convex calls from Next.js Route Handlers use a shared secret instead of forwarding the Clerk session token (which expires in ~60 s, shorter than a Duo login). Secret-gated Convex functions validate it with `assertInternalSecret` (`convex/internalSecret.helpers.ts`) and trust the clerkId the route passes, so routes must authenticate with Clerk first. It must be set in both `.env.local`/Vercel and the Convex dashboard.

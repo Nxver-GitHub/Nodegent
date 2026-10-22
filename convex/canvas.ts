@@ -1,7 +1,10 @@
 import { action, internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { internal, api } from "./_generated/api";
 import { v } from "convex/values";
+import { DEFAULT_GROQ_MODEL } from "./groqModel.helpers";
 import { Id } from "./_generated/dataModel";
+import { decryptCookies, encryptCookies } from "./cookieCrypto.helpers";
+import { assertInternalSecret } from "./internalSecret.helpers";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -81,6 +84,19 @@ class CanvasSessionExpiredError extends Error {
 // Pagination helper — follows Canvas Link header rel="next" using Cookie auth
 // ---------------------------------------------------------------------------
 
+/**
+ * Cookie-bearing Canvas request. Redirects aren't followed: Canvas only
+ * redirects when the session is gone (to SSO login), and following would send
+ * the Cookie header wherever the Location points.
+ */
+function canvasRequestInit(cookieHeader: string): RequestInit {
+  return { headers: { Cookie: cookieHeader, Accept: "application/json" }, redirect: "manual" };
+}
+
+function isRedirect(res: Response): boolean {
+  return res.type === "opaqueredirect" || (res.status >= 300 && res.status < 400);
+}
+
 async function fetchAllPagesWithCookies<T>(
   url: string,
   cookieHeader: string
@@ -88,17 +104,15 @@ async function fetchAllPagesWithCookies<T>(
   const results: T[] = [];
   let nextUrl: string | null = url;
   let pageCount = 0;
+  // The Cookie header is a full Canvas session — only ever send it back to the
+  // origin we started on, never to wherever an upstream Link header points.
+  const allowedOrigin = new URL(url).origin;
 
   while (nextUrl && pageCount < MAX_PAGES) {
-    const response: Response = await fetch(nextUrl, {
-      headers: {
-        Cookie: cookieHeader,
-        Accept: "application/json",
-      },
-    });
+    const response: Response = await fetch(nextUrl, canvasRequestInit(cookieHeader));
 
     if (!response.ok) {
-      if (response.status === 401 || response.status === 302) {
+      if (response.status === 401 || isRedirect(response)) {
         throw new CanvasSessionExpiredError(
           "Canvas session expired. Please reconnect Canvas in the dashboard."
         );
@@ -120,6 +134,11 @@ async function fetchAllPagesWithCookies<T>(
       /<([^>]+)>;\s*rel="next"/
     );
     nextUrl = nextMatch ? nextMatch[1] : null;
+    if (nextUrl) {
+      let nextOrigin: string | null = null;
+      try { nextOrigin = new URL(nextUrl).origin; } catch { /* malformed */ }
+      if (nextOrigin !== allowedOrigin) nextUrl = null;
+    }
   }
 
   return results;
@@ -136,6 +155,15 @@ export const getCredentialsForAction = internalQuery({
       .query("canvasCredentials")
       .withIndex("by_userId", (q) => q.eq("userId", args.userId))
       .unique();
+  },
+});
+
+/** Returns the course's Canvas ID only when the course belongs to `userId`. */
+export const getOwnedCourseCanvasId = internalQuery({
+  args: { courseId: v.id("courses"), userId: v.id("users") },
+  handler: async (ctx, args): Promise<string | null> => {
+    const course = await ctx.db.get(args.courseId);
+    return course && course.userId === args.userId ? course.canvasId : null;
   },
 });
 
@@ -249,6 +277,65 @@ export const getCanvasStatus = query({
 // Called from /api/canvas-auth/save after Playwright SSO completes
 // ---------------------------------------------------------------------------
 
+const MAX_COOKIES_JSON_BYTES = 64 * 1024;
+const MAX_COOKIES = 100;
+
+/** Browser cookie domain-match: would this cookie be sent to `host`? */
+function cookieMatchesHost(cookie: PlaywrightCookie, host: string): boolean {
+  const domain = (cookie.domain ?? "").toLowerCase();
+  if (!domain) return false;
+  if (domain.startsWith(".")) {
+    return host === domain.slice(1) || host.endsWith(domain);
+  }
+  return host === domain;
+}
+
+/**
+ * Validates the worker's cookie dump, keeps only cookies a browser would send
+ * to Canvas (drops SSO/Duo cookies for other hosts), strips extra fields, and
+ * encrypts the result bound to `userId`.
+ */
+async function prepareCookiesForStorage(
+  cookiesJson: string,
+  userId: Id<"users">
+): Promise<string> {
+  if (cookiesJson.length > MAX_COOKIES_JSON_BYTES) {
+    throw new Error("Cookie payload too large");
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(cookiesJson);
+  } catch {
+    throw new Error("cookiesJson must be a valid JSON array");
+  }
+  if (!Array.isArray(parsed)) throw new Error("cookiesJson must be a valid JSON array");
+
+  const canvasHost = new URL(CANVAS_BASE_URL).hostname;
+  const cookies: PlaywrightCookie[] = parsed
+    .filter(
+      (c): c is PlaywrightCookie =>
+        !!c && typeof c === "object" &&
+        typeof (c as PlaywrightCookie).name === "string" &&
+        typeof (c as PlaywrightCookie).value === "string"
+    )
+    .filter((c) => cookieMatchesHost(c, canvasHost))
+    .slice(0, MAX_COOKIES)
+    .map(({ name, value, domain, path }) => ({ name, value, domain, path }));
+
+  if (cookies.length === 0) {
+    throw new Error("No Canvas session cookies were provided");
+  }
+  return encryptCookies(JSON.stringify(cookies), userId);
+}
+
+/** Reads stored cookies (encrypted or legacy plaintext) for `userId`. */
+async function loadStoredCookies(
+  stored: string,
+  userId: Id<"users">
+): Promise<PlaywrightCookie[]> {
+  return JSON.parse(await decryptCookies(stored, userId)) as PlaywrightCookie[];
+}
+
 export const saveCanvasCookies = action({
   args: {
     // JSON-serialized array of Playwright cookie objects
@@ -263,23 +350,50 @@ export const saveCanvasCookies = action({
     // where Canvas auth completes before the dashboard useEffect fires).
     const userId = await ctx.runMutation(api.users.ensureUser, {});
 
-    let cookies: PlaywrightCookie[];
-    try {
-      const parsed: unknown = JSON.parse(args.cookiesJson);
-      if (!Array.isArray(parsed)) throw new Error("Not an array");
-      cookies = parsed as PlaywrightCookie[];
-    } catch {
-      throw new Error("cookiesJson must be a valid JSON array");
-    }
+    await ctx.runMutation(internal.canvas.upsertCanvasCookies, {
+      userId,
+      canvasCookies: await prepareCookiesForStorage(args.cookiesJson, userId),
+      canvasBaseUrl: args.canvasBaseUrl,
+    });
 
-    if (cookies.length === 0) {
-      throw new Error("No Canvas session cookies were provided");
-    }
+    await ctx.runMutation(internal.auditLog.logAction, {
+      userId,
+      action: "canvas_connected",
+      status: "success",
+    });
+  },
+});
+
+export const getUserIdByClerkId = internalQuery({
+  args: { clerkId: v.string() },
+  handler: async (ctx, args): Promise<Id<"users"> | null> => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", args.clerkId))
+      .unique();
+    return user?._id ?? null;
+  },
+});
+
+/**
+ * Server-to-server save used by /api/canvas-auth/stream when the SSO worker
+ * finishes. Gated by CONVEX_INTERNAL_SECRET rather than the user's Clerk token,
+ * which has usually expired by the time a Duo approval completes. The route
+ * calls users.ensureUser with a fresh token at stream start, so the row exists.
+ */
+export const saveCanvasCookiesFromServer = action({
+  args: { secret: v.string(), clerkId: v.string(), cookiesJson: v.string() },
+  handler: async (ctx, args): Promise<void> => {
+    assertInternalSecret(args.secret);
+    const userId = await ctx.runQuery(internal.canvas.getUserIdByClerkId, {
+      clerkId: args.clerkId,
+    });
+    if (!userId) throw new Error("User not found");
 
     await ctx.runMutation(internal.canvas.upsertCanvasCookies, {
       userId,
-      canvasCookies: JSON.stringify(cookies),
-      canvasBaseUrl: args.canvasBaseUrl,
+      canvasCookies: await prepareCookiesForStorage(args.cookiesJson, userId),
+      canvasBaseUrl: CANVAS_BASE_URL,
     });
 
     await ctx.runMutation(internal.auditLog.logAction, {
@@ -398,6 +512,13 @@ export const syncCanvas = action({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
 
+    // Each sync fans out many cookie-authed Canvas requests — throttle per user.
+    const limit = await ctx.runMutation(internal.guards.consumeRateLimitInternal, {
+      bucket: "canvasSync",
+      clerkId: identity.subject,
+    });
+    if (!limit.ok) throw new Error("Canvas was synced moments ago. Please wait a minute and try again.");
+
     const user = await ctx.runQuery(api.users.getCurrentUser, {});
     if (!user) throw new Error("User not found");
 
@@ -419,7 +540,7 @@ export const syncCanvas = action({
 
     let cookies: PlaywrightCookie[];
     try {
-      cookies = JSON.parse(creds.canvasCookies) as PlaywrightCookie[];
+      cookies = await loadStoredCookies(creds.canvasCookies, user._id);
     } catch {
       throw new Error("Failed to read Canvas credentials. Please reconnect Canvas.");
     }
@@ -430,9 +551,7 @@ export const syncCanvas = action({
       // Fetch the student's own Canvas profile to get their real name, then
       // patch the user record if it still holds the "Student" placeholder.
       try {
-        const profileRes = await fetch(`${baseUrl}/api/v1/users/self/profile`, {
-          headers: { Cookie: cookieHeader, Accept: "application/json" },
-        });
+        const profileRes = await fetch(`${baseUrl}/api/v1/users/self/profile`, canvasRequestInit(cookieHeader));
         if (profileRes.ok) {
           const profile = await profileRes.json() as { name?: string; short_name?: string };
           const canvasName = profile.short_name ?? profile.name;
@@ -462,11 +581,11 @@ export const syncCanvas = action({
           const [teacherRes, taRes] = await Promise.all([
             fetch(
               `${baseUrl}/api/v1/courses/${course.id}/enrollments?type[]=TeacherEnrollment&per_page=5`,
-              { headers: { Cookie: cookieHeader, Accept: "application/json" } }
+              canvasRequestInit(cookieHeader)
             ),
             fetch(
               `${baseUrl}/api/v1/courses/${course.id}/enrollments?type[]=TaEnrollment&per_page=20`,
-              { headers: { Cookie: cookieHeader, Accept: "application/json" } }
+              canvasRequestInit(cookieHeader)
             ),
           ]);
           if (teacherRes.ok) {
@@ -499,7 +618,7 @@ export const syncCanvas = action({
         try {
           const enrollRes = await fetch(
             `${baseUrl}/api/v1/courses/${course.id}/enrollments?user_id=self`,
-            { headers: { Cookie: cookieHeader, Accept: "application/json" } }
+            canvasRequestInit(cookieHeader)
           );
           if (enrollRes.ok) {
             const enrollments = (await enrollRes.json()) as CanvasEnrollment[];
@@ -534,7 +653,7 @@ export const syncCanvas = action({
           ),
           fetch(
             `${baseUrl}/api/v1/courses/${course.id}/students/submissions?student_ids[]=self&per_page=100`,
-            { headers: { Cookie: cookieHeader, Accept: "application/json" } }
+            canvasRequestInit(cookieHeader)
           ).then((r) => (r.ok ? (r.json() as Promise<CanvasSubmission[]>) : Promise.resolve([] as CanvasSubmission[])))
             .catch(() => [] as CanvasSubmission[]),
         ]);
@@ -640,8 +759,23 @@ export const extractOfficeHours = action({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
 
+    const limit = await ctx.runMutation(internal.guards.consumeRateLimitInternal, {
+      bucket: "officeHours",
+      clerkId: identity.subject,
+    });
+    if (!limit.ok) return { professor: null, tas: null };
+
     const user = await ctx.runQuery(api.users.getCurrentUser, {});
     if (!user) return { professor: null, tas: null };
+
+    // Use the canvasId stored on the caller's own course row — never the
+    // client-supplied one — so the cookie-authed fetch below can't be pointed
+    // at an arbitrary Canvas path or another user's course.
+    const canvasId = await ctx.runQuery(internal.canvas.getOwnedCourseCanvasId, {
+      courseId: args.courseId,
+      userId: user._id,
+    });
+    if (!canvasId || !/^\d+$/.test(canvasId)) return { professor: null, tas: null };
 
     const creds = await ctx.runQuery(internal.canvas.getCredentialsForAction, {
       userId: user._id,
@@ -651,7 +785,7 @@ export const extractOfficeHours = action({
     const baseUrl = creds.canvasBaseUrl ?? CANVAS_BASE_URL;
     let cookies: PlaywrightCookie[];
     try {
-      cookies = JSON.parse(creds.canvasCookies) as PlaywrightCookie[];
+      cookies = await loadStoredCookies(creds.canvasCookies, user._id);
     } catch {
       return { professor: null, tas: null };
     }
@@ -661,8 +795,8 @@ export const extractOfficeHours = action({
     let sourceText: string | null = null;
     try {
       const res = await fetch(
-        `${baseUrl}/api/v1/courses/${args.canvasId}?include[]=syllabus_body`,
-        { headers: { Cookie: cookieHeader, Accept: "application/json" } }
+        `${baseUrl}/api/v1/courses/${canvasId}?include[]=syllabus_body`,
+        canvasRequestInit(cookieHeader)
       );
       if (res.ok) {
         const data = (await res.json()) as { syllabus_body?: string | null };
@@ -673,8 +807,8 @@ export const extractOfficeHours = action({
     if (!sourceText) {
       try {
         const res = await fetch(
-          `${baseUrl}/api/v1/courses/${args.canvasId}/front_page`,
-          { headers: { Cookie: cookieHeader, Accept: "application/json" } }
+          `${baseUrl}/api/v1/courses/${canvasId}/front_page`,
+          canvasRequestInit(cookieHeader)
         );
         if (res.ok) {
           const data = (await res.json()) as { body?: string | null };
@@ -722,7 +856,7 @@ export const extractOfficeHours = action({
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: process.env.GROQ_MODEL ?? "meta-llama/llama-4-scout-17b-16e-instruct",
+          model: process.env.GROQ_MODEL ?? DEFAULT_GROQ_MODEL,
           messages: [
             { role: "system", content: systemPrompt + "\n\n<<<SYLLABUS>>>\n" + plainText },
           ],
@@ -772,7 +906,7 @@ export const extractOfficeHours = action({
           action: "office_hours_viewed",
           status: "success",
           details: JSON.stringify({
-            courseCode: args.courseCode ?? args.canvasId,
+            courseCode: args.courseCode ?? canvasId,
             source: "extraction",
             found,
           }),

@@ -7,6 +7,7 @@ import {
 } from "./_generated/server";
 import { internal, api } from "./_generated/api";
 import { v } from "convex/values";
+import { DEFAULT_GROQ_MODEL } from "./groqModel.helpers";
 import type { Id } from "./_generated/dataModel";
 import { dispatchMcpTool } from "./mcpTools";
 
@@ -964,7 +965,7 @@ export const sendMessage = action({
     } else if (process.env.GROQ_API_KEY) {
       const groqCallArgs = {
         apiKey: process.env.GROQ_API_KEY,
-        model: process.env.GROQ_MODEL ?? "meta-llama/llama-4-scout-17b-16e-instruct",
+        model: process.env.GROQ_MODEL ?? DEFAULT_GROQ_MODEL,
         system,
         contextText,
         messages: history.concat([{ role: "user", content }]),
@@ -1041,7 +1042,7 @@ export const sendMessage = action({
         if (toolResultText !== null) {
           llmResult = await callGroq({
             apiKey: process.env.GROQ_API_KEY,
-            model: process.env.GROQ_MODEL ?? "meta-llama/llama-4-scout-17b-16e-instruct",
+            model: process.env.GROQ_MODEL ?? DEFAULT_GROQ_MODEL,
             system,
             contextText,
             messages: [

@@ -6,18 +6,23 @@
  *
  * Body: { paused: boolean }
  *
- * Security: Requires Clerk auth. No-op if no active session exists.
+ * Security: Requires Clerk auth. Relayed via Convex so it reaches the instance
+ * running the browser; no-op if no active session exists.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { setStreamingPaused } from "@/lib/canvas-sso-state";
+import { enforceRateLimit } from "@/lib/convex-internal";
+import { queueSsoInput } from "@/lib/sso-input-relay";
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const { userId } = await auth();
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const limited = await enforceRateLimit("canvasInput", userId);
+  if (limited) return limited;
 
   let body: unknown;
   try {
@@ -35,6 +40,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "paused must be a boolean" }, { status: 400 });
   }
 
-  setStreamingPaused(userId, paused);
-  return NextResponse.json({ ok: true });
+  try {
+    const result = await queueSsoInput(userId, { kind: "pause", paused });
+    return NextResponse.json({ ok: result.ok });
+  } catch (err) {
+    console.error("[canvas-auth/pause] relay failed:", err);
+    return NextResponse.json({ ok: false });
+  }
 }

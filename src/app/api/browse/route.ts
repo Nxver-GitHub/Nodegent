@@ -1,17 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { timingSafeEqual } from "node:crypto";
+import { randomUUID, timingSafeEqual } from "node:crypto";
 import { isAllowedUrl, isPrivateHost } from "@/lib/browse-allowlist";
-import { rateLimit } from "@/lib/rate-limit";
+import {
+  acquireBrowserLease,
+  enforceRateLimit,
+  releaseBrowserLease,
+} from "@/lib/convex-internal";
 import type { Page } from "playwright";
 
 export const maxDuration = 30;
 
-// Each browse spawns a headless Chromium, so direct (browser) calls are capped
-// per user. Internal Convex-to-Next calls (chat browse tool) are exempt — they
-// are authenticated by the shared secret and throttled upstream in chat.
-const RATE_LIMIT = 10;
-const RATE_WINDOW_MS = 60_000;
+// Each browse spawns a headless Chromium, so direct (browser) calls are rate
+// limited per user across instances. Internal Convex-to-Next calls (chat browse
+// tool) skip the per-user limit — they are authenticated by the shared secret
+// and throttled upstream in chat — but every call takes a global browser lease.
+const BROWSER_LEASE_TTL_MS = (maxDuration + 5) * 1000;
 
 // Pisa needs form-fill + AJAX submit — plain goto returns an empty shell.
 async function browsePisa(page: Page, params: URLSearchParams): Promise<string> {
@@ -68,17 +72,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     Boolean(internalSecret) && Boolean(callerSecret) &&
     secretsMatch(internalSecret!, callerSecret!);
 
+  // Internal calls have no user; give each its own owner so only the global
+  // cap (not the per-owner cap) applies.
+  let leaseOwner = `internal:${randomUUID()}`;
   if (!isInternalCall) {
     const { userId } = await auth();
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const limit = rateLimit(`browse:${userId}`, RATE_LIMIT, RATE_WINDOW_MS);
-    if (!limit.ok) {
-      return NextResponse.json(
-        { error: "Too many requests" },
-        { status: 429, headers: { "Retry-After": String(Math.ceil(limit.retryAfterMs / 1000)) } }
-      );
-    }
+    const limited = await enforceRateLimit("browse", userId);
+    if (limited) return limited;
+    leaseOwner = userId;
   }
 
   let body: unknown;
@@ -86,6 +89,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
+  if (!body || typeof body !== "object") {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
   const { url, query } = body as { url?: string; query?: string };
 
   if (!url || typeof url !== "string") {
@@ -109,9 +115,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   void query; // reserved for future semantic search over page text
 
+  const leaseId = await acquireBrowserLease("browse", leaseOwner, BROWSER_LEASE_TTL_MS).catch(
+    (err: unknown) => {
+      console.error("[browse] lease unavailable:", err);
+      return null;
+    }
+  );
+  if (!leaseId) {
+    return NextResponse.json(
+      { error: "Browser capacity reached, try again shortly" },
+      { status: 503, headers: { "Retry-After": "10" } }
+    );
+  }
+
+  let browser: import("playwright").Browser | null = null;
   try {
     const { chromium } = await import("playwright");
-    const browser = await chromium.launch({ headless: true });
+    browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();
 
     // Private-IP block applies to ALL requests (navigation + subresources) to prevent
@@ -144,12 +164,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         : await page
             .goto(url, { waitUntil: "networkidle", timeout: 25000 })
             .then(() => page.evaluate(() => document.body.innerText));
-    await browser.close();
-    const text = rawText;
     const trimmed = rawText.replace(/\s+/g, " ").trim().slice(0, 3000);
     return NextResponse.json({ text: trimmed, url });
   } catch (err: unknown) {
     console.error("[browse] error:", err);
     return NextResponse.json({ error: "Browse request failed" }, { status: 500 });
+  } finally {
+    // Always reap Chromium — a throw from goto/waitForSelector must not leak it.
+    await browser?.close().catch(() => undefined);
+    await releaseBrowserLease(leaseId);
   }
 }

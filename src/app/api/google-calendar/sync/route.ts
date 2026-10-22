@@ -16,6 +16,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { fetchQuery, fetchMutation } from "convex/nextjs";
 import { api } from "@convex/_generated/api";
+import { enforceRateLimit } from "@/lib/convex-internal";
 import {
   createCalendarEvent,
   updateCalendarEvent,
@@ -35,6 +36,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!token) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const limited = await enforceRateLimit("calendarSync", userId);
+  if (limited) return limited;
 
   // Check access toggle — calendarEnabled === false means sync is paused
   const settings = await fetchQuery(api.users.getUserSettings, {}, { token });
@@ -131,9 +135,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         eventsPushed++;
       } catch (err) {
         // Don't abort the whole sync for a single assignment failure
-        pushErrors.push(
-          `${assignment.title}: ${err instanceof Error ? err.message : "unknown error"}`
-        );
+        console.error("[calendar-sync] push failed:", err);
+        pushErrors.push(`${assignment.title}: could not be added to Google Calendar`);
       }
     }
 
@@ -213,7 +216,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       ...(pushErrors.length > 0 ? { pushErrors } : {}),
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Sync failed";
+    const raw = err instanceof Error ? err.message : "";
+    console.error("[calendar-sync] failed:", err);
+    // Surface auth errors explicitly so the UI can show re-sign-in prompt.
+    // Everything else gets a fixed message — raw upstream errors stay in logs.
+    const isAuthError =
+      raw.startsWith("GOOGLE_AUTH_EXPIRED") || raw.startsWith("GOOGLE_FORBIDDEN");
+    const message = isAuthError
+      ? raw.replace(/^GOOGLE_[A-Z_]+:\s*/, "") // our own copy from lib/google-calendar
+      : "Calendar sync failed. Please try again.";
 
     await fetchMutation(
       api.googleCalendar.updateCalendarSyncStatus,
@@ -223,8 +234,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // Don't swallow the original error if status update fails
     });
 
-    // Surface auth errors explicitly so the UI can show re-sign-in prompt
-    if (message.startsWith("GOOGLE_AUTH_EXPIRED") || message.startsWith("GOOGLE_FORBIDDEN")) {
+    if (isAuthError) {
       return NextResponse.json({ error: message, code: "GOOGLE_AUTH_ERROR" }, { status: 403 });
     }
 

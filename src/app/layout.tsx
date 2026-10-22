@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { IBM_Plex_Sans, Caveat } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { ConvexClientProvider } from "@/lib/convex-client-provider";
@@ -32,17 +33,21 @@ export const metadata: Metadata = {
   }),
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // Per-request CSP nonce from clerkMiddleware (strict CSP). `dynamic` lets
+  // ClerkProvider read it too, so Clerk's own script tags carry the nonce.
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
-    <ClerkProvider>
+    <ClerkProvider dynamic>
       <html lang="en" suppressHydrationWarning>
         <head>
           {/* Apply stored theme before first paint to prevent flash */}
           <script
+            nonce={nonce}
             dangerouslySetInnerHTML={{
               __html: `(function(){try{var t=localStorage.getItem('nodegent-theme');if(t!=='dark')document.documentElement.classList.add('light');}catch(e){}})();`,
             }}

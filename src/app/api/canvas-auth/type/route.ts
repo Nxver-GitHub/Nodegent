@@ -10,13 +10,15 @@
  * Security:
  *  - Requires Clerk auth.
  *  - Input is stripped to digits and capped at 16 characters.
- *  - Returns { ok: false } (not 4xx) when no active session exists so the
+ *  - Relayed via Convex so it reaches the instance running the browser.
+ *  - Returns { ok: false } (not 4xx) when the relay can't accept input so the
  *    client can show a graceful retry message rather than a hard error.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { forwardType } from "@/lib/canvas-sso-state";
+import { enforceRateLimit } from "@/lib/convex-internal";
+import { queueSsoInput } from "@/lib/sso-input-relay";
 
 const MAX_PASSCODE_LEN = 16;
 
@@ -25,6 +27,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const limited = await enforceRateLimit("canvasInput", userId);
+  if (limited) return limited;
 
   let body: unknown;
   try {
@@ -49,9 +54,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    forwardType(userId, sanitized);
-    return NextResponse.json({ ok: true });
-  } catch {
-    return NextResponse.json({ ok: false, reason: "no-session" });
+    const result = await queueSsoInput(userId, { kind: "type", text: sanitized });
+    return NextResponse.json(result);
+  } catch (err) {
+    console.error("[canvas-auth/type] relay failed:", err);
+    return NextResponse.json({ ok: false, reason: "relay-error" });
   }
 }

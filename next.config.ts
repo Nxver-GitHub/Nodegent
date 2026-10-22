@@ -9,23 +9,12 @@ const securityHeaders = [
     key: "Strict-Transport-Security",
     value: "max-age=63072000; includeSubDomains; preload",
   },
-  {
-    key: "Content-Security-Policy",
-    value: [
-      "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' https://clerk.accounts.dev https://*.clerk.accounts.dev https://clerk.nodegent.app https://challenges.cloudflare.com",
-      "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob: https://img.clerk.com https://res.cloudinary.com",
-      "font-src 'self'",
-      "worker-src 'self' blob:",
-      "connect-src 'self' https://*.convex.cloud wss://*.convex.cloud https://*.clerk.accounts.dev https://clerk.accounts.dev https://clerk.nodegent.app https://accounts.nodegent.app https://clerk-telemetry.com https://*.instructure.com https://pisa.ucsc.edu",
-      "frame-src 'self' https://clerk.accounts.dev https://*.clerk.accounts.dev https://clerk.nodegent.app https://accounts.nodegent.app https://challenges.cloudflare.com https://cabalex.github.io https://santacruz-sidekick.vercel.app",
-      "frame-ancestors 'none'",
-    ].join("; "),
-  },
+  // Content-Security-Policy is set per request by clerkMiddleware (strict,
+  // nonce-based) in src/middleware.ts — a second CSP here would intersect it.
 ];
 
 const nextConfig: NextConfig = {
+  poweredByHeader: false,
   serverExternalPackages: ["playwright", "playwright-core", "@sparticuz/chromium"],
   outputFileTracingIncludes: {
     "/**": [

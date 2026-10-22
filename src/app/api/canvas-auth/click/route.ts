@@ -8,17 +8,22 @@
  * Security:
  *  - Requires Clerk auth.
  *  - All coordinates are validated as finite numbers before forwarding.
+ *  - Relayed via Convex so it reaches the instance running the browser.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { forwardClick } from "@/lib/canvas-sso-state";
+import { enforceRateLimit } from "@/lib/convex-internal";
+import { queueSsoInput } from "@/lib/sso-input-relay";
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const { userId } = await auth();
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const limited = await enforceRateLimit("canvasInput", userId);
+  if (limited) return limited;
 
   let body: unknown;
   try {
@@ -45,17 +50,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    forwardClick(
-      userId,
-      x as number,
-      y as number,
-      viewportWidth as number,
-      viewportHeight as number
-    );
-    return NextResponse.json({ ok: true });
-  } catch {
-    // No active session on this instance (multi-instance serverless routing).
-    // Return 200 so the client doesn't log console errors; clicking is best-effort.
-    return NextResponse.json({ ok: false, reason: "no-session" });
+    const result = await queueSsoInput(userId, {
+      kind: "click",
+      x: x as number,
+      y: y as number,
+      viewportWidth: viewportWidth as number,
+      viewportHeight: viewportHeight as number,
+    });
+    // Best-effort: { ok:false, reason: "no-session" | "busy" } lets the UI retry.
+    return NextResponse.json(result);
+  } catch (err) {
+    console.error("[canvas-auth/click] relay failed:", err);
+    return NextResponse.json({ ok: false, reason: "relay-error" });
   }
 }
