@@ -1,6 +1,7 @@
 import { action, internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { internal, api } from "./_generated/api";
 import { v } from "convex/values";
+import { DEFAULT_GROQ_MODEL } from "./groqModel.helpers";
 import { Id } from "./_generated/dataModel";
 import { decryptCookies, encryptCookies } from "./cookieCrypto.helpers";
 import { assertInternalSecret } from "./internalSecret.helpers";
@@ -836,7 +837,7 @@ export const extractOfficeHours = action({
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: process.env.GROQ_MODEL ?? "meta-llama/llama-4-scout-17b-16e-instruct",
+          model: process.env.GROQ_MODEL ?? DEFAULT_GROQ_MODEL,
           messages: [
             { role: "system", content: systemPrompt + "\n\n<<<SYLLABUS>>>\n" + plainText },
           ],
