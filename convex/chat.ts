@@ -942,8 +942,11 @@ export const sendMessage = action({
       "Use bullet lists for multiple items. Never invent URLs — only use links that are explicitly present in the context. " +
       `The current UCSC quarter is ${termNow.name} (term code ${termNow.code}); next quarter is ${termNext.name} (${termNext.code}). ` +
       "The STUDENT'S OWN CANVAS ENROLLMENTS section lists only the classes this student is taking — it is NOT the UCSC course catalog. " +
-      "Questions about what courses are offered, available, or open in a term must be answered by calling search_classes " +
-      "(or browse_web on pisa.ucsc.edu), never from the student's enrollments. If the tool returns nothing or is unavailable, say so instead of listing enrollments." +
+      "Questions about what courses are offered, available, or open in a term must be answered by calling " +
+      (enabledMcpToolNames.has("search_classes")
+        ? "search_classes (or browse_web on pisa.ucsc.edu)"
+        : "browse_web on pisa.ucsc.edu") +
+      ", never from the student's enrollments. If the tool returns nothing or is unavailable, say so instead of listing enrollments." +
       (enabledMcpToolNames.size > 0
         ? " You have access to live campus data tools — search_classes (course availability), get_dining_menu (dining hall menus), and search_directory (people at UCSC). Always call the relevant tool when the user asks about live course or dining data, and base your answer ONLY on what that tool returns." +
           " CRITICAL — never fabricate live data: do not invent or guess menu items, dishes, dining halls, course sections, instructors, or meeting times; report only what appears verbatim in the tool result." +
