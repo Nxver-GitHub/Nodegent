@@ -63,4 +63,23 @@ describe("chat → Groq", () => {
     expect(bodies).toHaveLength(2);
     expect(messages.find((m) => m.role === "assistant")?.content).toBe("after retry");
   });
+
+  it("removes the user's message when no reply could be generated", async () => {
+    const t = convexTest(schema);
+    await t.withIdentity(identity).mutation(api.users.ensureUser, {});
+    stubGroq(
+      () => groqReply("first answer"),
+      () => new Response("{}", { status: 500 })
+    );
+
+    const { threadId } = await t
+      .withIdentity(identity)
+      .action(api.chat.sendMessage, { content: "first question" });
+    await expect(
+      t.withIdentity(identity).action(api.chat.sendMessage, { threadId, content: "lost question" })
+    ).rejects.toThrow();
+
+    const messages = await t.withIdentity(identity).query(api.chat.listMessages, { threadId });
+    expect(messages.map((m) => m.content)).toEqual(["first question", "first answer"]);
+  });
 });
